@@ -1,0 +1,24 @@
+---
+id: "28d7f0cd-422c-40a7-8bad-fcb6301896a5"
+name: "Adventures Guild"
+factionType: "Guild"
+alignment: "Lawful Neutral"
+status: "Active"
+description: "A network guild that is housed in all major and minor cities for adventures to both get their license and take local jobs."
+history: "Established in Year 100. As of its founding, an official Adventurers License is required to enter any of the world's dungeons or to accept professional quests and jobs. The guild's creation marked the beginning of the Age of the Adventurers and brought formal regulation to dungeon delving and contracted work."
+leader: ""
+headquarters: ""
+location: ""
+goals: "Issue Adventurers Licenses, regulate dungeon entry, post and broker quests/jobs for licensed adventurers."
+membership: [{"id":"896d24f6-307a-4728-a67a-74aa6638024f","title":"F-Rank","members":[],"benefits":"Basics"},{"id":"6eb7bb79-2e42-4530-9375-8f6c086e3962","title":"D-Rank","members":[],"benefits":""},{"id":"f06a2a89-34b2-47dd-99cc-d2da977986fa","title":"C-Rank","members":[],"benefits":""},{"id":"a3b3e817-4c41-4c7a-8131-a7c5a1a96ff1","title":"B-Rank","members":[],"benefits":""},{"id":"7059cd55-818b-4d5e-b611-e3d41a1bcb83","title":"A-Rank","members":[],"benefits":""},{"id":"72487644-2c35-4efe-9cc1-0575f643a221","title":"S-Rank","members":[],"benefits":""}]
+resources: ""
+allies: ""
+enemies: ""
+notableMembers: []
+image: ""
+notes: ""
+tags: []
+updatedAt: 1777945707275
+createdAt: 1777388389143
+---
+

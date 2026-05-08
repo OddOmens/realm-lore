@@ -1,0 +1,15 @@
+---
+name: "uinij"
+canvasSize: {"w":2000,"h":1500}
+paperColor: "#efe6cc"
+pins: []
+protagonist: null
+strokes: []
+id: "706de32a-813f-4cf8-b517-99e75b0163f3"
+image: "__local__706de32a-813f-4cf8-b517-99e75b0163f3"
+updatedAt: 1777688962504
+createdAt: 1777649711971
+stamps: [{"id":"9f5a87fe-3885-42c6-80e8-bd487d8322de","x":0.5693321672896615,"y":0.2982934090206812,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"42dda949-00ec-4010-8e99-474f5fbb6c33","x":0.4546032826834862,"y":0.24255099115334214,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"d527106c-8f00-4a08-8117-dfeda752b2a5","x":0.5816922351134654,"y":0.30128820068734785,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"a11352b5-2c94-483c-bb09-0e788138266c","x":0.4533976183650065,"y":0.15686435124508524,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"capital"},{"id":"170566e9-babf-42f7-af25-9c03f4e92ed6","x":0.40154870815445737,"y":0.3433808750198348,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"963b29ff-6e1b-4003-bc26-83c534ab7e93","x":0.4316466566292783,"y":0.32765724022051523,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"c7f73535-667a-4338-bb39-00121ebcc94e","x":0.41600000000000004,"y":0.42666666666666664,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"3c0ff120-617e-4b7b-9e28-2b55596699bc","x":0.448,"y":0.42666666666666664,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"bca2c799-df05-4477-af84-7e5ff44821d2","x":0.496,"y":0.384,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"7426f1d2-cd30-4433-b79d-f6bf9ef835d1","x":0.48,"y":0.4053333333333333,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"c4c9309e-a8ac-43bc-b2e2-176aa54e2bf9","x":0.464,"y":0.384,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"9594e2f5-188f-46b0-b230-d998d3fe9e1f","x":0.464,"y":0.4053333333333333,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"},{"id":"2010bd3a-d308-48e9-bdb0-fd822711d8ec","x":0.464,"y":0.4053333333333333,"size":48,"rotation":0,"flipX":false,"flipY":false,"colorTint":null,"kind":"pines"}]
+layers: [{"id":"terrain","name":"Terrain","kind":"pen","visible":true,"color":"#1a1a1a","defaultSize":4},{"id":"rivers","name":"Rivers","kind":"pen","visible":true,"color":"#2563eb","defaultSize":3},{"id":"roads","name":"Roads","kind":"pen","visible":true,"color":"#7c2d12","defaultSize":3},{"id":"annotations","name":"Annotations","kind":"pen","visible":true,"color":"#dc2626","defaultSize":2},{"id":"stamps","name":"Stamps","kind":"stamps","visible":true},{"id":"pins","name":"Pins","kind":"pins","visible":true}]
+---
+

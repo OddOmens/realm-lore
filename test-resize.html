@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { background: #111; color: #fff; padding: 50px; font-family: sans-serif; }
+    .editor-container { position: relative; width: 600px; }
+    .pages-bg { position: absolute; inset: 0; z-index: 0; display: flex; flex-direction: column; gap: 32px; }
+    .page { width: 100%; height: 800px; background: #222; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+    textarea { position: relative; z-index: 1; width: 100%; min-height: 800px; background: transparent; border: none; color: inherit; font-size: 16px; line-height: 1.5; resize: none; overflow: hidden; padding: 40px; box-sizing: border-box; }
+  </style>
+</head>
+<body>
+  <div class="editor-container" id="container">
+    <div class="pages-bg" id="pages">
+      <div class="page"></div>
+    </div>
+    <textarea id="ta">Type here...</textarea>
+  </div>
+  <script>
+    const ta = document.getElementById('ta');
+    const pages = document.getElementById('pages');
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+      
+      const numPages = Math.ceil(ta.scrollHeight / 832); // 800 height + 32 gap
+      pages.innerHTML = Array(numPages).fill('<div class="page"></div>').join('');
+    });
+  </script>
+</body>
+</html>

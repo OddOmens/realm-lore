@@ -1,0 +1,16 @@
+---
+id: "2c274790-666b-4d9a-a520-0dc1174b6c7f"
+name: "Age of the Adventurers"
+_isTimelineEvent: true
+_order: 5
+year: 100
+era: ""
+date: "Spring"
+description: "To prevent just anyone entering dungeons or taking on jobs that require certain skills, Adventure licenses and the Adventures Guild was founded."
+type: "founding"
+linkedIds: ["fd85bd69-e85e-4029-b2cf-ea7ed56a229a","99169121-6ff0-436d-bfb1-613a982de0ee"]
+subtype: "Timeline"
+updatedAt: 1777497138332
+createdAt: 1777394641148
+---
+

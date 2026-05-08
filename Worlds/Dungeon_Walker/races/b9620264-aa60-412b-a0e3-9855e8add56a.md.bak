@@ -1,0 +1,22 @@
+---
+id: "b9620264-aa60-412b-a0e3-9855e8add56a"
+name: "Elf"
+type: "Race"
+status: "Rare"
+description: "A graceful and long-lived race with a natural attunement to the world around them — its forests, rivers, and the subtle currents of magic that run through living things. Elves are not common in cities but are not unknown in them either."
+lifespan: "Several hundred years. The oldest elves are living repositories of history."
+traits: "Naturally perceptive; attuned to magic and nature; exceptional archers and spellcasters. Their long lives grant patience that humans often mistake for aloofness."
+culture: "Elves tend to live in smaller, close-knit communities in forested or wild regions. They have their own traditions that predate most human institutions."
+abilities: "Heightened senses; natural aptitude for magic; low-light vision."
+weaknesses: "Their long lives mean slow population growth — there are never many of them."
+image: ""
+notes: ""
+tags: ["race","uncommon"]
+updatedAt: 1777906588189
+createdAt: 1777467430977
+physiology: "A graceful and long-lived race with a natural attunement to the world around them — its forests, rivers, and the subtle currents of magic that run through living things. Elves are not common in cities but are not unknown in them either."
+homeland: ""
+history: ""
+relations: ""
+---
+

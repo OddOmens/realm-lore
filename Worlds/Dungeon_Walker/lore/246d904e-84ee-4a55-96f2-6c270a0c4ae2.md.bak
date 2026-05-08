@@ -1,0 +1,16 @@
+---
+id: "246d904e-84ee-4a55-96f2-6c270a0c4ae2"
+name: "Founding of Merchants Guild"
+_isTimelineEvent: true
+_order: 6
+year: 70
+era: ""
+date: "Fall"
+description: "Merchants from around the world founded the Merchants Guild around Year 10, in the early years of recorded history. The guild grants licenses to those who wish to trade and buy goods between cities, becoming the first formal trade body of the world."
+type: "founding"
+linkedIds: ["2900ffb3-a9a6-48a5-aea5-dbf06e612da2"]
+subtype: "Timeline"
+updatedAt: 1777902271423
+createdAt: 1777401766757
+---
+

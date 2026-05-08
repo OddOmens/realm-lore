@@ -1,0 +1,16 @@
+---
+id: "6f2a3d4e-0a1b-4c5d-7e8f-9a0b1c2d3e4f"
+name: "The Unrecorded Era"
+_isTimelineEvent: true
+_order: -1
+year: -1
+era: ""
+date: "Unknown"
+description: "Before the start of recorded history, the world endured a long period without a calendar or written record. This era is remembered chiefly through fragmentary oral tradition: scattered monster battles fought by survivors and adventurers, and the first informal trade between settlements that would later grow into cities. The current calendar begins after this period, with [[The Start of Tracked History]] in Year 1."
+type: "event"
+linkedIds: ["fd85bd69-e85e-4029-b2cf-ea7ed56a229a"]
+subtype: "Timeline"
+updatedAt: 1777680000000
+createdAt: 1777680000000
+---
+

@@ -1,0 +1,25 @@
+---
+id: "1c287ffe-a327-4dcd-ba68-16f108455c8e"
+name: "Faela"
+updatedAt: 1777945822144
+createdAt: 1777735950941
+alias: "First Elf of Besnor,  The Besnor Elf, "
+role: "Ally"
+status: "Alive"
+age: "76"
+gender: "Female"
+race: "Elf"
+appearance: ""
+personality: ""
+background: ""
+motivation: ""
+abilities: ""
+weaknesses: ""
+image: ""
+notes: ""
+tags: []
+inventory: [{"id":"morcp24qha9fqzcnsbc","name":"Adventures License","qty":1,"rarity":"Common","location":"on_hand","notes":"A license that proves you are an adventures and the level of tasks and jobs you can take. It also provides entrance into","thingId":"99169121-6ff0-436d-bfb1-613a982de0ee"},{"id":"mord0gc41aeu69bzgo2h","name":"Leather Armor","qty":1,"rarity":"Common","location":"on_hand","notes":"Armor crafted from cured and hardened leather. Offers solid protection against glancing blows and light weapons while re","thingId":"011aecf2-b9bd-4216-999f-da6ac4986f37"},{"id":"mord0k8h2tcwtsy8fbh","name":"Iron Sword","qty":1,"rarity":"Common","location":"on_hand","notes":"A standard one-handed sword forged from iron. Reliable and widely available at any blacksmith or [[Merchants Guild]] hal","thingId":"2a932be1-5ba2-4a73-a4bb-e4f63b0b6e33"},{"id":"mord0nwvhgv5ilr3enl","name":"Dagger","qty":1,"rarity":"Common","location":"on_hand","notes":"A short, easily concealed blade. The dagger is the most common secondary weapon in the world — carried by adventurers, m","thingId":"74c80f40-96da-4abe-89fb-17bb26aa50e3"}]
+advRank: "C-Rank"
+merchRank: ""
+---
+

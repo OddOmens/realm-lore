@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 10% 3.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark, :root { /* Force dark theme everywhere since user wants Shadcn Dark Theme */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 6% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  html, body {
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    @apply font-sans;
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bottom nav safe-area padding — only on mobile */
+@media (max-width: 1023px) {
+  .mobile-bottom-pad {
+    padding-bottom: calc(52px + env(safe-area-inset-bottom));
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Book page — white card with shadow, used in story editor */
+.book-page {
+  background: #ffffff;
+  color: #1a1a1a;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08), 2px 0 0 #e8e4e0 inset, -2px 0 0 #e8e4e0 inset;
+}
+.book-page::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.04) 100%);
+  pointer-events: none;
+}
+
+/* Dark book page — matches app dark theme */
+/* 5×8 in paperback proportions scaled for comfortable on-screen reading */
+.book-page-dark {
+  background: hsl(240 10% 6%);
+  color: hsl(0 0% 90%);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 20px rgba(0,0,0,0.3);
+  position: relative;
+}
+.book-page-dark textarea::placeholder {
+  color: rgba(255,255,255,0.2);
+}
+[contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(255,255,255,0.2);
+  pointer-events: none;
+  font-style: italic;
+}
+.font-mono-prose[contenteditable][data-placeholder]:empty::before {
+  color: hsl(var(--muted-foreground) / 0.4);
+}
+
+.book-3d {
+  transform: perspective(600px) rotateY(-12deg);
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+.book-3d:hover {
+  transform: perspective(600px) rotateY(-2deg) scale(1.04);
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.6));
+}
+
+/* Prose editor font — readable monospace-adjacent feel for markdown editing */
+.font-mono-prose {
+  font-family: ui-monospace, "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+
+/* Remove all browser-default select styling */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Ensure no browser autofill background bleeds through */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: hsl(var(--foreground));
+  -webkit-box-shadow: 0 0 0px 1000px hsl(var(--secondary) / 0.5) inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Bullet preview rendering in textareas (visual only) */
+textarea::placeholder {
+  font-style: italic;
+}
+
+/* Manuscript prose styling — first-line indent on every paragraph, no extra
+   inter-paragraph margin. Used by both the editor and the preview so they
+   look identical. */
+.prose-page p {
+  margin: 0;
+  text-indent: 1.5em;
+}
+.prose-page {
+  tab-size: 4;
+  -moz-tab-size: 4;
+}

@@ -1,0 +1,21 @@
+---
+id: "f7d55345-3cc1-4729-9821-4b04ca34abe8"
+name: "Mush Mouse"
+type: "Animal"
+danger: "None"
+status: "Rare"
+description: "A small mouse with clusters of tiny red mushrooms sprouting from its back. The mushrooms are edible  when grilled to remove the poison and considered a delicacy — highly sought after by merchants. The ground up, grilled mushrooms are used in both healing and strength potions. \n\nThe Mush Mouse itself is timid and flees at the first sign of humans, shedding its mushrooms as a distraction during escape."
+habitat: "Damp dungeon floors, mossy cave edges, forest undergrowth near moisture."
+diet: "Fungi, roots, damp plant matter."
+behavior: "Extremely skittish. Mush Mice flee instantly from humans and most larger creatures. When cornered or startled, they shed all their mushrooms at once — leaving them behind as the mouse escapes into the dark. The mushrooms regrow over time."
+location: "Found in and around [[The Sunken Dungeon]] and other damp dungeon environments."
+abilities: "Sheds mushrooms on demand as an escape mechanism. Small enough to fit through almost any gap."
+weaknesses: "Fragile; entirely non-aggressive; easily startled."
+image: ""
+notes: "Catching one is considered more trouble than it is worth — most collectors simply gather the shed mushrooms left behind during a sighting. The mushrooms are worth good coin at [[Merchants Guild]] halls."
+tags: ["animal","rare","dungeon","foraging"]
+variants: ""
+updatedAt: 1777755403306
+createdAt: 1777467430977
+---
+

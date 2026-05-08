@@ -1,0 +1,15 @@
+{
+  "short_name": "Fantasy World Builder",
+  "name": "Fantasy World Builder - Story Engine",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#09090b",
+  "background_color": "#09090b"
+}
