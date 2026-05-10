@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Globe, Users, Map, Library, Settings, Box, Plus, Search, BookMarked, TrendingUp, Shuffle, Flag, PawPrint, MapPin, Trash2, Wand2, Dna } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
+import { useAppSettings } from '../store/useAppSettings';
 import Dropdown from './Dropdown';
 import Modal from './Modal';
 import GlobalSearch from './GlobalSearch';
@@ -30,6 +31,29 @@ const PATH_TO_TYPE = {
   '/creatures':  'creatures',
   '/races':      'races',
 };
+
+function SidebarNav({ setMobileMenuOpen }) {
+  const navVisible = useAppSettings(s => s.navVisible);
+  const visible = navItems.filter(item => navVisible[item.path] !== false);
+  return (
+    <nav className="flex-1 px-4 pt-2 space-y-0.5 overflow-y-auto">
+      {visible.map((item) => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          end={item.path === '/'}
+          onClick={() => setMobileMenuOpen(false)}
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`
+          }
+        >
+          <item.icon size={17} />
+          <span>{item.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
 
 export default function Sidebar() {
   const worlds           = useWorldStore(s => s.worlds);
@@ -180,22 +204,7 @@ export default function Sidebar() {
           </div>
         </div>
 
-        <nav className="flex-1 px-4 pt-2 space-y-0.5 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === '/'}
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`
-              }
-            >
-              <item.icon size={17} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
+        <SidebarNav setMobileMenuOpen={setMobileMenuOpen} />
 
         <div className="p-4 border-t border-border mt-auto">
           <NavLink

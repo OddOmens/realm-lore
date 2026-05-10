@@ -1,6 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useWorldStore } from './store/useWorldStore';
+import { useAppSettings, applyAppSettings } from './store/useAppSettings';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
 import SaveBanner from './components/SaveBanner';
@@ -41,6 +42,9 @@ function App() {
   const isAuthenticated = useWorldStore(state => state.isAuthenticated);
   const backupConfig = useWorldStore(state => state.backupConfig);
   const triggerBackup = useWorldStore(state => state.triggerBackup);
+  const { fontSize, density } = useAppSettings();
+
+  useEffect(() => { applyAppSettings({ fontSize, density }); }, [fontSize, density]);
 
   useEffect(() => {
     if (isAuthenticated) {
