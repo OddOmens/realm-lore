@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const useWorldStore = create((set, get) => ({
   worlds: [],
-  activeWorld: 'DefaultWorld',
+  activeWorld: 'My World',
   characters: [],
   locations: [],
   things: [],
@@ -34,8 +34,8 @@ export const useWorldStore = create((set, get) => ({
 
       const worlds = await dbService.getWorlds();
       if (worlds.length === 0) {
-         await dbService.createWorld('DefaultWorld');
-         worlds.push('DefaultWorld');
+         await dbService.createWorld('My World');
+         worlds.push('My World');
       }
 
       let current = getActiveWorld();
@@ -64,13 +64,8 @@ export const useWorldStore = create((set, get) => ({
         if (m.image && m.image.startsWith('__local__')) {
           const imgId = m.image.replace('__local__', '');
           try {
-            if (window.electronAPI) {
-              const data = await window.electronAPI.fsRead(`${current}/maps/${imgId}.img`);
-              if (data && !data.isDir) return { ...m, image: data.content || m.image };
-            } else {
-              const res = await fetch(`/api/fs/read?path=${encodeURIComponent(`${current}/maps/${imgId}.img`)}`).catch(() => null);
-              if (res?.ok) { const data = await res.json(); return { ...m, image: data.content || m.image }; }
-            }
+            const data = await window.electronAPI.fsRead(`${current}/maps/${imgId}.img`);
+            if (data && !data.isDir) return { ...m, image: data.content || m.image };
           } catch { /* leave as-is */ }
         }
         return m;
@@ -106,13 +101,8 @@ export const useWorldStore = create((set, get) => ({
       if (m.image && m.image.startsWith('__local__')) {
         const imgId = m.image.replace('__local__', '');
         try {
-          if (window.electronAPI) {
-            const data = await window.electronAPI.fsRead(`${worldName}/maps/${imgId}.img`);
-            if (data && !data.isDir) return { ...m, image: data.content || m.image };
-          } else {
-            const res = await fetch(`/api/fs/read?path=${encodeURIComponent(`${worldName}/maps/${imgId}.img`)}`).catch(() => null);
-            if (res?.ok) { const data = await res.json(); return { ...m, image: data.content || m.image }; }
-          }
+          const data = await window.electronAPI.fsRead(`${worldName}/maps/${imgId}.img`);
+          if (data && !data.isDir) return { ...m, image: data.content || m.image };
         } catch { /* leave as-is */ }
       }
       return m;
@@ -129,6 +119,18 @@ export const useWorldStore = create((set, get) => ({
     }
   },
 
+  openWorldFolder: async () => {
+    const result = await window.electronAPI.openWorld();
+    if (result?.canceled) return null;
+    if (result?.error) return result;
+    if (result?.success) {
+      const worlds = await dbService.getWorlds();
+      set({ worlds });
+      get().switchWorld(result.world);
+    }
+    return result;
+  },
+
   deleteWorld: async (name) => {
     const success = await dbService.deleteWorld(name);
     if (success) {
@@ -138,7 +140,7 @@ export const useWorldStore = create((set, get) => ({
         if (worlds.length > 0) {
           get().switchWorld(worlds[0]);
         } else {
-          await get().createWorld('DefaultWorld');
+          await get().createWorld('My World');
         }
       }
     }
@@ -312,11 +314,7 @@ export const useWorldStore = create((set, get) => ({
     const id = mapData.id || uuidv4();
     let imageRef = mapData.image;
     if (mapData.image && mapData.image.startsWith('data:')) {
-      await fetch('/api/fs/write', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: `${getActiveWorld()}/maps/${id}.img`, content: mapData.image }),
-      });
+      await window.electronAPI.fsWrite(`${getActiveWorld()}/maps/${id}.img`, mapData.image);
       imageRef = `__local__${id}`;
     }
     const toSave = { ...mapData, id, image: imageRef };
@@ -331,11 +329,7 @@ export const useWorldStore = create((set, get) => ({
 
   deleteMap: async (id) => {
     await dbService.delete('maps', id);
-    await fetch('/api/fs/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filePath: `${getActiveWorld()}/maps/${id}.img` }),
-    }).catch(() => {});
+    await window.electronAPI.fsDelete(`${getActiveWorld()}/maps/${id}.img`).catch(() => {});
     set(state => ({ maps: state.maps.filter(m => m.id !== id) }));
   },
 

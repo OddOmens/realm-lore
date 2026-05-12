@@ -24,29 +24,54 @@ const DEFAULTS = {
   defaultListView: 'grid', // 'grid' | 'list'
   showWordCount: true,
   showEntityCounts: true,
+  // DnD Tools (all off by default)
+  dndTools: {
+    enabled: false,       // master switch — shows sidebar + floating button
+    diceRoller: true,
+    initiativeTracker: true,
+    encounterRoller: true,
+    spellSlots: true,
+  },
 };
 
 function load() {
   try {
     const raw = localStorage.getItem('appSettings');
     if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...JSON.parse(raw), navVisible: { ...DEFAULTS.navVisible, ...JSON.parse(raw).navVisible } };
+    const saved = JSON.parse(raw);
+    return {
+      ...DEFAULTS,
+      ...saved,
+      navVisible: { ...DEFAULTS.navVisible, ...saved.navVisible },
+      dndTools: { ...DEFAULTS.dndTools, ...saved.dndTools },
+    };
   } catch {
     return DEFAULTS;
   }
 }
 
+const OMIT_KEYS = new Set(['update', 'reset', 'setDndTool', 'setNavVisible']);
+
 function persist(state) {
-  const { update, reset, ...settings } = state;
+  const settings = Object.fromEntries(Object.entries(state).filter(([k]) => !OMIT_KEYS.has(k)));
   localStorage.setItem('appSettings', JSON.stringify(settings));
 }
 
-export const useAppSettings = create((set, get) => ({
+export const useAppSettings = create((set) => ({
   ...load(),
 
   update(patch) {
     set(prev => {
       const next = { ...prev, ...patch };
+      persist(next);
+      return next;
+    });
+  },
+
+  setDndTool(key, value) {
+    set(prev => {
+      const dndTools = { ...prev.dndTools, [key]: value };
+      const next = { ...prev, dndTools };
       persist(next);
       return next;
     });

@@ -1,0 +1,8 @@
+{
+  "id": "example-logger",
+  "name": "Example Logger",
+  "version": "1.0.0",
+  "description": "Demonstrates the plugin API by logging entity save events to the console.",
+  "author": "Realm Lore",
+  "main": "main.js"
+}

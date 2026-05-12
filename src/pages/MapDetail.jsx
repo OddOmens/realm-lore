@@ -85,21 +85,16 @@ const STAMP_BY_KIND = Object.fromEntries(STAMP_LIBRARY.map(s => [s.kind, s]));
 const STAMP_SIZES = [32, 48, 72]; // world units; default 48
 const DEFAULT_STAMP_SIZE = 48;
 
-// Returns the correct src for a library stamp image — data URL in Electron, API URL in web
+// Returns a cached data URL for a library stamp image
 function stampSrc(rel) {
   if (!rel) return '';
-  if (window.electronAPI) {
-    // Cache data URLs so we don't re-fetch on every render
-    if (!stampSrc._cache) stampSrc._cache = new Map();
-    if (stampSrc._cache.has(rel)) return stampSrc._cache.get(rel);
-    // Return empty initially; async load fills cache and triggers re-render via a custom event
-    window.electronAPI.stampsImage(rel).then(({ dataUrl }) => {
-      stampSrc._cache.set(rel, dataUrl);
-      window.dispatchEvent(new CustomEvent('stamp-cache-update'));
-    }).catch(() => {});
-    return '';
-  }
-  return `/api/stamps/image?path=${encodeURIComponent(rel)}`;
+  if (!stampSrc._cache) stampSrc._cache = new Map();
+  if (stampSrc._cache.has(rel)) return stampSrc._cache.get(rel);
+  window.electronAPI.stampsImage(rel).then(({ dataUrl }) => {
+    stampSrc._cache.set(rel, dataUrl);
+    window.dispatchEvent(new CustomEvent('stamp-cache-update'));
+  }).catch(() => {});
+  return '';
 }
 
 // 8-color palette + "custom" hex input
@@ -635,6 +630,7 @@ export default function MapDetail() {
 
   // Stamp picker filters
   const [stampQuery, setStampQuery] = useState('');
+  const [stampTagFilter, setStampTagFilter] = useState('');
 
   // Custom PNG stamps loaded from filesystem (flat list from customStamps/)
   const [customPngStamps, setCustomPngStamps] = useState([]);
@@ -698,7 +694,6 @@ export default function MapDetail() {
 
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(false);
-  const [showRuler, setShowRuler] = useState(false);
 
   // Snap to grid helper
   const snapToGridIfEnabled = (x, y) => {
@@ -1194,17 +1189,15 @@ export default function MapDetail() {
     persistLayers(next);
   };
 
-  const selectActivePenLayer = (layerId) => {
+  function selectActivePenLayer(layerId) {
     setActiveLayerId(layerId);
     const layer = layers.find(l => l.id === layerId);
     if (layer && layer.kind === 'pen') {
       setPenColor(layer.color);
       setPenSize(layer.defaultSize);
-      // If the user selects a layer while in view mode, switch them into pen
-      // mode so the click is "useful" — same intent the user probably had.
       if (tool === 'view' || tool === 'eraser') setTool('pen');
     }
-  };
+  }
 
   // ── Pan / pin / etc. interactions ──────────────────────────────────────────
   const onPointerDownBackground = (e) => {
@@ -1542,15 +1535,7 @@ export default function MapDetail() {
   const loadCustomPngStamps = useCallback(async () => {
     setStampsLoading(true);
     try {
-      let data;
-      if (window.electronAPI) {
-        data = await window.electronAPI.stampsList();
-      } else {
-        const passcode = localStorage.getItem('passcode') || '';
-        const res = await fetch('/api/stamps/list', { headers: { 'X-Passcode': passcode } });
-        if (!res.ok) { setCustomPngStamps([]); return; }
-        data = await res.json();
-      }
+      const data = await window.electronAPI.stampsList();
       setCustomPngStamps(data.stamps || []);
       // Auto-select the first stamp if nothing is selected yet
       if (data.stamps?.length > 0 && !selectedStamp.key) {
@@ -1565,10 +1550,11 @@ export default function MapDetail() {
     }
   }, [selectedStamp.key]);
 
-  // Load on mount
+  // Load on mount — setState is inside the async useCallback, not the effect body directly
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCustomPngStamps();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectPngStamp = (stamp) => {
     setSelectedStamp({ source: 'library', key: stamp.rel, name: stamp.label });

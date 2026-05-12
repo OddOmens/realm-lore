@@ -1,0 +1,8 @@
+{
+  "id": "world-stats",
+  "name": "World Stats",
+  "version": "1.0.0",
+  "description": "A dashboard showing entity counts, type breakdowns, and recently updated entries for the active world.",
+  "author": "Realm Lore",
+  "main": "main.js"
+}

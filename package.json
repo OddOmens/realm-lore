@@ -1,27 +1,25 @@
 {
-  "name": "fantasy-world-builder",
-  "version": "1.0.0",
+  "name": "realm-lore",
+  "version": "2026.5.1",
   "description": "A local-first worldbuilding application.",
   "license": "MIT",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5180 && NODE_ENV=development electron .\"",
-    "electron:build": "ELECTRON_BUILD=true vite build && electron-builder",
-    "electron:build:mac": "ELECTRON_BUILD=true vite build && electron-builder --mac",
-    "electron:build:win": "ELECTRON_BUILD=true vite build && electron-builder --win",
-    "electron:build:linux": "ELECTRON_BUILD=true vite build && electron-builder --linux"
+    "electron:build": "vite build && electron-builder --mac",
+    "electron:build:win": "vite build && electron-builder --win"
   },
   "build": {
-    "appId": "com.worldbuilder.app",
-    "productName": "WorldBuilder",
+    "appId": "com.realmlore.app",
+    "productName": "Realm Lore",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "node_modules/**/*",
+      "package.json"
     ],
     "directories": {
       "output": "release"
@@ -29,17 +27,32 @@
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "public/icon.icns",
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "darkModeSupport": true
     },
     "win": {
       "icon": "public/icon.ico",
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
     },
-    "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }]
+    "publish": {
+      "provider": "github",
+      "owner": "OddOmens",
+      "repo": "realm-lore",
+      "releaseType": "release"
     }
   },
   "dependencies": {
+    "electron-updater": "^6.8.3",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.8.0",
@@ -53,7 +66,6 @@
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
     "concurrently": "^9.2.1",

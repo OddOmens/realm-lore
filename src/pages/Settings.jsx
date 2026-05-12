@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
 import { useAppSettings } from '../store/useAppSettings';
+import { usePluginStore } from '../store/usePluginStore';
 import {
   Download, Upload, CheckCircle2, AlertCircle, Trash2,
   Sliders, Database, Eye, Keyboard, ChevronRight,
   Globe, Users, Map, Library, Box, TrendingUp, MapPin,
-  PawPrint, Wand2, Dna, Flag,
+  PawPrint, Wand2, Dna, Flag, FlaskConical,
+  Puzzle, FolderOpen, RefreshCw,
 } from 'lucide-react';
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
@@ -39,7 +41,7 @@ function Toggle({ checked, onChange, label, description }) {
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative shrink-0 w-10 h-5.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${checked ? 'bg-primary' : 'bg-secondary border border-border'}`}
+        className={`relative shrink-0 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500/40 ${checked ? 'bg-green-500' : 'bg-secondary border border-border'}`}
         style={{ height: '22px', width: '40px' }}
       >
         <span
@@ -94,6 +96,7 @@ const TABS = [
   { id: 'appearance', label: 'Appearance', icon: Eye },
   { id: 'editor',     label: 'Editor',     icon: Keyboard },
   { id: 'data',       label: 'Data',       icon: Database },
+  { id: 'plugins',    label: 'Plugins',    icon: Puzzle },
 ];
 
 // ─── General tab ─────────────────────────────────────────────────────────────
@@ -115,6 +118,8 @@ const NAV_ITEMS = [
 function GeneralTab() {
   const navVisible = useAppSettings(s => s.navVisible);
   const setNavVisible = useAppSettings(s => s.setNavVisible);
+  const dndTools = useAppSettings(s => s.dndTools);
+  const setDndTool = useAppSettings(s => s.setDndTool);
 
   return (
     <div className="flex flex-col gap-6">
@@ -132,6 +137,54 @@ function GeneralTab() {
               label={item.label}
             />
           ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard>
+        <div className="flex items-center gap-2">
+          <SectionHeader
+            title="D&D / TTRPG Tools"
+            description="Optional tabletop RPG utilities. When enabled, tools appear as individual sidebar entries below the main navigation."
+          />
+          <span className="shrink-0 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400 border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 rounded-full ml-auto">
+            <FlaskConical size={10} /> Beta
+          </span>
+        </div>
+        <div className="divide-y divide-border -my-1">
+          <Toggle
+            checked={dndTools.enabled}
+            onChange={val => setDndTool('enabled', val)}
+            label="Enable DnD Tools"
+            description="Shows DnD tool entries in the sidebar."
+          />
+          {dndTools.enabled && (
+            <>
+              <Toggle
+                checked={dndTools.diceRoller}
+                onChange={val => setDndTool('diceRoller', val)}
+                label="Dice Roller"
+                description="Roll d4, d6, d8, d10, d12, d20, and d100 with animated results."
+              />
+              <Toggle
+                checked={dndTools.initiativeTracker}
+                onChange={val => setDndTool('initiativeTracker', val)}
+                label="Initiative Tracker"
+                description="Track turn order, HP, and conditions for combat encounters."
+              />
+              <Toggle
+                checked={dndTools.encounterRoller}
+                onChange={val => setDndTool('encounterRoller', val)}
+                label="Encounter Tables"
+                description="Create and roll on custom random encounter tables."
+              />
+              <Toggle
+                checked={dndTools.spellSlots}
+                onChange={val => setDndTool('spellSlots', val)}
+                label="Spell Slots"
+                description="Track spell slots by level for one or more characters."
+              />
+            </>
+          )}
         </div>
       </SectionCard>
     </div>
@@ -348,71 +401,36 @@ function ExportPanel({ activeWorld, characters, locations, things, lore, faction
   );
 }
 
-function ImportPanel({ addEntity, addBook, addRelationship }) {
-  const fileRef = useRef(null);
+function ImportPanel() {
   const [status, setStatus] = useState(null);
 
-  const handleImport = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImport = async () => {
     setStatus('reading');
     try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      let imported = 0;
-      const ENTITY_TYPES = ['characters', 'locations', 'things', 'lore', 'factions', 'creatures', 'stories'];
-      for (const type of ENTITY_TYPES) {
-        const list = data[type];
-        if (!Array.isArray(list)) continue;
-        for (const entity of list) {
-          const rest = { ...entity };
-          delete rest.id; delete rest.createdAt; delete rest.updatedAt;
-          await addEntity(type, rest);
-          imported++;
-        }
-      }
-      if (Array.isArray(data.books)) {
-        for (const book of data.books) {
-          const rest = { ...book };
-          delete rest.id; delete rest.createdAt; delete rest.updatedAt;
-          await addBook(rest);
-          imported++;
-        }
-      }
-      if (Array.isArray(data.relationships)) {
-        for (const r of data.relationships) {
-          if (!r.fromId || !r.toId || !r.fromType || !r.toType) continue;
-          await addRelationship(r.fromId, r.fromType, r.toId, r.toType, r.label || '');
-          imported++;
-        }
-      }
-      const skippedMaps = Array.isArray(data.maps) && data.maps.length;
-      setStatus(
-        `Imported ${imported} entries successfully.` +
-        (skippedMaps ? ` (Skipped ${skippedMaps} map${skippedMaps === 1 ? '' : 's'} — re-attach images manually.)` : '')
-      );
+      const result = await window.electronAPI.openWorld();
+      if (result?.canceled) { setStatus(null); return; }
+      if (result?.error) { setStatus(`Error: ${result.error}`); return; }
+      setStatus(`World "${result.world}" imported. Switch to it from the world selector.`);
     } catch (err) {
       setStatus(`Error: ${err.message}`);
     }
-    e.target.value = '';
   };
 
   return (
     <SectionCard>
       <SectionHeader
-        title="Import World"
-        description="Import entities from a JSON export file. Existing entries are not overwritten — imported items get new IDs."
+        title="Import World Folder"
+        description="Import a world from its folder of Markdown files — the same format Realm Lore saves to disk."
       />
       <button
-        onClick={() => fileRef.current?.click()}
+        onClick={handleImport}
         className="self-start flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors border border-border"
       >
-        <Upload size={14} /> Choose File
+        <Upload size={14} /> Choose World Folder…
       </button>
-      <input ref={fileRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
       {status && status !== 'reading' && (
-        <div className={`flex items-center gap-2 text-sm ${status.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
-          {status.startsWith('Error') ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
+        <div className={`flex items-start gap-2 text-sm ${status.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
+          {status.startsWith('Error') ? <AlertCircle size={14} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={14} className="mt-0.5 shrink-0" />}
           {status}
         </div>
       )}
@@ -553,12 +571,22 @@ function AutomatedBackupPanel() {
 }
 
 function StorageInfoPanel({ activeWorld, characters, locations, things, lore, stories }) {
+  const [worldsPath, setWorldsPath] = useState(null);
+  useEffect(() => {
+    window.electronAPI.getPaths().then(p => setWorldsPath(p.worlds)).catch(() => {});
+  }, []);
+
   return (
     <SectionCard>
       <SectionHeader
         title="Storage"
-        description={`Your worlds live as Markdown on disk under Worlds/. Put that folder in Dropbox, iCloud Drive, or a Git repo to sync across machines.`}
+        description="Your worlds live as Markdown files on disk. Put that folder in Dropbox, iCloud Drive, or a Git repo to sync across machines."
       />
+      {worldsPath && (
+        <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2">
+          <code className="text-xs text-muted-foreground font-mono flex-1 truncate">{worldsPath}</code>
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2">
         {[
           { label: 'Characters', val: characters.length },
@@ -651,13 +679,157 @@ function ResetAppSettings() {
   );
 }
 
-function DataTab({ activeWorld, characters, locations, things, lore, factions, creatures, stories, relationships, books, maps, addEntity, addBook, addRelationship, deleteWorld }) {
+// ─── Plugins tab ──────────────────────────────────────────────────────────────
+
+function PluginsTab() {
+  const {
+    available, enabledIds, pluginsEnabled, pluginsDir,
+    loading, load, setPluginsEnabled, setPluginEnabled, openPluginsDir,
+  } = usePluginStore();
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="flex flex-col gap-6">
+
+      {/* Master toggle */}
+      <SectionCard>
+        <SectionHeader
+          title="Plugin System"
+          description="Extend Realm Lore with community or custom plugins. Plugins are JavaScript files stored in your plugins folder."
+        />
+        <Toggle
+          checked={pluginsEnabled}
+          onChange={val => setPluginsEnabled(val)}
+          label="Enable plugins"
+          description="When off, no plugins are loaded regardless of individual settings."
+        />
+      </SectionCard>
+
+      {/* Plugin folder */}
+      <SectionCard>
+        <SectionHeader
+          title="Plugins Folder"
+          description="Drop plugin folders here. Each plugin needs a manifest.json and a main.js file."
+        />
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-xs font-mono text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2 truncate">
+            {pluginsDir || '…'}
+          </code>
+          <button
+            onClick={openPluginsDir}
+            className="shrink-0 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            <FolderOpen size={14} /> Open
+          </button>
+          <button
+            onClick={load}
+            title="Refresh plugin list"
+            className="shrink-0 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </SectionCard>
+
+      {/* Installed plugins */}
+      <SectionCard>
+        <SectionHeader
+          title="Installed Plugins"
+          description={
+            available.length === 0
+              ? 'No plugins found. Add a plugin folder to the plugins directory above.'
+              : `${available.length} plugin${available.length === 1 ? '' : 's'} found.`
+          }
+        />
+
+        {available.length > 0 && (
+          <div className="divide-y divide-border -my-1">
+            {available.map(plugin => {
+              const isOn = pluginsEnabled && enabledIds.includes(plugin.id);
+              return (
+                <div key={plugin.id} className="py-3 flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground truncate">{plugin.name}</p>
+                      <span className="shrink-0 text-[10px] font-mono text-muted-foreground bg-secondary border border-border px-1.5 py-0.5 rounded">
+                        v{plugin.version}
+                      </span>
+                      {plugin.author && (
+                        <span className="shrink-0 text-[10px] text-muted-foreground">by {plugin.author}</span>
+                      )}
+                    </div>
+                    {plugin.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{plugin.description}</p>
+                    )}
+                    <p className="text-[10px] font-mono text-muted-foreground/50 mt-0.5">{plugin.id}</p>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={isOn}
+                    disabled={!pluginsEnabled}
+                    onClick={() => setPluginEnabled(plugin.id, !enabledIds.includes(plugin.id))}
+                    className={`relative shrink-0 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500/40 disabled:opacity-40 disabled:cursor-not-allowed ${isOn ? 'bg-green-500' : 'bg-secondary border border-border'}`}
+                    style={{ height: '22px', width: '40px' }}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-transform ${isOn ? 'translate-x-[18px]' : 'translate-x-0'}`}
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {available.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <Puzzle size={32} className="text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">No plugins installed yet.</p>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* How-to */}
+      <SectionCard>
+        <SectionHeader title="Writing a Plugin" description="Plugins are ESM JavaScript modules with a manifest." />
+        <pre className="text-xs font-mono text-muted-foreground bg-secondary/50 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre">{`my-plugin/
+  manifest.json   ← required metadata
+  main.js         ← ESM module
+
+// manifest.json
+{
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "description": "Does something useful.",
+  "author": "You",
+  "main": "main.js"
+}
+
+// main.js
+export default {
+  onLoad(api) {
+    api.log('Hello from my plugin!');
+    api.registerHook('onEntitySave', (entity) => {
+      api.log('Entity saved:', entity.name);
+    });
+  },
+  onUnload() {}
+};`}</pre>
+      </SectionCard>
+
+    </div>
+  );
+}
+
+function DataTab({ activeWorld, characters, locations, things, lore, factions, creatures, stories, relationships, books, maps, deleteWorld }) {
   return (
     <div className="flex flex-col gap-6">
       <StorageInfoPanel activeWorld={activeWorld} characters={characters} locations={locations} things={things} lore={lore} stories={stories} />
       <AutomatedBackupPanel />
       <ExportPanel activeWorld={activeWorld} characters={characters} locations={locations} things={things} lore={lore} factions={factions} creatures={creatures} stories={stories} relationships={relationships} books={books} maps={maps} />
-      <ImportPanel addEntity={addEntity} addBook={addBook} addRelationship={addRelationship} />
+      <ImportPanel />
       <DeleteWorldPanel activeWorld={activeWorld} deleteWorld={deleteWorld} />
     </div>
   );
@@ -679,25 +851,22 @@ export default function Settings() {
   const relationships   = useWorldStore(state => state.relationships);
   const books           = useWorldStore(state => state.books);
   const maps            = useWorldStore(state => state.maps);
-  const addEntity       = useWorldStore(state => state.addEntity);
-  const addBook         = useWorldStore(state => state.addBook);
-  const addRelationship = useWorldStore(state => state.addRelationship);
   const deleteWorld     = useWorldStore(state => state.deleteWorld);
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      {/* Page header */}
-      <header className="flex items-center gap-3 px-6 py-5 border-b border-border bg-card">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Page header — sticky */}
+      <header className="shrink-0 flex items-center gap-3 px-6 py-5 border-b border-border bg-card">
         <Sliders size={18} className="text-muted-foreground" />
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">Settings</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Customize your WorldBuilder experience.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Customize your Realm Lore experience.</p>
         </div>
       </header>
 
-      <div className="flex min-h-0">
-        {/* Sidebar tabs */}
-        <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card/50 p-3 gap-0.5 min-h-full">
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar tabs — sticky, never scrolls */}
+        <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card/50 p-3 gap-0.5 overflow-y-auto">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -715,8 +884,8 @@ export default function Settings() {
           })}
         </nav>
 
-        {/* Mobile tab bar */}
-        <div className="md:hidden flex border-b border-border bg-card/50 w-full overflow-x-auto">
+        {/* Mobile tab bar — sticky, scrolls horizontally */}
+        <div className="md:hidden shrink-0 flex border-b border-border bg-card/50 w-full overflow-x-auto">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -733,8 +902,8 @@ export default function Settings() {
           })}
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 p-6 max-w-2xl">
+        {/* Tab content — scrolls independently */}
+        <div className="flex-1 overflow-y-auto p-6 max-w-2xl">
           {activeTab === 'general' && <GeneralTab />}
           {activeTab === 'appearance' && (
             <div className="flex flex-col gap-6">
@@ -756,12 +925,10 @@ export default function Settings() {
               relationships={relationships}
               books={books}
               maps={maps}
-              addEntity={addEntity}
-              addBook={addBook}
-              addRelationship={addRelationship}
               deleteWorld={deleteWorld}
             />
           )}
+          {activeTab === 'plugins' && <PluginsTab />}
         </div>
       </div>
     </div>

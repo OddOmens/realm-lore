@@ -25,3 +25,26 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build output & release artifacts
+dist/
+release/
+dist-release/
+
+# Dev leftovers
+server.log
+test-*.html
+*.bak
+*.tmp
+
+# App data that shouldn't be in the repo
+customStamps/
+Worlds/
+plugin-settings.json
+window-state.json
+launched.json
+
+# User-installed plugins (keep only bundled examples)
+plugins/*
+!plugins/example-logger/
+!plugins/world-stats/

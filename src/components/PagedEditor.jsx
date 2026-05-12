@@ -678,7 +678,7 @@ const PagedEditor = forwardRef(function PagedEditor({ value, onChange, placehold
                 color: 'rgba(255,255,255,0.18)',
               }}
             >
-              <span>{parentBook?.name || 'WorldBuilder'}</span>
+              <span>{parentBook?.name || 'Realm Lore'}</span>
               <span>{pageIndex + 1} / {pages.length}</span>
             </div>
           </div>
