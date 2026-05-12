@@ -1,6 +1,10 @@
 {
   "name": "realm-lore",
   "version": "2026.5.1",
+  "author": {
+    "name": "OddOmens",
+    "email": "hello@oddomens.com"
+  },
   "description": "A local-first worldbuilding application.",
   "license": "MIT",
   "type": "module",
@@ -10,7 +14,8 @@
     "lint": "eslint .",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5180 && NODE_ENV=development electron .\"",
     "electron:build": "vite build && electron-builder --mac",
-    "electron:build:win": "vite build && electron-builder --win"
+    "electron:build:win": "vite build && electron-builder --win",
+    "electron:build:linux": "vite build && electron-builder --linux"
   },
   "build": {
     "appId": "com.realmlore.app",
@@ -36,7 +41,6 @@
       "darkModeSupport": true
     },
     "win": {
-      "icon": "public/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -44,11 +48,12 @@
         }
       ]
     },
-    "publish": {
-      "provider": "github",
-      "owner": "OddOmens",
-      "repo": "realm-lore",
-      "releaseType": "release"
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Productivity"
     }
   },
   "dependencies": {
