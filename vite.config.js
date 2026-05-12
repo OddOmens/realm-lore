@@ -9,50 +9,19 @@ function expandPath(p) {
   return p;
 }
 
-// Passcode source of truth. Prefer env vars; fall back to a default so the
-// app still runs locally with no setup. The default is well-known, so emit
-// a one-time loud warning if it's left in place over LAN.
-const PASSCODE = process.env.WORLDS_PASSCODE || process.env.PASSCODE || '4037';
-const PASSCODE_IS_DEFAULT = !process.env.WORLDS_PASSCODE && !process.env.PASSCODE;
-const HOST = process.env.WORLDS_HOST || '0.0.0.0';
-
-let warned = false;
-function maybeWarnSecurity() {
-  if (warned) return;
-  warned = true;
-  if (PASSCODE_IS_DEFAULT && HOST === '0.0.0.0') {
-    console.warn(
-      '\n⚠️  fantasy-world-builder: dev server is using the DEFAULT passcode and listening on 0.0.0.0 (LAN-accessible).\n' +
-      '   Anyone on your network who knows the default passcode can read/write your worlds.\n' +
-      '   Fix one of:\n' +
-      '     • Set WORLDS_PASSCODE=<your-secret> in a .env or before `npm run dev`\n' +
-      '     • Set WORLDS_HOST=127.0.0.1 to restrict to this machine only\n'
-    );
-  }
-}
+const HOST = process.env.WORLDS_HOST || '127.0.0.1';
 
 // Local API to read/write files in dev mode
 function localFsPlugin() {
   return {
     name: 'local-fs-api',
     configureServer(server) {
-      maybeWarnSecurity();
       server.middlewares.use(async (req, res, next) => {
         if (!req.url.startsWith('/api/fs') && !req.url.startsWith('/api/worlds') && !req.url.startsWith('/api/backup') && !req.url.startsWith('/api/stamps')) {
           return next();
         }
 
         const url = new URL(req.url, `http://${req.headers.host}`);
-
-        // --- Security Layer ---
-        const userPasscode = req.headers['x-passcode'];
-
-        if (url.pathname.startsWith('/api/') && userPasscode !== PASSCODE) {
-          res.statusCode = 401;
-          res.setHeader('Content-Type', 'application/json');
-          return res.end(JSON.stringify({ error: 'Unauthorized: Invalid Passcode' }));
-        }
-        // ----------------------
 
         // Base directory for worlds
         const worldsDir = path.resolve(process.cwd(), 'Worlds');
@@ -108,9 +77,8 @@ function localFsPlugin() {
           req.on('data', chunk => { body += chunk.toString(); });
           req.on('end', () => {
             try {
-              const { name, passcode } = JSON.parse(body);
+              const { name } = JSON.parse(body);
               if (!name) return res.statusCode = 400, res.end('Missing name');
-              if (passcode !== PASSCODE) return res.statusCode = 401, res.end('Unauthorized');
 
               const targetDir = path.join(worldsDir, name);
               if (fs.existsSync(targetDir) && targetDir.startsWith(worldsDir)) {
@@ -439,8 +407,7 @@ function localFsPlugin() {
           req.on('data', chunk => { body += chunk.toString(); });
           req.on('end', () => {
             try {
-              const { location, passcode, activeWorld, retentionDays } = JSON.parse(body);
-              if (passcode !== PASSCODE) return res.statusCode = 401, res.end('Unauthorized');
+              const { location, activeWorld, retentionDays } = JSON.parse(body);
 
               if (!location) return res.statusCode = 400, res.end('Missing backup location');
               if (!activeWorld) return res.statusCode = 400, res.end('Missing active world');
@@ -525,12 +492,24 @@ function localFsPlugin() {
   };
 }
 
+const isElectronBuild = process.env.ELECTRON_BUILD === 'true';
+
 export default defineConfig({
-  plugins: [react(), localFsPlugin()],
+  // Use relative paths when building for Electron (file:// protocol)
+  base: isElectronBuild ? './' : '/',
+  plugins: [
+    react(),
+    // Only run the local fs plugin in web dev mode (not Electron)
+    ...(!isElectronBuild ? [localFsPlugin()] : []),
+  ],
   server: {
     host: HOST,
     port: 5180,
     strictPort: true,
     https: false,
-  }
+  },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
 });

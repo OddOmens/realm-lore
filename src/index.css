@@ -69,6 +69,10 @@
   }
 }
 
+/* Electron window drag regions */
+.electron-titlebar { -webkit-app-region: drag; }
+button, a, input, select, textarea { -webkit-app-region: no-drag; }
+
 /* Hide scrollbar utility */
 .scrollbar-none {
   scrollbar-width: none;

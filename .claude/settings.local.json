@@ -7,7 +7,13 @@
       "Bash(npx vite *)",
       "Bash(ipconfig getifaddr *)",
       "Bash(node --input-type=module --eval \"import '/Users/oddomens/Documents/Development/Product Websites/world-builder/src/pages/EntityWiki.jsx'\")",
-      "Bash(node -e \"const l = require\\('./node_modules/lucide-react'\\); console.log\\('Dna' in l\\);\")"
+      "Bash(node -e \"const l = require\\('./node_modules/lucide-react'\\); console.log\\('Dna' in l\\);\")",
+      "Bash(open \"/Users/oddomens/Documents/Development/Product Websites/world-builder-landing/index.html\")",
+      "Bash(npm install *)",
+      "Bash(ELECTRON_BUILD=true npm run build)",
+      "Bash(lsof -ti:5180)",
+      "Bash(xargs kill -9)",
+      "Bash(pkill -f \"electron\")"
     ]
   }
 }

@@ -19,7 +19,6 @@ export const useWorldStore = create((set, get) => ({
   customStamps: [],
   isLoading: true,
   mobileMenuOpen: false,
-  isAuthenticated: !!localStorage.getItem('passcode'),
   backupConfig: {
     location: localStorage.getItem('backupLocation') || 'Backups',
     frequency: parseInt(localStorage.getItem('backupFreq') || '0', 10), // in minutes, 0 = off
@@ -28,32 +27,9 @@ export const useWorldStore = create((set, get) => ({
   },
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 
-  login: (passcode) => {
-    localStorage.setItem('passcode', passcode);
-    set({ isAuthenticated: true });
-  },
-
-  logout: () => {
-    localStorage.removeItem('passcode');
-    set({ isAuthenticated: false });
-  },
-
-  // Load everything from IDB on startup
   initialize: async () => {
     set({ isLoading: true });
-
     try {
-      const passcode = localStorage.getItem('passcode');
-      if (passcode === 'browser-mode') {
-        const { tryReconnectLocalFolder } = await import('./browserFs');
-        const reconnected = await tryReconnectLocalFolder();
-        if (!reconnected) {
-          get().logout();
-          set({ isLoading: false });
-          return;
-        }
-      }
-
       const { getActiveWorld, setActiveWorld } = await import('./db');
 
       const worlds = await dbService.getWorlds();
@@ -87,11 +63,15 @@ export const useWorldStore = create((set, get) => ({
       const maps = await Promise.all(rawMaps.map(async m => {
         if (m.image && m.image.startsWith('__local__')) {
           const imgId = m.image.replace('__local__', '');
-          const res = await fetch(`/api/fs/read?path=${encodeURIComponent(`${current}/maps/${imgId}.img`)}`).catch(() => null);
-          if (res?.ok) {
-            const data = await res.json();
-            return { ...m, image: data.content || m.image };
-          }
+          try {
+            if (window.electronAPI) {
+              const data = await window.electronAPI.fsRead(`${current}/maps/${imgId}.img`);
+              if (data && !data.isDir) return { ...m, image: data.content || m.image };
+            } else {
+              const res = await fetch(`/api/fs/read?path=${encodeURIComponent(`${current}/maps/${imgId}.img`)}`).catch(() => null);
+              if (res?.ok) { const data = await res.json(); return { ...m, image: data.content || m.image }; }
+            }
+          } catch { /* leave as-is */ }
         }
         return m;
       }));
@@ -99,12 +79,7 @@ export const useWorldStore = create((set, get) => ({
       set({ worlds, activeWorld: current, characters, locations, things, lore, factions, creatures, races, stories, relationships, maps, books, customStamps, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
-      if (error.message === 'UNAUTHORIZED') {
-        // Drop the stored passcode/auth flag and let the caller (Login) react to the throw.
-        get().logout();
-        throw error;
-      }
-      console.error("Failed to load generic data", error);
+      console.error("Failed to load data", error);
     }
   },
 
@@ -130,8 +105,15 @@ export const useWorldStore = create((set, get) => ({
     const maps = await Promise.all(rawMaps.map(async m => {
       if (m.image && m.image.startsWith('__local__')) {
         const imgId = m.image.replace('__local__', '');
-        const res = await fetch(`/api/fs/read?path=${encodeURIComponent(`${worldName}/maps/${imgId}.img`)}`).catch(() => null);
-        if (res?.ok) { const data = await res.json(); return { ...m, image: data.content || m.image }; }
+        try {
+          if (window.electronAPI) {
+            const data = await window.electronAPI.fsRead(`${worldName}/maps/${imgId}.img`);
+            if (data && !data.isDir) return { ...m, image: data.content || m.image };
+          } else {
+            const res = await fetch(`/api/fs/read?path=${encodeURIComponent(`${worldName}/maps/${imgId}.img`)}`).catch(() => null);
+            if (res?.ok) { const data = await res.json(); return { ...m, image: data.content || m.image }; }
+          }
+        } catch { /* leave as-is */ }
       }
       return m;
     }));
@@ -147,8 +129,8 @@ export const useWorldStore = create((set, get) => ({
     }
   },
 
-  deleteWorld: async (name, passcode) => {
-    const success = await dbService.deleteWorld(name, passcode);
+  deleteWorld: async (name) => {
+    const success = await dbService.deleteWorld(name);
     if (success) {
       const worlds = await dbService.getWorlds();
       set({ worlds });
@@ -174,13 +156,11 @@ export const useWorldStore = create((set, get) => ({
   },
 
   triggerBackup: async () => {
-    const passcode = localStorage.getItem('passcode') || '';
     const config = get().backupConfig;
     const activeWorld = get().activeWorld;
     if (!config.location || !activeWorld) return;
     const result = await dbService.runBackup(
       config.location,
-      passcode,
       activeWorld,
       config.retentionDays,
     );

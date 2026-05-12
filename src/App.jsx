@@ -5,10 +5,7 @@ import { useAppSettings, applyAppSettings } from './store/useAppSettings';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
 import SaveBanner from './components/SaveBanner';
-import Login from './pages/Login';
 
-// Lazily load heavy page bundles so navigating between sections
-// doesn't block the main thread while parsing large modules.
 const Dashboard      = lazy(() => import('./pages/Dashboard'));
 const Characters     = lazy(() => import('./pages/Characters'));
 const Locations      = lazy(() => import('./pages/Locations'));
@@ -28,7 +25,6 @@ const Maps           = lazy(() => import('./pages/Maps'));
 const MapDetail      = lazy(() => import('./pages/MapDetail'));
 const NameGenerator  = lazy(() => import('./pages/NameGenerator'));
 
-// Minimal fallback shown while a lazy chunk loads
 function PageLoader() {
   return (
     <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
@@ -38,44 +34,30 @@ function PageLoader() {
 }
 
 function App() {
-  const initialize = useWorldStore(state => state.initialize);
-  const isAuthenticated = useWorldStore(state => state.isAuthenticated);
-  const backupConfig = useWorldStore(state => state.backupConfig);
+  const initialize    = useWorldStore(state => state.initialize);
+  const backupConfig  = useWorldStore(state => state.backupConfig);
   const triggerBackup = useWorldStore(state => state.triggerBackup);
   const { fontSize, density } = useAppSettings();
 
   useEffect(() => { applyAppSettings({ fontSize, density }); }, [fontSize, density]);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      // initialize() rethrows on UNAUTHORIZED so Login can react; here we just
-      // need to swallow it (the store's catch already called logout()).
-      initialize().catch(() => {});
-    }
-  }, [initialize, isAuthenticated]);
+  useEffect(() => { initialize(); }, [initialize]);
 
   useEffect(() => {
-    if (!isAuthenticated || backupConfig.frequency <= 0) return;
+    if (backupConfig.frequency <= 0) return;
     const intervalMs = backupConfig.frequency * 60 * 1000;
-    const timer = setInterval(() => {
-      triggerBackup();
-    }, intervalMs);
+    const timer = setInterval(() => { triggerBackup(); }, intervalMs);
     return () => clearInterval(timer);
-    // Including `lastBackupAt` here means a successful backup (manual *or*
-    // scheduled) tears down and restarts this interval, so a forced backup
-    // can't be followed seconds later by a stale scheduled one.
-  }, [isAuthenticated, backupConfig.frequency, backupConfig.lastBackupAt, triggerBackup]);
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
+  }, [backupConfig.frequency, backupConfig.lastBackupAt, triggerBackup]);
 
   return (
     <Router>
       <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
         <Sidebar />
         <main className="flex-1 flex flex-col overflow-hidden relative">
-          <div className="flex-1 overflow-y-auto relative mobile-bottom-pad">
+          {/* Draggable title bar strip for Electron — sits above page content */}
+          <div style={{ WebkitAppRegion: 'drag', height: '44px', flexShrink: 0, background: 'transparent' }} className="hidden lg:block" />
+          <div className="flex-1 overflow-y-auto relative mobile-bottom-pad" style={{ marginTop: '-44px' }}>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/" element={<Dashboard />} />

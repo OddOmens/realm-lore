@@ -85,6 +85,23 @@ const STAMP_BY_KIND = Object.fromEntries(STAMP_LIBRARY.map(s => [s.kind, s]));
 const STAMP_SIZES = [32, 48, 72]; // world units; default 48
 const DEFAULT_STAMP_SIZE = 48;
 
+// Returns the correct src for a library stamp image — data URL in Electron, API URL in web
+function stampSrc(rel) {
+  if (!rel) return '';
+  if (window.electronAPI) {
+    // Cache data URLs so we don't re-fetch on every render
+    if (!stampSrc._cache) stampSrc._cache = new Map();
+    if (stampSrc._cache.has(rel)) return stampSrc._cache.get(rel);
+    // Return empty initially; async load fills cache and triggers re-render via a custom event
+    window.electronAPI.stampsImage(rel).then(({ dataUrl }) => {
+      stampSrc._cache.set(rel, dataUrl);
+      window.dispatchEvent(new CustomEvent('stamp-cache-update'));
+    }).catch(() => {});
+    return '';
+  }
+  return `/api/stamps/image?path=${encodeURIComponent(rel)}`;
+}
+
 // 8-color palette + "custom" hex input
 const PEN_COLORS = ['#1a1a1a', '#dc2626', '#16a34a', '#2563eb', '#7c2d12', '#7c3aed', '#0891b2', '#f5f0e1'];
 const PEN_SIZES = [2, 4, 8, 16];
@@ -1525,10 +1542,15 @@ export default function MapDetail() {
   const loadCustomPngStamps = useCallback(async () => {
     setStampsLoading(true);
     try {
-      const passcode = localStorage.getItem('passcode') || '';
-      const res = await fetch('/api/stamps/list', { headers: { 'X-Passcode': passcode } });
-      if (!res.ok) { setCustomPngStamps([]); return; }
-      const data = await res.json();
+      let data;
+      if (window.electronAPI) {
+        data = await window.electronAPI.stampsList();
+      } else {
+        const passcode = localStorage.getItem('passcode') || '';
+        const res = await fetch('/api/stamps/list', { headers: { 'X-Passcode': passcode } });
+        if (!res.ok) { setCustomPngStamps([]); return; }
+        data = await res.json();
+      }
       setCustomPngStamps(data.stamps || []);
       // Auto-select the first stamp if nothing is selected yet
       if (data.stamps?.length > 0 && !selectedStamp.key) {
@@ -1964,7 +1986,7 @@ export default function MapDetail() {
                               }`}
                             >
                               <img
-                                src={`/api/stamps/image?path=${encodeURIComponent(s.rel)}`}
+                                src={stampSrc(s.rel)}
                                 alt={s.label}
                                 draggable={false}
                                 style={{ maxWidth: '100%', maxHeight: 36, display: 'block', objectFit: 'contain' }}
@@ -1999,7 +2021,7 @@ export default function MapDetail() {
                           >
                             {currentStampMeta?.kind === 'library' && currentStampMeta.path ? (
                               <img
-                                src={`/api/stamps/image?path=${encodeURIComponent(currentStampMeta.path)}`}
+                                src={stampSrc(currentStampMeta.path)}
                                 alt=""
                                 draggable={false}
                                 style={{ maxWidth: previewSize, maxHeight: previewSize, display: 'block', objectFit: 'contain' }}
@@ -2373,7 +2395,7 @@ export default function MapDetail() {
                   };
                   stampInner = (
                     <img
-                      src={`/api/stamps/image?path=${encodeURIComponent(stamp.libraryPath)}`}
+                      src={stampSrc(stamp.libraryPath)}
                       alt="Stamp"
                       draggable={false}
                       style={imgStyle}

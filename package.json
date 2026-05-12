@@ -1,14 +1,43 @@
 {
   "name": "fantasy-world-builder",
   "version": "1.0.0",
-  "description": "A browser-based world-building application.",
+  "description": "A local-first worldbuilding application.",
   "license": "MIT",
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5180 && NODE_ENV=development electron .\"",
+    "electron:build": "ELECTRON_BUILD=true vite build && electron-builder",
+    "electron:build:mac": "ELECTRON_BUILD=true vite build && electron-builder --mac",
+    "electron:build:win": "ELECTRON_BUILD=true vite build && electron-builder --win",
+    "electron:build:linux": "ELECTRON_BUILD=true vite build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.worldbuilder.app",
+    "productName": "WorldBuilder",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "public/icon.icns",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+    },
+    "win": {
+      "icon": "public/icon.ico",
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }]
+    }
   },
   "dependencies": {
     "idb": "^8.0.3",
@@ -27,12 +56,16 @@
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
+    "concurrently": "^9.2.1",
+    "electron": "^41.5.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.19",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "wait-on": "^9.0.6"
   }
 }

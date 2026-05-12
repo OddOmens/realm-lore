@@ -584,17 +584,15 @@ function StorageInfoPanel({ activeWorld, characters, locations, things, lore, st
 }
 
 function DeleteWorldPanel({ activeWorld, deleteWorld }) {
-  const [passcode, setPasscode] = useState('');
-  const [error, setError] = useState(null);
   const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleDelete = async () => {
-    if (!passcode) { setError('Passcode is required.'); return; }
     try {
-      await deleteWorld(activeWorld, passcode);
-      setConfirming(false); setPasscode(''); setError(null);
+      await deleteWorld(activeWorld);
+      setConfirming(false);
     } catch (err) {
-      setError(err.message === 'UNAUTHORIZED' ? 'Invalid passcode' : err.message);
+      setError(err.message);
     }
   };
 
@@ -615,18 +613,11 @@ function DeleteWorldPanel({ activeWorld, deleteWorld }) {
         </button>
       ) : (
         <div className="flex flex-col gap-3 mt-1 bg-background/50 p-4 rounded-lg border border-red-500/20">
-          <label className="text-sm font-medium text-foreground">Confirm with Passcode</label>
-          <input
-            type="password"
-            value={passcode}
-            onChange={e => setPasscode(e.target.value)}
-            placeholder="Enter app passcode"
-            className="w-full bg-card border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
-          />
+          <p className="text-sm font-medium text-foreground">Are you sure? This cannot be undone.</p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex gap-2">
             <button
-              onClick={() => { setConfirming(false); setPasscode(''); setError(null); }}
+              onClick={() => { setConfirming(false); setError(null); }}
               className="flex-1 h-9 rounded-md text-sm font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
             >
               Cancel

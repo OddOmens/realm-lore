@@ -137,7 +137,9 @@ export default function Sidebar() {
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-card flex flex-col h-full transition-transform duration-300 lg:translate-x-0 lg:static lg:w-64
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-5 pb-2">
+        {/* Traffic light spacer — only visible in Electron on macOS */}
+        <div className="electron-titlebar" style={{ WebkitAppRegion: 'drag', height: '44px', flexShrink: 0 }} />
+        <div className="p-5 pt-2 pb-2">
           <div className="flex items-center justify-between gap-3 text-primary font-semibold text-xl tracking-tight mb-4">
             <div className="flex items-center gap-3">
               <Globe size={26} className="text-primary" />
