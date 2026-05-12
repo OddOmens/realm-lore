@@ -42,7 +42,10 @@
       "Bash(echo \"PID: $!\")",
       "Bash(osascript -e 'tell application \"Electron\" to activate')",
       "Bash(screencapture -x /tmp/wb-dashboard.png)",
-      "Bash(osascript)"
+      "Bash(osascript)",
+      "Bash(gh repo *)",
+      "Bash(brew list *)",
+      "Bash(git remote *)"
     ]
   }
 }
