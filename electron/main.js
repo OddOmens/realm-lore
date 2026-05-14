@@ -378,7 +378,21 @@ ipcMain.handle('worlds:open', async () => {
   }
 
   // External folder — copy it in
-  if (fs.existsSync(dest)) return { error: `A world named "${worldName}" already exists.` };
+  if (fs.existsSync(dest)) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Cancel', 'Overwrite'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'World Already Exists',
+      message: `A world named "${worldName}" already exists.`,
+      detail: 'Do you want to overwrite it? This will replace all existing data in this world with the imported folder. This action cannot be undone.'
+    });
+    if (response !== 1) {
+      return { canceled: true };
+    }
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
   fs.cpSync(chosen, dest, { recursive: true });
   const required = ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps'];
   required.forEach(f => ensureDir(path.join(dest, f)));
