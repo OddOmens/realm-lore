@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import electronMockPlugin from './electron-mock-plugin.js';
 
 export default defineConfig({
   base: './',
-  plugins: [react()],
+  plugins: [react(), electronMockPlugin()],
   server: {
     host: '127.0.0.1',
     port: 5180,

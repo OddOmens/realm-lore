@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Globe, Users, Map, Library, Settings, Box, Plus, Search, TrendingUp, Flag, PawPrint, MapPin, Trash2, Wand2, Dna, FolderOpen, Dice5, Swords, Table2, Sparkles, Puzzle, BarChart2, Star, BookOpen, Layers, Zap, FlaskConical } from 'lucide-react';
+import { Globe, Users, Map, Library, Settings, Box, Plus, Search, TrendingUp, Flag, PawPrint, MapPin, Trash2, Wand2, Dna, FolderOpen, Dice5, Swords, Table2, Sparkles, Puzzle, BarChart2, Star, BookOpen, Layers, Zap, FlaskConical, Gem, User } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
 import { useAppSettings } from '../store/useAppSettings';
 import { usePluginStore } from '../store/usePluginStore';
@@ -8,7 +8,7 @@ import { usePluginStore } from '../store/usePluginStore';
 const ICON_MAP = {
   BarChart2, Star, BookOpen, Layers, Zap, FlaskConical, Puzzle,
   Globe, Users, Map, Library, Box, TrendingUp, Flag, PawPrint,
-  MapPin, Trash2, Wand2, Dna, Dice5, Swords, Table2, Sparkles,
+  MapPin, Trash2, Wand2, Dna, Dice5, Swords, Table2, Sparkles, Gem, User,
 };
 import Dropdown from './Dropdown';
 import Modal from './Modal';
@@ -78,6 +78,36 @@ function SidebarNav({ setMobileMenuOpen }) {
             <NavLink to="/tools/spells" onClick={() => setMobileMenuOpen(false)}
               className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
               <Sparkles size={17} /><span>Spell Slots</span>
+            </NavLink>
+          )}
+          {dndTools.conditionRef && (
+            <NavLink to="/tools/conditions" onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+              <BookOpen size={17} /><span>Conditions</span>
+            </NavLink>
+          )}
+          {dndTools.lootGenerator && (
+            <NavLink to="/tools/loot" onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+              <Gem size={17} /><span>Loot</span>
+            </NavLink>
+          )}
+          {dndTools.nameGenerator && (
+            <NavLink to="/tools/names" onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+              <User size={17} /><span>Names</span>
+            </NavLink>
+          )}
+          {dndTools.spellsList && (
+            <NavLink to="/tools/spells-list" onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+              <Wand2 size={17} /><span>Spells List</span>
+            </NavLink>
+          )}
+          {dndTools.itemsList && (
+            <NavLink to="/tools/items-list" onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+              <Box size={17} /><span>Items List</span>
             </NavLink>
           )}
         </>

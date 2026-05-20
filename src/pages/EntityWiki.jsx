@@ -715,7 +715,7 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
                   </div>
                 )}
                 {level.benefits && (
-                  <p className="text-xs text-muted-foreground/80 leading-relaxed">{level.benefits}</p>
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed whitespace-pre-wrap">{level.benefits}</p>
                 )}
                 {!memberChars.length && !level.benefits && (
                   <p className="text-xs text-muted-foreground/30 italic">No details</p>
@@ -1781,7 +1781,7 @@ export function EntityWikiContent() {
     <div className="flex flex-col bg-background">
 
         {/* ── Top bar (Sticky) ── */}
-        <header className="sticky top-0 z-50 flex items-center gap-3 px-5 py-3 border-b border-border bg-card/90 backdrop-blur-md shrink-0 min-w-0">
+        <header className="sticky top-0 z-50 flex items-center gap-3 px-5 py-3 border-b border-border bg-card/90 backdrop-blur-md shrink-0 min-w-0" style={{ WebkitAppRegion: 'no-drag' }}>
         <button
           onClick={() => navigate(`/${entityType}`)}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium shrink-0"
