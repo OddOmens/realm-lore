@@ -27,9 +27,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Map images
   readMapImage: (filePath)   => ipcRenderer.invoke('fs:readMapImage', { filePath }),
 
-  // App info
+  // App info & Settings
   getPaths: ()               => ipcRenderer.invoke('app:getPaths'),
   openWorldsFolder: ()       => ipcRenderer.send('app:openWorldsFolder'),
+  getSettings: ()            => ipcRenderer.invoke('app:getSettings'),
+  saveSettings: (settings)   => ipcRenderer.invoke('app:saveSettings', settings),
+
+  // Server
+  startServer: ()            => ipcRenderer.invoke('server:start'),
+  stopServer: ()             => ipcRenderer.invoke('server:stop'),
+  getServerStatus: ()        => ipcRenderer.invoke('server:status'),
 
   // App info push (one-shot event from main after load)
   onAppInfo: (cb) => {

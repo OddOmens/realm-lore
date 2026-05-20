@@ -31,6 +31,11 @@ const DEFAULTS = {
     initiativeTracker: true,
     encounterRoller: true,
     spellSlots: true,
+    conditionRef: true,
+    lootGenerator: true,
+    nameGenerator: true,
+    spellsList: true,
+    itemsList: true,
   },
 };
 

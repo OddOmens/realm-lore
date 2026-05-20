@@ -12,7 +12,7 @@
   "scripts": {
     "build": "vite build",
     "lint": "eslint .",
-    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5180 && NODE_ENV=development electron .\"",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5180 && NODE_ENV=development electron .\"",
     "electron:build": "vite build && electron-builder --mac",
     "electron:build:win": "vite build && electron-builder --win",
     "electron:build:linux": "vite build && electron-builder --linux"
@@ -35,7 +35,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ],
       "darkModeSupport": true
@@ -44,7 +47,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -57,7 +62,10 @@
     }
   },
   "dependencies": {
+    "@3d-dice/dice-box": "^1.1.4",
+    "cors": "^2.8.6",
     "electron-updater": "^6.8.3",
+    "express": "^5.2.1",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.8.0",

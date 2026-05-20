@@ -3,9 +3,11 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { exec } from 'child_process';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 import { loadPlugins, scanPlugins } from './pluginLoader.js';
+import { startServer, stopServer, getLocalIP } from './server.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -25,14 +27,45 @@ process.on('unhandledRejection', err => { writeCrashLog('unhandledRejection', er
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 const dataRoot   = isDev ? path.resolve(__dirname, '..') : app.getPath('userData');
-const worldsDir  = path.join(dataRoot, 'Worlds');
+const appSettingsFile = path.join(app.getPath('userData'), 'app-settings.json');
+
+function loadAppSettings() {
+  try { return JSON.parse(fs.readFileSync(appSettingsFile, 'utf-8')); } catch { return { worldsDir: path.join(dataRoot, 'Worlds'), externalWorlds: [], serverEnabled: false }; }
+}
+function saveAppSettings(settings) {
+  fs.writeFileSync(appSettingsFile, JSON.stringify(settings, null, 2));
+}
+let appSettings = loadAppSettings();
+
+function getWorldsDir() {
+  return appSettings.worldsDir || path.join(dataRoot, 'Worlds');
+}
+function getExternalWorlds() {
+  return appSettings.externalWorlds || [];
+}
+function resolveWorldPath(worldName) {
+  const ext = getExternalWorlds().find(w => w.name === worldName);
+  if (ext) return ext.path;
+  return path.join(getWorldsDir(), worldName);
+}
+function resolveFilePath(filePath) {
+  const parts = filePath.replace(/\\\\/g, '/').split('/');
+  const worldName = parts[0];
+  const rest = parts.slice(1);
+  return path.join(resolveWorldPath(worldName), ...rest);
+}
+function isPathAllowed(full, worldName) {
+  const root = resolveWorldPath(worldName);
+  return full.startsWith(root);
+}
+
 const stampsRoot = path.join(dataRoot, 'customStamps');
 const pluginsDir = path.join(dataRoot, 'plugins');
 
 function ensureDir(p) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
-ensureDir(worldsDir);
+ensureDir(getWorldsDir());
 ensureDir(stampsRoot);
 ensureDir(pluginsDir);
 
@@ -53,7 +86,7 @@ let activePanels = [];  // panels registered by currently-loaded plugins
 async function reloadPlugins() {
   const loaded = await loadPlugins({
     pluginsDir,
-    worldsDir,
+    worldsDir: getWorldsDir(),
     enabledIds: pluginSettings.enabledIds,
     pluginsEnabled: pluginSettings.enabled,
   });
@@ -300,7 +333,7 @@ function createWindow() {
     win.webContents.send('app:info', {
       version: app.getVersion(),
       firstLaunch: isFirstLaunch(),
-      worldsPath: worldsDir,
+      worldsPath: getWorldsDir(),
     });
   });
 
@@ -311,43 +344,101 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
   reloadPlugins().catch(console.error);
+  if (appSettings.serverEnabled) {
+    startServer(5181, {
+      resolveFilePath, resolveWorldPath, getWorldsDir, getExternalWorlds, stampsRoot, pluginsDir,
+      distDir: path.join(__dirname, '../dist')
+    }).catch(console.error);
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  app.quit();
+});
+
+app.on('before-quit', () => {
+  try {
+    if (process.platform === 'darwin' || process.platform === 'linux') {
+      exec(`pkill -P ${process.pid}`);
+    } else if (process.platform === 'win32') {
+      exec(`taskkill /F /T /PID ${process.pid}`);
+    }
+  } catch (e) {
+    // Ignore errors during process cleanup
+  }
+});
+
+
+// ── App Settings & Server IPC ─────────────────────────────────────────────────
+ipcMain.handle('app:getSettings', () => appSettings);
+
+ipcMain.handle('app:saveSettings', (_, settings) => {
+  appSettings = settings;
+  saveAppSettings(appSettings);
+  return appSettings;
+});
+
+ipcMain.handle('server:start', async () => {
+  try {
+    await startServer(5181, {
+      resolveFilePath,
+      resolveWorldPath,
+      getWorldsDir,
+      getExternalWorlds,
+      stampsRoot,
+      pluginsDir,
+      distDir: path.join(__dirname, '../dist'),
+    });
+    return { success: true, ip: getLocalIP(), port: 5181 };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('server:stop', () => {
+  stopServer();
+  return { success: true };
+});
+
+ipcMain.handle('server:status', () => {
+  return { ip: getLocalIP(), port: 5181 };
 });
 
 // ── IPC: app info ─────────────────────────────────────────────────────────────
 ipcMain.handle('app:getPaths', () => ({
-  worlds: worldsDir,
+  worlds: getWorldsDir(),
   userData: app.getPath('userData'),
 }));
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 
-ipcMain.on('app:openWorldsFolder', () => shell.openPath(worldsDir));
+ipcMain.on('app:openWorldsFolder', () => shell.openPath(getWorldsDir()));
 
 // ── IPC: filesystem ───────────────────────────────────────────────────────────
 
 ipcMain.handle('worlds:list', () => {
-  const files = fs.readdirSync(worldsDir);
-  const worlds = files.filter(f =>
+  const masterDir = getWorldsDir();
+  ensureDir(masterDir);
+  const files = fs.readdirSync(masterDir);
+  const masterWorlds = files.filter(f =>
     !f.startsWith('.') && !f.startsWith('_') &&
-    fs.statSync(path.join(worldsDir, f)).isDirectory()
+    fs.statSync(path.join(masterDir, f)).isDirectory()
   );
+  const external = getExternalWorlds().map(w => w.name);
+  const worlds = [...new Set([...masterWorlds, ...external])];
   const required = ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps'];
   worlds.forEach(world => {
-    required.forEach(folder => ensureDir(path.join(worldsDir, world, folder)));
+    required.forEach(folder => ensureDir(path.join(resolveWorldPath(world), folder)));
   });
   return { worlds };
 });
 
 ipcMain.handle('worlds:create', (_, { name }) => {
   const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const dir = path.join(worldsDir, safeName);
+  const dir = resolveWorldPath(safeName);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps'].forEach(f => {
@@ -356,11 +447,10 @@ ipcMain.handle('worlds:create', (_, { name }) => {
   }
   return { success: true, world: safeName };
 });
-
 ipcMain.handle('worlds:open', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     title: 'Open World Folder',
-    defaultPath: worldsDir,
+    defaultPath: getWorldsDir(),
     properties: ['openDirectory', 'createDirectory'],
     buttonLabel: 'Open as World',
   });
@@ -368,9 +458,9 @@ ipcMain.handle('worlds:open', async () => {
 
   const chosen = filePaths[0];
   const worldName = path.basename(chosen);
-  const dest = path.join(worldsDir, worldName);
+  const dest = path.join(getWorldsDir(), worldName);
 
-  if (chosen === dest || chosen.startsWith(worldsDir + path.sep)) {
+  if (chosen === dest || chosen.startsWith(getWorldsDir() + path.sep)) {
     // Already inside worldsDir — just ensure sub-folders exist
     const required = ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps'];
     required.forEach(f => ensureDir(path.join(dest, f)));
@@ -400,34 +490,42 @@ ipcMain.handle('worlds:open', async () => {
 });
 
 ipcMain.handle('worlds:delete', (_, { name }) => {
-  const target = path.join(worldsDir, name);
-  if (fs.existsSync(target) && target.startsWith(worldsDir)) {
+  const target = resolveWorldPath(name);
+  if (fs.existsSync(target)) {
     fs.rmSync(target, { recursive: true, force: true });
+    const exts = getExternalWorlds();
+    if (exts.find(w => w.name === name)) {
+      appSettings.externalWorlds = exts.filter(w => w.name !== name);
+      saveAppSettings(appSettings);
+    }
     return { success: true };
   }
   throw new Error('World not found');
 });
 
+
 ipcMain.handle('fs:read', (_, { filePath }) => {
-  const full = path.join(worldsDir, filePath);
-  if (!full.startsWith(worldsDir)) throw new Error('Forbidden');
+  const parts = filePath.replace(/\\\\/g, '/').split('/');
+  const worldName = parts[0];
+  const full = resolveFilePath(filePath);
+  if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
   if (!fs.existsSync(full)) return null;
   if (fs.statSync(full).isDirectory()) return { isDir: true, files: fs.readdirSync(full) };
   return { isDir: false, content: fs.readFileSync(full, 'utf-8') };
 });
 
 ipcMain.handle('fs:write', async (_, { filePath, content }) => {
-  const full = path.join(worldsDir, filePath);
-  if (!full.startsWith(worldsDir)) throw new Error('Forbidden');
+  const parts = filePath.replace(/\\\\/g, '/').split('/');
+  const worldName = parts[0];
+  const full = resolveFilePath(filePath);
+  if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
   ensureDir(path.dirname(full));
   if (fs.existsSync(full)) fs.copyFileSync(full, full + '.bak');
   const tmp = full + '.tmp';
   fs.writeFileSync(tmp, content, 'utf-8');
   fs.renameSync(tmp, full);
 
-  // Fire onEntitySave hook — parse frontmatter for type/name to pass to plugins
   try {
-    const parts = filePath.replace(/\\/g, '/').split('/');
     if (parts.length >= 3) {
       const match = content.match(/^---\n([\s\S]*?)\n---/);
       const meta = {};
@@ -455,17 +553,16 @@ ipcMain.handle('fs:write', async (_, { filePath, content }) => {
 });
 
 ipcMain.handle('fs:delete', (_, { filePath }) => {
-  const full = path.join(worldsDir, filePath);
-  if (!full.startsWith(worldsDir)) throw new Error('Forbidden');
+  const parts = filePath.replace(/\\\\/g, '/').split('/');
+  const worldName = parts[0];
+  const full = resolveFilePath(filePath);
+  if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
   if (!fs.existsSync(full)) return { success: true };
 
-  const relNorm = path.relative(worldsDir, full).replace(/\\/g, '/');
-  const parts = relNorm.split('/');
+  const restPath = parts.slice(1).join('/');
   if (parts.length < 3) throw new Error('Invalid trash path');
 
-  const worldName = parts[0];
-  const restPath  = parts.slice(1).join('/');
-  const trashFull = path.join(worldsDir, worldName, 'trash', restPath);
+  const trashFull = path.join(resolveWorldPath(worldName), 'trash', restPath);
   ensureDir(path.dirname(trashFull));
 
   let dest = trashFull;
@@ -478,8 +575,8 @@ ipcMain.handle('fs:delete', (_, { filePath }) => {
 });
 
 ipcMain.handle('fs:trash:list', (_, { world }) => {
-  if (!world || world.includes('..') || world.includes('/') || world.includes('\\')) throw new Error('Invalid world');
-  const trashRoot = path.join(worldsDir, world, 'trash');
+  if (!world || world.includes('..') || world.includes('/') || world.includes('\\\\')) throw new Error('Invalid world');
+  const trashRoot = path.join(resolveWorldPath(world), 'trash');
   const items = [];
   function walk(dir, prefix) {
     if (!fs.existsSync(dir)) return;
@@ -488,35 +585,40 @@ ipcMain.handle('fs:trash:list', (_, { world }) => {
       const rel  = prefix ? `${prefix}/${name}` : name;
       if (fs.statSync(full).isDirectory()) { walk(full, rel); continue; }
       if (!name.endsWith('.md')) continue;
-      const segs = rel.replace(/\\/g, '/').split('/');
-      items.push({ trashPath: `${world}/trash/${rel.replace(/\\/g, '/')}`, collection: segs[0] || '', id: name.replace(/\.md$/i, '') });
+      const segs = rel.replace(/\\\\/g, '/').split('/');
+      items.push({ trashPath: `${world}/trash/${rel.replace(/\\\\/g, '/')}`, collection: segs[0] || '', id: name.replace(/\.md$/i, '') });
     }
   }
   walk(trashRoot, '');
   return { items };
 });
 
+
 ipcMain.handle('fs:trash:restore', (_, { path: relPath }) => {
-  const normalized = relPath.replace(/\\/g, '/');
+  const normalized = relPath.replace(/\\\\/g, '/');
   const idx = normalized.indexOf('/trash/');
   if (idx === -1) throw new Error('Not a trash path');
-  const fullTrash = path.join(worldsDir, normalized);
-  if (!fullTrash.startsWith(worldsDir)) throw new Error('Forbidden');
+  const worldName = normalized.slice(0, idx);
+  const rest = normalized.slice(idx + '/trash/'.length);
+  const fullTrash = path.join(resolveWorldPath(worldName), 'trash', rest);
+  if (!isPathAllowed(fullTrash, worldName)) throw new Error('Forbidden');
   if (!fs.existsSync(fullTrash)) throw new Error('Trash entry not found');
-  const restoredRel = normalized.slice(0, idx) + '/' + normalized.slice(idx + '/trash/'.length);
-  const dest = path.join(worldsDir, restoredRel);
-  if (!dest.startsWith(worldsDir)) throw new Error('Forbidden');
+  const dest = path.join(resolveWorldPath(worldName), rest);
+  if (!isPathAllowed(dest, worldName)) throw new Error('Forbidden');
   if (fs.existsSync(dest)) throw new Error('A file already exists at the restore destination.');
   ensureDir(path.dirname(dest));
   fs.renameSync(fullTrash, dest);
+  const restoredRel = worldName + '/' + rest;
   return { success: true, restoredPath: restoredRel };
 });
 
 ipcMain.handle('fs:trash:purge', (_, { path: relPath }) => {
-  const normalized = relPath.replace(/\\/g, '/');
+  const normalized = relPath.replace(/\\\\/g, '/');
   if (!normalized.includes('/trash/')) throw new Error('Not a trash path');
-  const full = path.join(worldsDir, normalized);
-  if (!full.startsWith(worldsDir)) throw new Error('Forbidden');
+  const parts = normalized.split('/');
+  const worldName = parts[0];
+  const full = resolveFilePath(normalized);
+  if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
   if (fs.existsSync(full)) fs.unlinkSync(full);
   return { success: true };
 });
@@ -524,7 +626,7 @@ ipcMain.handle('fs:trash:purge', (_, { path: relPath }) => {
 ipcMain.handle('backup:run', (_, { location, activeWorld, retentionDays }) => {
   if (!location) throw new Error('Missing backup location');
   if (!activeWorld) throw new Error('Missing active world');
-  const sourceDir = path.join(worldsDir, activeWorld);
+  const sourceDir = resolveWorldPath(activeWorld);
   if (!fs.existsSync(sourceDir)) throw new Error('World not found');
   const targetBase = path.resolve(dataRoot, expandPath(location));
   ensureDir(targetBase);
@@ -596,8 +698,10 @@ ipcMain.handle('stamps:image', (_, { rel }) => {
 });
 
 ipcMain.handle('fs:readMapImage', (_, { filePath }) => {
-  const full = path.join(worldsDir, filePath);
-  if (!full.startsWith(worldsDir)) throw new Error('Forbidden');
+  const parts = filePath.replace(/\\\\/g, '/').split('/');
+  const worldName = parts[0];
+  const full = resolveFilePath(filePath);
+  if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
   if (!fs.existsSync(full)) return null;
   return { base64: fs.readFileSync(full).toString('base64') };
 });
