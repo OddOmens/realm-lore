@@ -26,8 +26,10 @@ const Settings       = lazy(() => import('./pages/Settings'));
 const Trash          = lazy(() => import('./pages/Trash'));
 const Timeline       = lazy(() => import('./pages/Timeline'));
 const Maps           = lazy(() => import('./pages/Maps'));
+const AssetGallery   = lazy(() => import('./pages/AssetGallery'));
 const MapDetail      = lazy(() => import('./pages/MapDetail'));
 const NameGenerator  = lazy(() => import('./pages/NameGenerator'));
+const CustomEntities = lazy(() => import('./pages/CustomEntities'));
 const DndTools       = lazy(() => import('./pages/DndTools'));
 const PluginPanel    = lazy(() => import('./pages/PluginPanel'));
 
@@ -47,13 +49,13 @@ function App() {
   const initialize    = useWorldStore(state => state.initialize);
   const backupConfig  = useWorldStore(state => state.backupConfig);
   const triggerBackup = useWorldStore(state => state.triggerBackup);
-  const { fontSize, density } = useAppSettings();
+  const { theme, fontSize, density } = useAppSettings();
   const loadPlugins = usePluginStore(state => state.load);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [worldsPath, setWorldsPath]         = useState('');
 
-  useEffect(() => { applyAppSettings({ fontSize, density }); }, [fontSize, density]);
+  useEffect(() => { applyAppSettings({ theme, fontSize, density }); }, [theme, fontSize, density]);
 
   useEffect(() => { initialize(); }, [initialize]);
   useEffect(() => { loadPlugins(); }, [loadPlugins]);
@@ -80,7 +82,7 @@ function App() {
         <main className="flex-1 flex flex-col overflow-hidden relative">
           {/* Draggable title bar strip for Electron — sits above page content */}
           <div style={{ WebkitAppRegion: 'drag', height: '44px', flexShrink: 0, background: 'transparent' }} className="hidden lg:block" />
-          <div className="flex-1 overflow-y-auto relative mobile-bottom-pad" style={{ marginTop: '-44px' }}>
+          <div className="flex-1 flex flex-col overflow-y-auto relative mobile-bottom-pad" style={{ marginTop: '-44px' }}>
             <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
@@ -105,7 +107,10 @@ function App() {
                 <Route path="/timeline" element={<Timeline />} />
                 <Route path="/maps" element={<Maps />} />
                 <Route path="/maps/:id" element={<MapDetail />} />
+                <Route path="/assets" element={<AssetGallery />} />
                 <Route path="/names" element={<NameGenerator />} />
+                <Route path="/custom/:typeId" element={<CustomEntities />} />
+                <Route path="/custom/:typeId/:id" element={<EntityWiki />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/trash" element={<Trash />} />
                 <Route path="/tools/*" element={<DndTools />} />

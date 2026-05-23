@@ -17,6 +17,8 @@ export const useWorldStore = create((set, get) => ({
   maps: [],
   books: [],
   customStamps: [],
+  customTypes: [],
+  customEntities: [],
   isLoading: true,
   mobileMenuOpen: false,
   backupConfig: {
@@ -44,7 +46,7 @@ export const useWorldStore = create((set, get) => ({
         setActiveWorld(current);
       }
 
-      const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps] = await Promise.all([
+      const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities] = await Promise.all([
         dbService.getAll('characters'),
         dbService.getAll('locations'),
         dbService.getAll('things'),
@@ -57,6 +59,8 @@ export const useWorldStore = create((set, get) => ({
         dbService.getAll('maps'),
         dbService.getAll('books'),
         dbService.getAll('customStamps'),
+        dbService.getAll('_customTypes'),
+        dbService.getAll('customEntities'),
       ]);
 
       // Resolve local image references for maps
@@ -71,7 +75,7 @@ export const useWorldStore = create((set, get) => ({
         return m;
       }));
 
-      set({ worlds, activeWorld: current, characters, locations, things, lore, factions, creatures, races, stories, relationships, maps, books, customStamps, isLoading: false });
+      set({ worlds, activeWorld: current, characters, locations, things, lore, factions, creatures, races, stories, relationships, maps, books, customStamps, customTypes, customEntities, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
       console.error("Failed to load data", error);
@@ -83,7 +87,7 @@ export const useWorldStore = create((set, get) => ({
     setActiveWorld(worldName);
     set({ activeWorld: worldName, isLoading: true });
 
-    const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps] = await Promise.all([
+    const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities] = await Promise.all([
         dbService.getAll('characters'),
         dbService.getAll('locations'),
         dbService.getAll('things'),
@@ -96,6 +100,8 @@ export const useWorldStore = create((set, get) => ({
         dbService.getAll('maps'),
         dbService.getAll('books'),
         dbService.getAll('customStamps'),
+        dbService.getAll('_customTypes'),
+        dbService.getAll('customEntities'),
     ]);
     const maps = await Promise.all(rawMaps.map(async m => {
       if (m.image && m.image.startsWith('__local__')) {
@@ -107,7 +113,7 @@ export const useWorldStore = create((set, get) => ({
       }
       return m;
     }));
-    set({ characters, locations, things, lore, factions, creatures, races, stories, relationships, maps, books, customStamps, isLoading: false });
+    set({ characters, locations, things, lore, factions, creatures, races, stories, relationships, maps, books, customStamps, customTypes, customEntities, isLoading: false });
   },
 
   createWorld: async (name) => {
@@ -211,7 +217,7 @@ export const useWorldStore = create((set, get) => ({
 
     const oldTag = `[[${oldName}]]`;
     const newTag = `[[${newName}]]`;
-    const CONTENT_TYPES = ['stories', 'characters', 'locations', 'things', 'lore', 'factions', 'creatures', 'races'];
+    const CONTENT_TYPES = ['stories', 'characters', 'locations', 'things', 'lore', 'factions', 'creatures', 'races', 'customEntities'];
     // All prose fields that can contain [[references]] across entity types
     const PROSE_FIELDS = [
       'content', 'description', 'background', 'personality', 'appearance',
@@ -451,5 +457,30 @@ export const useWorldStore = create((set, get) => ({
 
   purgeTrashEntry: async (trashPath) => {
     await dbService.purgeTrashItem(trashPath);
+  },
+
+  // Custom Entity Types Management
+  addCustomType: async (data) => {
+    const newType = { id: uuidv4(), ...data };
+    const saved = await dbService.put('_customTypes', newType);
+    set((state) => ({ customTypes: [...state.customTypes, saved] }));
+    return saved;
+  },
+
+  updateCustomType: async (id, data) => {
+    const existing = get().customTypes.find(t => t.id === id);
+    if (!existing) return null;
+    const updated = { ...existing, ...data };
+    const saved = await dbService.put('_customTypes', updated);
+    set((state) => ({ customTypes: state.customTypes.map(t => t.id === id ? saved : t) }));
+    return saved;
+  },
+
+  deleteCustomType: async (id) => {
+    await dbService.delete('_customTypes', id);
+    // Cascade delete all entities of this type
+    const affectedEntities = get().customEntities.filter(e => e.entityType === id);
+    await Promise.all(affectedEntities.map(e => get().deleteEntity('customEntities', e.id)));
+    set((state) => ({ customTypes: state.customTypes.filter(t => t.id !== id) }));
   },
 }));

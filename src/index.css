@@ -26,7 +26,10 @@
     --radius: 0.5rem;
   }
 
-  .dark, :root { /* Force dark theme everywhere since user wants Shadcn Dark Theme */
+  /* ── Core Themes ── */
+
+  /* Default Dark (Original Shadcn Dark) */
+  :root, .theme-dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
@@ -46,6 +49,122 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+    --radius: 0.5rem;
+  }
+
+  /* Parchment (Warm, reading-focused fantasy theme) */
+  .theme-parchment {
+    --background: 42 35% 90%; /* #ebdcb */
+    --foreground: 25 20% 20%;
+    --card: 42 45% 94%;
+    --card-foreground: 25 20% 20%;
+    --popover: 42 45% 94%;
+    --popover-foreground: 25 20% 20%;
+    --primary: 25 40% 30%;
+    --primary-foreground: 42 45% 94%;
+    --secondary: 42 20% 82%;
+    --secondary-foreground: 25 40% 30%;
+    --muted: 42 20% 82%;
+    --muted-foreground: 25 15% 45%;
+    --accent: 42 25% 85%;
+    --accent-foreground: 25 40% 30%;
+    --destructive: 0 60% 40%;
+    --destructive-foreground: 42 45% 94%;
+    --border: 42 20% 78%;
+    --input: 42 20% 82%;
+    --ring: 25 40% 30%;
+  }
+
+  /* Sci-Fi (Deep blues, cyan accents) */
+  .theme-scifi {
+    --background: 220 40% 5%;
+    --foreground: 200 60% 90%;
+    --card: 220 30% 8%;
+    --card-foreground: 200 60% 90%;
+    --popover: 220 30% 8%;
+    --popover-foreground: 200 60% 90%;
+    --primary: 190 90% 50%;
+    --primary-foreground: 220 40% 5%;
+    --secondary: 220 30% 15%;
+    --secondary-foreground: 190 90% 50%;
+    --muted: 220 30% 12%;
+    --muted-foreground: 200 30% 60%;
+    --accent: 220 35% 18%;
+    --accent-foreground: 190 90% 60%;
+    --destructive: 350 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 30% 18%;
+    --input: 220 30% 15%;
+    --ring: 190 90% 50%;
+  }
+
+  /* Grimdark (Pure blacks, crimson accents) */
+  .theme-grimdark {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 85%;
+    --card: 0 0% 3%;
+    --card-foreground: 0 0% 85%;
+    --popover: 0 0% 3%;
+    --popover-foreground: 0 0% 85%;
+    --primary: 0 80% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 80% 60%;
+    --muted: 0 0% 8%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 80% 60%;
+    --destructive: 0 90% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 15%;
+    --input: 0 0% 10%;
+    --ring: 0 80% 45%;
+  }
+
+  /* Purple (Deep amethyst with vibrant violet accents) */
+  .theme-purple {
+    --background: 260 20% 6%;
+    --foreground: 260 10% 90%;
+    --card: 260 20% 10%;
+    --card-foreground: 260 10% 90%;
+    --popover: 260 20% 10%;
+    --popover-foreground: 260 10% 90%;
+    --primary: 265 80% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 25% 15%;
+    --secondary-foreground: 265 80% 65%;
+    --muted: 260 25% 15%;
+    --muted-foreground: 260 15% 60%;
+    --accent: 260 30% 20%;
+    --accent-foreground: 265 80% 65%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 260 25% 20%;
+    --input: 260 25% 18%;
+    --ring: 265 80% 65%;
+  }
+
+  /* Green (Forest shadows with emerald accents) */
+  .theme-green {
+    --background: 140 20% 6%;
+    --foreground: 140 10% 90%;
+    --card: 140 20% 10%;
+    --card-foreground: 140 10% 90%;
+    --popover: 140 20% 10%;
+    --popover-foreground: 140 10% 90%;
+    --primary: 142 70% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 140 25% 15%;
+    --secondary-foreground: 142 70% 45%;
+    --muted: 140 25% 15%;
+    --muted-foreground: 140 15% 60%;
+    --accent: 140 30% 20%;
+    --accent-foreground: 142 70% 45%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 140 25% 20%;
+    --input: 140 25% 18%;
+    --ring: 142 70% 45%;
   }
 }
 
@@ -122,18 +241,19 @@ button, a, input, select, textarea { -webkit-app-region: no-drag; }
 /* Dark book page — matches app dark theme */
 /* 5×8 in paperback proportions scaled for comfortable on-screen reading */
 .book-page-dark {
-  background: hsl(240 10% 6%);
-  color: hsl(0 0% 90%);
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
   border-radius: 2px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 20px rgba(0,0,0,0.3);
   position: relative;
+  border: 1px solid hsl(var(--border));
 }
 .book-page-dark textarea::placeholder {
-  color: rgba(255,255,255,0.2);
+  color: hsl(var(--muted-foreground) / 0.5);
 }
 [contenteditable][data-placeholder]:empty::before {
   content: attr(data-placeholder);
-  color: rgba(255,255,255,0.2);
+  color: hsl(var(--muted-foreground) / 0.5);
   pointer-events: none;
   font-style: italic;
 }

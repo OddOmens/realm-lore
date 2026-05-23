@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listWorlds:   ()           => ipcRenderer.invoke('worlds:list'),
   createWorld:  (name)       => ipcRenderer.invoke('worlds:create', { name }),
   openWorld:    ()           => ipcRenderer.invoke('worlds:open'),
+  exportWorld:  (name)       => ipcRenderer.invoke('worlds:export', { name }),
+  importWorld:  ()           => ipcRenderer.invoke('worlds:import'),
   deleteWorld:  (name)       => ipcRenderer.invoke('worlds:delete', { name }),
 
   // Filesystem
@@ -18,9 +20,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   trashPurge:   (path)       => ipcRenderer.invoke('fs:trash:purge',   { path }),
 
   // Backup
-  runBackup:    (opts)       => ipcRenderer.invoke('backup:run', opts),
+  runBackup: (opts) => ipcRenderer.invoke('backup:run', opts),
 
-  // Stamps
+  // Assets
+  listAssets: (opts) => ipcRenderer.invoke('assets:list', opts),
+  importAsset: (opts) => ipcRenderer.invoke('assets:import', opts),
+  deleteAsset: (opts) => ipcRenderer.invoke('assets:delete', opts),
+
+  // Export
+  exportPdf: (opts) => ipcRenderer.invoke('app:exportPdf', opts),
+  exportEpub: (opts) => ipcRenderer.invoke('app:exportEpub', opts),
+
+  // Plugins
   stampsList:   ()           => ipcRenderer.invoke('stamps:list'),
   stampsImage:  (rel)        => ipcRenderer.invoke('stamps:image', { rel }),
 
