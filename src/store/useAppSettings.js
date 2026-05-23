@@ -17,8 +17,10 @@ const DEFAULTS = {
     '/trash':      true,
   },
   // Appearance
+  theme: 'dark',       // 'dark' | 'parchment' | 'scifi' | 'grimdark'
   fontSize: 'md',      // 'sm' | 'md' | 'lg'
   density: 'comfortable', // 'compact' | 'comfortable' | 'spacious'
+  showAppTitle: true,  // Controls visibility of Realm Lore sidebar title
   // Editor
   autosaveDelay: 800,  // ms
   defaultListView: 'grid', // 'grid' | 'list'
@@ -98,8 +100,19 @@ export const useAppSettings = create((set) => ({
 }));
 
 // Apply CSS custom properties to :root based on settings
-export function applyAppSettings({ fontSize, density }) {
+export function applyAppSettings({ theme = 'dark', fontSize = 'md', density = 'comfortable' }) {
   const root = document.documentElement;
+  
+  // Apply Theme
+  root.classList.remove('theme-dark', 'theme-parchment', 'theme-scifi', 'theme-grimdark', 'theme-purple', 'theme-green', 'dark');
+  if (theme === 'dark') {
+    // legacy support + new theme system
+    root.classList.add('dark', 'theme-dark');
+  } else {
+    root.classList.add(`theme-${theme}`);
+  }
+
+  // Apply Fonts & Density
   const fontSizeMap = { sm: '13px', md: '15px', lg: '17px' };
   const densityMap  = { compact: '0.5rem', comfortable: '1rem', spacious: '1.5rem' };
   root.style.setProperty('--app-font-size', fontSizeMap[fontSize] ?? fontSizeMap.md);

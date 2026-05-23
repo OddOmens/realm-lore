@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, Menu, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Menu, dialog, protocol, net } from 'electron';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
@@ -6,6 +6,7 @@ import os from 'os';
 import { exec } from 'child_process';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
+import AdmZip from 'adm-zip';
 import { loadPlugins, scanPlugins } from './pluginLoader.js';
 import { startServer, stopServer, getLocalIP } from './server.js';
 
@@ -342,6 +343,19 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  protocol.handle('asset', (request) => {
+    // request.url is something like "asset://worldname/assets/foo.png"
+    // URL parsing can be tricky with custom schemes, so manual parsing is safer.
+    const urlStr = request.url.replace(/^asset:\/\//, '');
+    const firstSlash = urlStr.indexOf('/');
+    if (firstSlash === -1) return new Response('Bad Request', { status: 400 });
+    const worldName = decodeURIComponent(urlStr.substring(0, firstSlash));
+    const restPath = decodeURIComponent(urlStr.substring(firstSlash + 1));
+    const worldRoot = resolveWorldPath(worldName);
+    const fullPath = path.join(worldRoot, restPath);
+    return net.fetch('file://' + fullPath);
+  });
+
   createWindow();
   reloadPlugins().catch(console.error);
   if (appSettings.serverEnabled) {
@@ -429,7 +443,7 @@ ipcMain.handle('worlds:list', () => {
   );
   const external = getExternalWorlds().map(w => w.name);
   const worlds = [...new Set([...masterWorlds, ...external])];
-  const required = ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps'];
+  const required = ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps','assets'];
   worlds.forEach(world => {
     required.forEach(folder => ensureDir(path.join(resolveWorldPath(world), folder)));
   });
@@ -441,7 +455,7 @@ ipcMain.handle('worlds:create', (_, { name }) => {
   const dir = resolveWorldPath(safeName);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
-    ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps'].forEach(f => {
+    ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps','assets'].forEach(f => {
       ensureDir(path.join(dir, f));
     });
   }
@@ -502,6 +516,75 @@ ipcMain.handle('worlds:delete', (_, { name }) => {
   }
   throw new Error('World not found');
 });
+
+ipcMain.handle('worlds:export', async (_, { name }) => {
+  const target = resolveWorldPath(name);
+  if (!fs.existsSync(target)) throw new Error('World not found');
+  
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export World as ZIP',
+    defaultPath: `${name}.zip`,
+    filters: [{ name: 'ZIP Archives', extensions: ['zip'] }]
+  });
+  
+  if (canceled || !filePath) return { canceled: true };
+  
+  try {
+    const zip = new AdmZip();
+    zip.addLocalFolder(target);
+    zip.writeZip(filePath);
+    return { success: true, filePath };
+  } catch (err) {
+    throw new Error('Failed to create ZIP archive: ' + err.message);
+  }
+});
+
+ipcMain.handle('worlds:import', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Import World from ZIP',
+    defaultPath: app.getPath('desktop'),
+    filters: [{ name: 'ZIP Archives', extensions: ['zip'] }],
+    properties: ['openFile']
+  });
+  
+  if (canceled || !filePaths.length) return { canceled: true };
+  
+  const zipPath = filePaths[0];
+  const worldName = path.basename(zipPath, '.zip').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const dest = path.join(getWorldsDir(), worldName);
+  
+  if (fs.existsSync(dest)) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Cancel', 'Overwrite'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'World Already Exists',
+      message: `A world named "${worldName}" already exists.`,
+      detail: 'Do you want to overwrite it? This will replace all existing data in this world with the imported ZIP. This action cannot be undone.'
+    });
+    if (response !== 1) {
+      return { canceled: true };
+    }
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+  
+  try {
+    const zip = new AdmZip(zipPath);
+    zip.extractAllTo(dest, true);
+    
+    // Ensure all required folders exist just in case
+    const required = ['characters','locations','things','lore','factions','creatures','stories','relationships','maps','books','customStamps'];
+    required.forEach(f => ensureDir(path.join(dest, f)));
+    
+    return { success: true, world: worldName };
+  } catch (err) {
+    // Clean up if it fails midway
+    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+    throw new Error('Failed to extract ZIP archive: ' + err.message);
+  }
+});
+
 
 
 ipcMain.handle('fs:read', (_, { filePath }) => {
@@ -704,6 +787,144 @@ ipcMain.handle('fs:readMapImage', (_, { filePath }) => {
   if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
   if (!fs.existsSync(full)) return null;
   return { base64: fs.readFileSync(full).toString('base64') };
+});
+
+// ── IPC: Assets ───────────────────────────────────────────────────────────────
+ipcMain.handle('assets:list', (_, { world }) => {
+  const worldRoot = resolveWorldPath(world);
+  const assetsDir = path.join(worldRoot, 'assets');
+  ensureDir(assetsDir);
+  
+  const IMAGE_EXTS = new Set(['.png','.svg','.jpg','.jpeg','.webp', '.gif']);
+  const entries = [];
+  function walk(dir, prefix) {
+    if (!fs.existsSync(dir)) return;
+    for (const name of fs.readdirSync(dir)) {
+      if (name.startsWith('.')) continue;
+      const full = path.join(dir, name);
+      const rel  = prefix ? `${prefix}/${name}` : name;
+      if (fs.statSync(full).isDirectory()) { walk(full, rel); continue; }
+      const ext = path.extname(name).toLowerCase();
+      if (!IMAGE_EXTS.has(ext)) continue;
+      entries.push({ rel, label: name, ext: ext.slice(1) });
+    }
+  }
+  walk(assetsDir, '');
+  entries.sort((a, b) => b.label.localeCompare(a.label)); // newest maybe? Sort alphabetically for now
+  return { assets: entries };
+});
+
+ipcMain.handle('assets:import', async (_, { world }) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Import Image Asset',
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'] }],
+    properties: ['openFile', 'multiSelections']
+  });
+  if (canceled || !filePaths.length) return { canceled: true };
+  
+  const worldRoot = resolveWorldPath(world);
+  const assetsDir = path.join(worldRoot, 'assets');
+  ensureDir(assetsDir);
+  
+  const imported = [];
+  for (const p of filePaths) {
+    let name = path.basename(p).replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    let dest = path.join(assetsDir, name);
+    // deduplicate
+    let counter = 1;
+    while (fs.existsSync(dest)) {
+      const ext = path.extname(name);
+      const base = path.basename(name, ext);
+      dest = path.join(assetsDir, `${base}-${counter}${ext}`);
+      counter++;
+    }
+    fs.copyFileSync(p, dest);
+    imported.push(path.basename(dest));
+  }
+  return { success: true, imported };
+});
+
+ipcMain.handle('assets:delete', (_, { world, assetPath }) => {
+  const worldRoot = resolveWorldPath(world);
+  const full = path.join(worldRoot, 'assets', assetPath);
+  if (!isPathAllowed(full, world)) throw new Error('Forbidden');
+  if (fs.existsSync(full)) fs.unlinkSync(full);
+  return { success: true };
+});
+
+// ── IPC: Export (PDF / EPUB) ──────────────────────────────────────────────────
+ipcMain.handle('app:exportPdf', async (_, { title, htmlContent }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export to PDF',
+    defaultPath: `${title || 'Export'}.pdf`,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+  });
+  if (canceled || !filePath) return { canceled: true };
+
+  // Create a hidden window to render and print
+  const printWin = new BrowserWindow({
+    show: false,
+    webPreferences: { nodeIntegration: false, contextIsolation: true }
+  });
+  
+  // A simple HTML shell
+  const htmlDoc = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Georgia', serif; font-size: 14px; line-height: 1.6; color: #111; max-width: 800px; margin: 0 auto; padding: 40px; }
+          h1, h2, h3 { font-family: 'Helvetica', sans-serif; color: #000; }
+          img { max-width: 100%; height: auto; }
+          pre, code { font-family: monospace; background: #f4f4f4; padding: 2px 4px; border-radius: 4px; }
+          blockquote { border-left: 4px solid #ccc; margin: 0; padding-left: 1em; color: #555; }
+        </style>
+      </head>
+      <body>${htmlContent}</body>
+    </html>
+  `;
+  
+  await printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlDoc)}`);
+  
+  try {
+    const pdfBuffer = await printWin.webContents.printToPDF({
+      printBackground: true,
+      margin: { top: 1, bottom: 1, left: 1, right: 1 }
+    });
+    fs.writeFileSync(filePath, pdfBuffer);
+    printWin.destroy();
+    return { success: true, filePath };
+  } catch (err) {
+    printWin.destroy();
+    throw new Error('PDF export failed: ' + err.message);
+  }
+});
+
+import Epub from 'epub-gen-memory';
+ipcMain.handle('app:exportEpub', async (_, { title, author, chapters }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export to EPUB',
+    defaultPath: `${title || 'Export'}.epub`,
+    filters: [{ name: 'EPUB', extensions: ['epub'] }]
+  });
+  if (canceled || !filePath) return { canceled: true };
+
+  try {
+    // Generate EPUB buffer in memory
+    const epubBuffer = await Epub({
+      title: title || 'Realm Lore Export',
+      author: author || 'Unknown',
+      content: chapters.map(c => ({
+        title: c.title,
+        data: c.html
+      }))
+    });
+    fs.writeFileSync(filePath, epubBuffer);
+    return { success: true, filePath };
+  } catch (err) {
+    throw new Error('EPUB export failed: ' + err.message);
+  }
 });
 
 // ── IPC: plugins ──────────────────────────────────────────────────────────────

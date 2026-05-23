@@ -1598,8 +1598,14 @@ export function EntityWikiContent() {
   const location     = useLocation();
   const params       = useParams();
   const pathSegments = location.pathname.split('/').filter(Boolean);
-  const entityType   = params.entityType || pathSegments[0];
-  const id           = params.id || pathSegments[1];
+  let entityType     = params.entityType || pathSegments[0];
+  let id             = params.id || pathSegments[1];
+
+  if (entityType === 'custom') {
+    entityType = 'customEntities';
+    id = params.id || pathSegments[2];
+  }
+
   const navigate     = useNavigate();
 
   const activeWorld               = useWorldStore(s => s.activeWorld);
@@ -1613,6 +1619,8 @@ export function EntityWikiContent() {
   const lore         = useWorldStore(s => s.lore);
   const factions     = useWorldStore(s => s.factions);
   const creatures    = useWorldStore(s => s.creatures);
+  const customEntities = useWorldStore(s => s.customEntities);
+  const customTypes  = useWorldStore(s => s.customTypes);
 
   const allEntities = useMemo(() => [
     ...characters.map(e => ({ ...e, _type: 'characters' })),
@@ -1621,10 +1629,37 @@ export function EntityWikiContent() {
     ...lore.filter(e => !e._isTimelineEvent).map(e => ({ ...e, _type: 'lore' })),
     ...factions.map(e   => ({ ...e, _type: 'factions'   })),
     ...creatures.map(e  => ({ ...e, _type: 'creatures'  })),
-  ], [characters, locations, things, lore, factions, creatures]);
+    ...customEntities.map(e => ({ ...e, _type: 'customEntities' })),
+  ], [characters, locations, things, lore, factions, creatures, customEntities]);
 
-  const template = getTemplate(entityType);
-  const allKeys  = getAllFieldKeys(entityType);
+  // Fallback for custom entities: use a basic template or construct one
+  let template = getTemplate(entityType);
+  if (!template && entityType === 'customEntities') {
+    const typeDef = customTypes.find(t => t.id === params.typeId || t.id === pathSegments[1]);
+    template = {
+      id: 'custom',
+      label: typeDef ? typeDef.singular : 'Custom Entity',
+      color: 'blue',
+      sections: [
+        {
+          title: 'Details',
+          sidebar: true,
+          fields: [
+            { key: 'status', label: 'Status', type: 'text' },
+          ]
+        },
+        {
+          title: 'Overview',
+          fields: [
+            { key: 'description', label: 'Description', type: 'textarea' },
+            { key: 'notes', label: 'Notes', type: 'textarea' }
+          ]
+        }
+      ]
+    };
+  }
+
+  const allKeys  = template ? template.sections.flatMap(s => s.fields).map(f => f.key) : [];
   const entity   = entities.find(e => e.id === id);
 
   const [values, setValues] = useState(() => {
@@ -1964,12 +1999,30 @@ export function EntityWikiContent() {
                           <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                             Portrait / Image URL
                           </label>
-                          <input
-                            value={values.image || ''}
-                            onChange={e => set('image', e.target.value)}
-                            placeholder="https://…"
-                            className="w-full text-sm bg-secondary/50 text-foreground rounded-xl px-4 py-3 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
-                          />
+                          <div className="flex gap-2">
+                            <input
+                              value={values.image || ''}
+                              onChange={e => set('image', e.target.value)}
+                              placeholder="https://… or asset://…"
+                              className="flex-1 text-sm bg-secondary/50 text-foreground rounded-xl px-4 py-3 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all min-w-0"
+                            />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.electronAPI && window.electronAPI.importAsset) {
+                                  try {
+                                    const res = await window.electronAPI.importAsset({ world: activeWorld });
+                                    if (res.success && res.imported?.length) {
+                                      set('image', `asset://${activeWorld}/assets/${res.imported[0]}`);
+                                    }
+                                  } catch (err) { console.error(err); }
+                                }
+                              }}
+                              className="px-4 py-3 bg-secondary border border-border text-foreground text-sm font-medium rounded-xl hover:bg-secondary/80 whitespace-nowrap"
+                            >
+                              Browse
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

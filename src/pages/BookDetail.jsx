@@ -501,9 +501,31 @@ export default function BookDetail() {
               type="button"
               className="h-10 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-sm font-medium text-foreground transition-colors"
               onClick={async () => {
-                const slug = (book.name || 'book').replace(/\s+/g, '-').replace(/[^a-z0-9-_]/gi, '').toLowerCase() || 'book';
-                const blob = await buildEpubBlob(book, chapters);
-                downloadBlob(`${slug}.epub`, blob);
+                if (window.electronAPI && window.electronAPI.exportEpub) {
+                  try {
+                    await window.electronAPI.exportEpub({
+                      title: book.name || 'Realm Lore Export',
+                      author: book.author || 'Unknown',
+                      chapters: chapters.map(c => {
+                        let html = '';
+                        for (const p of (c.content || '').replace(/\f/g, '\n\n').split(/\n+/)) {
+                          const t = p.trim();
+                          if (!t) continue;
+                          const plain = t.replace(/\[\[([^\]]+)\]\]/g, '$1');
+                          if (plain === '* * *' || plain === '***') html += '<p style="text-align:center">* * *</p>';
+                          else html += `<p>${plain}</p>`;
+                        }
+                        return { title: c.name || 'Untitled', html };
+                      })
+                    });
+                  } catch (e) {
+                    console.error('EPUB Export failed', e);
+                  }
+                } else {
+                  const slug = (book.name || 'book').replace(/\s+/g, '-').replace(/[^a-z0-9-_]/gi, '').toLowerCase() || 'book';
+                  const blob = await buildEpubBlob(book, chapters);
+                  downloadBlob(`${slug}.epub`, blob);
+                }
               }}
             >
               Download EPUB
@@ -523,14 +545,22 @@ export default function BookDetail() {
             <button
               type="button"
               className="h-10 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 text-sm font-medium text-primary transition-colors"
-              onClick={() => {
+              onClick={async () => {
                 const html = compileHtmlManuscript(book, chapters);
-                const w = window.open('', '_blank');
-                if (!w) return;
-                w.document.write(html);
-                w.document.close();
-                w.focus();
-                requestAnimationFrame(() => { try { w.print(); } catch { /* browser print edge cases */ } });
+                if (window.electronAPI && window.electronAPI.exportPdf) {
+                  try {
+                    await window.electronAPI.exportPdf({ title: book.name || 'Realm Lore Export', htmlContent: html });
+                  } catch (err) {
+                    console.error('PDF Export failed', err);
+                  }
+                } else {
+                  const w = window.open('', '_blank');
+                  if (!w) return;
+                  w.document.write(html);
+                  w.document.close();
+                  w.focus();
+                  requestAnimationFrame(() => { try { w.print(); } catch { /* browser print edge cases */ } });
+                }
               }}
             >
               Print / Save as PDF…

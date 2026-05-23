@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Shuffle, Copy, Check, Wand2, Plus } from 'lucide-react';
-import { GENERATOR_TYPES, generateName } from '../lib/nameGenerator';
+import { GENERATOR_TYPES, CHARACTER_RACES, generateName } from '../lib/nameGenerator';
 import { useWorldStore } from '../store/useWorldStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,28 +15,30 @@ const ENTITY_MAP = {
   place:     { storeType: 'locations',  path: '/locations',  label: 'Location'  },
   creature:  { storeType: 'creatures',  path: '/creatures',  label: 'Creature'  },
   lore:      { storeType: 'lore',       path: '/lore',       label: 'Lore'      },
+  race:      { storeType: null,         path: null,          label: null        },
 };
 
 export default function NameGenerator() {
   const navigate  = useNavigate();
   const addEntity = useWorldStore(s => s.addEntity);
 
-  const [activeType, setActiveType] = useState('character');
-  const [results, setResults]       = useState([]);
-  const [addedIds, setAddedIds]     = useState(new Set());
-  const [copiedId, setCopiedId]     = useState(null);
+  const [activeType, setActiveType]   = useState('character');
+  const [activeRace, setActiveRace]   = useState('any');
+  const [results, setResults]         = useState([]);
+  const [addedIds, setAddedIds]       = useState(new Set());
+  const [copiedId, setCopiedId]       = useState(null);
 
   const generate = useCallback((count = BATCH_SIZE) => {
     const names = Array.from({ length: count }, () => ({
       id: Math.random().toString(36).slice(2),
-      name: generateName(activeType),
+      name: generateName(activeType, activeRace),
     }));
     setResults(names);
     setAddedIds(new Set());
-  }, [activeType]);
+  }, [activeType, activeRace]);
 
   const generateOne = () => {
-    const entry = { id: Math.random().toString(36).slice(2), name: generateName(activeType) };
+    const entry = { id: Math.random().toString(36).slice(2), name: generateName(activeType, activeRace) };
     setResults(r => [entry, ...r].slice(0, BATCH_SIZE));
   };
 
@@ -48,14 +50,19 @@ export default function NameGenerator() {
 
   const handleAdd = async (entry) => {
     const mapping = ENTITY_MAP[activeType];
-    if (!mapping) return;
+    if (!mapping || !mapping.storeType) return;
     const created = await addEntity(mapping.storeType, { name: entry.name });
     setAddedIds(s => new Set(s).add(entry.id));
     navigate(`${mapping.path}/${created.id}`);
   };
 
-  const activeLabel = GENERATOR_TYPES.find(t => t.key === activeType)?.label ?? '';
+  const activeTypeLabel = GENERATOR_TYPES.find(t => t.key === activeType)?.label ?? '';
+  const activeRaceLabel = CHARACTER_RACES.find(r => r.key === activeRace)?.label ?? '';
   const mapping = ENTITY_MAP[activeType];
+
+  const generateLabel = activeType === 'character' && activeRace !== 'any'
+    ? `${activeRaceLabel} Names`
+    : `${activeTypeLabel} Names`;
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -67,14 +74,19 @@ export default function NameGenerator() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 md:px-8 py-8 space-y-8">
+        <div className="max-w-4xl mx-auto px-4 md:px-8 py-8 space-y-6">
 
           {/* Type tabs */}
           <div className="flex flex-wrap gap-2">
             {GENERATOR_TYPES.map(t => (
               <button
                 key={t.key}
-                onClick={() => { setActiveType(t.key); setResults([]); setAddedIds(new Set()); }}
+                onClick={() => {
+                  setActiveType(t.key);
+                  setResults([]);
+                  setAddedIds(new Set());
+                  if (t.key !== 'character') setActiveRace('any');
+                }}
                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-all border ${
                   activeType === t.key
                     ? 'bg-primary text-primary-foreground border-primary'
@@ -86,6 +98,31 @@ export default function NameGenerator() {
             ))}
           </div>
 
+          {/* Race picker — only shown for Character */}
+          {activeType === 'character' && (
+            <div className="rounded-xl border border-border bg-card/50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Race
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {CHARACTER_RACES.map(r => (
+                  <button
+                    key={r.key}
+                    onClick={() => { setActiveRace(r.key); setResults([]); setAddedIds(new Set()); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
+                      activeRace === r.key
+                        ? 'bg-primary/15 text-primary border-primary/40 shadow-sm'
+                        : 'bg-secondary/50 text-muted-foreground border-border hover:text-foreground hover:bg-secondary'
+                    }`}
+                  >
+                    <span className="text-base leading-none">{r.emoji}</span>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Generate button */}
           <div className="flex gap-3">
             <button
@@ -93,7 +130,7 @@ export default function NameGenerator() {
               className="flex-1 flex items-center justify-center gap-3 py-5 rounded-2xl bg-primary text-primary-foreground font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-primary/20 active:scale-[0.98]"
             >
               <Shuffle size={22} />
-              Generate {activeLabel} Names
+              Generate {generateLabel}
             </button>
             <button
               onClick={generateOne}
@@ -109,7 +146,7 @@ export default function NameGenerator() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Results</p>
-                {mapping && (
+                {mapping && mapping.storeType && (
                   <p className="text-[10px] text-muted-foreground/50">Click <Plus size={9} className="inline" /> to create as a {mapping.label}</p>
                 )}
               </div>
@@ -136,7 +173,7 @@ export default function NameGenerator() {
                         >
                           {copiedId === entry.id ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
                         </button>
-                        {mapping && !added && (
+                        {mapping && mapping.storeType && !added && (
                           <button
                             onClick={() => handleAdd(entry)}
                             title={`Create as ${mapping.label}`}
@@ -156,7 +193,9 @@ export default function NameGenerator() {
           {results.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
               <Shuffle size={40} className="text-muted-foreground/20" />
-              <p className="text-muted-foreground/50 text-sm">Hit Generate to roll {BATCH_SIZE} {activeLabel.toLowerCase()} names</p>
+              <p className="text-muted-foreground/50 text-sm">
+                Hit Generate to roll {BATCH_SIZE} {generateLabel.toLowerCase()}
+              </p>
             </div>
           )}
 

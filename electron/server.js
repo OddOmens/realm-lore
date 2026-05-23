@@ -232,7 +232,7 @@ export function startServer(port, deps) {
   app.use(express.static(distDir));
 
   // Fallback to index.html for SPA routing
-  app.get('*', (req, res) => {
+  app.get(/.*/, (req, res) => {
     res.sendFile(path.join(distDir, 'index.html'));
   });
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Globe, Users, Map, Library, Settings, Box, Plus, Search, TrendingUp, Flag, PawPrint, MapPin, Trash2, Wand2, Dna, FolderOpen, Dice5, Swords, Table2, Sparkles, Puzzle, BarChart2, Star, BookOpen, Layers, Zap, FlaskConical, Gem, User } from 'lucide-react';
+import { Globe, Users, Map, Library, Settings, Box, Plus, Search, TrendingUp, Flag, PawPrint, MapPin, Trash2, Wand2, Dna, FolderOpen, Dice5, Swords, Table2, Sparkles, Puzzle, BarChart2, Star, BookOpen, Layers, Zap, FlaskConical, Gem, User, Network, Image } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
 import { useAppSettings } from '../store/useAppSettings';
 import { usePluginStore } from '../store/usePluginStore';
@@ -9,6 +9,7 @@ const ICON_MAP = {
   BarChart2, Star, BookOpen, Layers, Zap, FlaskConical, Puzzle,
   Globe, Users, Map, Library, Box, TrendingUp, Flag, PawPrint,
   MapPin, Trash2, Wand2, Dna, Dice5, Swords, Table2, Sparkles, Gem, User,
+  Network, Image,
 };
 import Dropdown from './Dropdown';
 import Modal from './Modal';
@@ -26,6 +27,7 @@ const navItems = [
   { path: '/maps', label: 'Maps', icon: MapPin },
   { path: '/stories', label: 'Library', icon: Library },
   { path: '/names', label: 'Names', icon: Wand2 },
+  { path: '/assets', label: 'Asset Gallery', icon: Image },
   { path: '/trash', label: 'Trash', icon: Trash2 },
 ];
 
@@ -35,6 +37,7 @@ function SidebarNav({ setMobileMenuOpen }) {
   const dndTools   = useAppSettings(s => s.dndTools);
   const panels     = usePluginStore(s => s.panels);
   const pluginsEnabled = usePluginStore(s => s.pluginsEnabled);
+  const customTypes = useWorldStore(s => s.customTypes) || [];
   const visible = navItems.filter(item => navVisible[item.path] !== false);
   return (
     <nav className="flex-1 px-4 pt-2 space-y-0.5 overflow-y-auto">
@@ -110,6 +113,28 @@ function SidebarNav({ setMobileMenuOpen }) {
               <Box size={17} /><span>Items List</span>
             </NavLink>
           )}
+        </>
+      )}
+      {customTypes.length > 0 && (
+        <>
+          <div className="my-2 border-t border-border" />
+          <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Custom</p>
+          {customTypes.map(type => {
+            const Icon = ICON_MAP[type.icon] || Box;
+            return (
+              <NavLink
+                key={type.id}
+                to={`/custom/${type.id}`}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`
+                }
+              >
+                <Icon size={17} />
+                <span>{type.label}</span>
+              </NavLink>
+            );
+          })}
         </>
       )}
       {pluginsEnabled && panels.length > 0 && (
@@ -201,6 +226,7 @@ export default function Sidebar() {
   const navigate          = useNavigate();
 
   const dndTools = useAppSettings(s => s.dndTools);
+  const showAppTitle = useAppSettings(s => s.showAppTitle);
 
   const [showCreate, setShowCreate]     = useState(false);
   const [newWorldName, setNewWorldName] = useState('');
@@ -252,14 +278,16 @@ export default function Sidebar() {
         {/* Traffic light spacer — only visible in Electron on macOS */}
         <div className="electron-titlebar" style={{ WebkitAppRegion: 'drag', height: '44px', flexShrink: 0 }} />
         <div className="p-5 pt-2 pb-2">
-          <div className="flex items-center justify-between gap-3 text-primary font-semibold text-xl tracking-tight mb-4">
-            <div className="flex items-center gap-3">
-              <Globe size={26} className="text-primary" />
-              <h1>Realm Lore</h1>
-            </div>
+          <div className={`flex items-start justify-between gap-3 mt-2 ${showAppTitle ? 'mb-4' : 'mb-2 lg:mb-0 lg:hidden'}`}>
+            {showAppTitle && (
+              <div className="flex flex-col">
+                <h1 className="text-lg font-bold tracking-tight text-primary">Realm Lore</h1>
+                <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/60">by Odd Omens</p>
+              </div>
+            )}
             <button 
               onClick={() => setMobileMenuOpen(false)}
-              className="lg:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground"
+              className="lg:hidden p-1 rounded-md hover:bg-secondary text-muted-foreground ml-auto"
             >
               <Plus size={18} className="rotate-45" />
             </button>

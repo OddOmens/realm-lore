@@ -1,6 +1,6 @@
 {
   "name": "realm-lore",
-  "version": "2026.5.1",
+  "version": "2026.5.4",
   "author": {
     "name": "OddOmens",
     "email": "hello@oddomens.com"
@@ -63,8 +63,10 @@
   },
   "dependencies": {
     "@3d-dice/dice-box": "^1.1.4",
+    "adm-zip": "^0.5.17",
     "cors": "^2.8.6",
     "electron-updater": "^6.8.3",
+    "epub-gen-memory": "^1.1.2",
     "express": "^5.2.1",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
