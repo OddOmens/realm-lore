@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
+import { useShallow } from 'zustand/shallow';
 import { Users, Map, Box, BookOpen, BookMarked, Clock, Link2, FileText, TrendingUp, Globe, Feather, Flame } from 'lucide-react';
 import { getWritingStreak } from '../lib/writingStreak';
 
@@ -81,14 +82,18 @@ function RecentItem({ entity, type, navigate }) {
 }
 
 export default function Dashboard() {
-  const characters  = useWorldStore(s => s.characters);
-  const locations   = useWorldStore(s => s.locations);
-  const things      = useWorldStore(s => s.things);
-  const lore        = useWorldStore(s => s.lore);
-  const stories     = useWorldStore(s => s.stories);
-  const relationships = useWorldStore(s => s.relationships);
-  const activeWorld = useWorldStore(s => s.activeWorld);
-  const isLoading   = useWorldStore(s => s.isLoading);
+  const { characters, locations, things, lore, stories, relationships, activeWorld, isLoading } = useWorldStore(
+    useShallow(s => ({
+      characters: s.characters,
+      locations: s.locations,
+      things: s.things,
+      lore: s.lore,
+      stories: s.stories,
+      relationships: s.relationships,
+      activeWorld: s.activeWorld,
+      isLoading: s.isLoading,
+    }))
+  );
   const navigate    = useNavigate();
 
   const [wordGoalInput, setWordGoalInput] = useState('');
@@ -132,7 +137,7 @@ export default function Dashboard() {
   }, [characters, locations, things, lore, stories]);
 
   const totalWords = useMemo(
-    () => stories.reduce((sum, s) => sum + wordCount(s.content), 0),
+    () => stories.reduce((sum, s) => sum + (s.wordCount || 0), 0),
     [stories]
   );
 

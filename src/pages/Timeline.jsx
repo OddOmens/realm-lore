@@ -1,10 +1,11 @@
+import TextareaAutosize from 'react-textarea-autosize';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
 import { 
   Plus, TrendingUp, Users, Map as MapIcon, Box, BookMarked,
-  ExternalLink, Flag, PawPrint,
-  Swords, Compass, Sparkles, Skull, Landmark, Flame, Eye, MapPin, Pencil, Trash2
+  ExternalLink, Flag, PawPrint, Clock,
+  Swords, Compass, Sparkles, Skull, Landmark, Flame, Eye, MapPin, Pencil, Trash2, Search, X
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -68,10 +69,10 @@ function EventModal({ initial = {}, onSave, onClose, allEntities }) {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</label>
-              <textarea
+              <TextareaAutosize
                 value={values.description}
                 onChange={e => set('description', e.target.value)}
-                rows={9}
+                minRows={9}
                 placeholder="What happened? Why does it matter?"
                 className="w-full bg-secondary/50 text-sm text-foreground rounded-xl px-4 py-3 border border-border focus:outline-none focus:ring-1 focus:ring-ring resize-none placeholder:text-muted-foreground/40 transition-all"
               />
@@ -229,17 +230,20 @@ export default function Timeline() {
   const [adding, setAdding]       = useState(false);
   const [editing, setEditing]     = useState(null);
   const [deleting, setDeleting]   = useState(null);
+  const [query, setQuery]         = useState('');
 
   // Group by era
   const eras = useMemo(() => {
     const map = {};
+    const q = query.trim().toLowerCase();
     events.forEach(e => {
+      if (q && !e.name?.toLowerCase().includes(q) && !e.description?.toLowerCase().includes(q) && !e.type?.toLowerCase().includes(q)) return;
       const era = e.era || 'Ungrouped';
       if (!map[era]) map[era] = [];
       map[era].push(e);
     });
     return map;
-  }, [events]);
+  }, [events, query]);
 
   const eraNames = Object.keys(eras);
 
@@ -289,26 +293,50 @@ export default function Timeline() {
 
   return (
     <>
-      <div className="flex-1 flex flex-col overflow-hidden bg-background">
-        {/* Header */}
-        <header className="flex items-center justify-between px-6 py-5 border-b border-border bg-card shrink-0">
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <TrendingUp size={20} className="text-rose-400" />
-              <h2 className="text-2xl font-bold tracking-tight text-foreground">Timeline</h2>
+    <div className="flex-1 overflow-y-auto w-full">
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md mb-5 border-b border-border/40 shadow-sm">
+        <div className="px-4 pt-6 pb-3 md:px-8 md:pt-8 flex flex-col gap-5">
+          <header>
+            <div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <Clock size={22} className="text-muted-foreground" />
+                <h2 className="text-3xl font-bold tracking-tight text-foreground">Timeline</h2>
+              </div>
+              <p className="text-muted-foreground text-sm mt-0.5">Chronological history of your world.</p>
             </div>
-            <p className="text-sm text-muted-foreground">{events.length} event{events.length !== 1 ? 's' : ''} · {eraNames.length} era{eraNames.length !== 1 ? 's' : ''}</p>
-          </div>
-          <button
-            onClick={() => setAdding(true)}
-            className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition-colors"
-          >
-            <Plus size={14} /> Add Event
-          </button>
-        </header>
+          </header>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+            <div className="relative w-full sm:w-72 shrink-0">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search timeline..."
+                className="w-full pl-9 pr-9 py-2 text-sm bg-secondary/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
+              <button
+                onClick={() => setAdding(true)}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition-colors shrink-0"
+              >
+                <Plus size={15} /> Add Event
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 md:px-8 pb-8">
           {events.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center pb-16">
               <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4">
@@ -326,7 +354,7 @@ export default function Timeline() {
               </button>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-10">
+            <div className="space-y-10">
               {eraNames.map((era, eraIdx) => (
                 <div key={era}>
                   {/* Era header */}

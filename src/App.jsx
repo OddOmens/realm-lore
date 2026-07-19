@@ -14,6 +14,7 @@ const Dashboard      = lazy(() => import('./pages/Dashboard'));
 const Characters     = lazy(() => import('./pages/Characters'));
 const Locations      = lazy(() => import('./pages/Locations'));
 const Things         = lazy(() => import('./pages/Things'));
+const Notes          = lazy(() => import('./pages/Notes'));
 const Lore           = lazy(() => import('./pages/Lore'));
 const Factions       = lazy(() => import('./pages/Factions'));
 const Creatures      = lazy(() => import('./pages/Creatures'));
@@ -95,6 +96,8 @@ function App() {
                 <Route path="/things/:id" element={<EntityWiki />} />
                 <Route path="/lore" element={<Lore />} />
                 <Route path="/lore/:id" element={<EntityWiki />} />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="/notes/:id" element={<EntityWiki />} />
                 <Route path="/factions" element={<Factions />} />
                 <Route path="/factions/:id" element={<EntityWiki />} />
                 <Route path="/creatures" element={<Creatures />} />

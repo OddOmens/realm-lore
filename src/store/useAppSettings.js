@@ -29,6 +29,7 @@ const DEFAULTS = {
   // DnD Tools (all off by default)
   dndTools: {
     enabled: false,       // master switch — shows sidebar + floating button
+    campaignDashboard: true,
     diceRoller: true,
     initiativeTracker: true,
     encounterRoller: true,

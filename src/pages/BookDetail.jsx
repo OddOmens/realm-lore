@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
 import {
@@ -23,14 +23,7 @@ const TYPE_LABELS = {
 const DEFAULT_COVER_COLORS = ['#4c1d95', '#7f1d1d', '#14532d', '#1e3a5f', '#78350f', '#312e81', '#064e3b'];
 const DEFAULT_SPINE_COLORS = ['#5b21b6', '#991b1b', '#166534', '#1e40af', '#92400e', '#3730a3', '#065f46'];
 
-function wordCount(text) {
-  if (!text) return 0;
-  return text.replace(/\f/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-}
-function cleanPreview(text) {
-  if (!text) return '';
-  return text.replace(/\f/g, ' ').replace(/\s+/g, ' ').trim();
-}
+
 
 function readingTime(words) {
   const mins = Math.ceil(words / 200);
@@ -146,7 +139,7 @@ function AddChapterModal({ onSave, onClose }) {
 function ChapterRow({ story, index, onDelete, onDragStart, onDragEnter, onDragEnd }) {
   const navigate = useNavigate();
   const [isDragOver, setIsDragOver] = useState(false);
-  const words = wordCount(story.content);
+  const words = story.wordCount || 0;
   const statusStyle = STATUS_STYLES[story.status] || STATUS_STYLES.Draft;
 
   return (
@@ -175,8 +168,8 @@ function ChapterRow({ story, index, onDelete, onDragStart, onDragEnter, onDragEn
         <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
           {story.name}
         </p>
-        {story.content ? (
-          <p className="text-xs text-muted-foreground truncate mt-0.5">{cleanPreview(story.content).slice(0, 80)}…</p>
+        {story.preview ? (
+          <p className="text-xs text-muted-foreground truncate mt-0.5">{story.preview.slice(0, 80)}…</p>
         ) : (
           <p className="text-xs text-muted-foreground/40 italic mt-0.5">No content yet</p>
         )}
@@ -221,6 +214,7 @@ export default function BookDetail() {
   const addEntity = useWorldStore(state => state.addEntity);
   const deleteEntity = useWorldStore(state => state.deleteEntity);
   const reorderChapters = useWorldStore(state => state.reorderChapters);
+  const fetchEntityContent = useWorldStore(state => state.fetchEntityContent);
 
   const book = books.find(b => b.id === bookId);
   const chapters = stories
@@ -236,6 +230,16 @@ export default function BookDetail() {
   const [deletingChapter, setDeletingChapter] = useState(null);
   const [chapterView, setChapterView] = useState('list'); // 'list' | 'corkboard'
   const [compileOpen, setCompileOpen] = useState(false);
+
+  // Fetch full content of all book chapters when compile modal is opened
+  useEffect(() => {
+    if (compileOpen) {
+      const missing = chapters.filter(c => c.content === undefined || c.content === null);
+      if (missing.length > 0) {
+        Promise.all(missing.map(c => fetchEntityContent('stories', c.id)));
+      }
+    }
+  }, [compileOpen, chapters, fetchEntityContent]);
 
   const dragIndex = useRef(null);
   const hoverIndex = useRef(null);
@@ -271,7 +275,7 @@ export default function BookDetail() {
     );
   }
 
-  const totalWords = chapters.reduce((sum, s) => sum + wordCount(s.content), 0);
+  const totalWords = chapters.reduce((sum, s) => sum + (s.wordCount || 0), 0);
 
   return (
     <>
@@ -436,9 +440,9 @@ export default function BookDetail() {
                       <span className="text-sm font-semibold text-foreground line-clamp-2">{chapter.name}</span>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-4 flex-1">
-                      {(chapter.content || '').replace(/\f/g, ' ').replace(/\[\[(.*?)\]\]/g, '$1').trim().slice(0, 220) || 'Empty chapter'}
+                      {chapter.preview ? chapter.preview.replace(/\[\[(.*?)\]\]/g, '$1').slice(0, 220) : 'Empty chapter'}
                     </p>
-                    <span className="text-[10px] text-muted-foreground/60">{wordCount(chapter.content)} words</span>
+                    <span className="text-[10px] text-muted-foreground/60">{(chapter.wordCount || 0).toLocaleString()} words</span>
                   </button>
                 ))}
               </div>

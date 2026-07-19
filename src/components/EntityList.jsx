@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Search, X, Plus, Tag, CheckSquare, Square, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
+import { List as VirtualList, Grid as VirtualGrid } from 'react-window';
 
 // Consistent page icon colors per entity type
 const ICON_COLORS = {
@@ -101,6 +102,124 @@ function BulkTagModal({ selectedIds, entityType, onClose }) {
   );
 }
 
+// ── Virtualized rendering ──────────────────────────────────────────────────
+const GRID_ROW_HEIGHT = 280;   // px per grid card row
+const LIST_ROW_HEIGHT = 72;    // px per list row
+const GAP = 16;                // gap between items
+
+function useContainerSize(ref) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect;
+      setSize({ width, height });
+    });
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [ref]);
+  return size;
+}
+
+function getColumnCount(width) {
+  if (width >= 1280) return 4;  // xl
+  if (width >= 1024) return 3;  // lg
+  if (width >= 768) return 2;   // md
+  return 1;
+}
+
+function VirtualizedEntityGrid({ items, viewMode, selectMode, selected, toggleSelect, renderCard }) {
+  const containerRef = useRef(null);
+  const { width, height } = useContainerSize(containerRef);
+
+  const columnCount = viewMode === 'grid' ? getColumnCount(width) : 1;
+  const rowCount = Math.ceil(items.length / columnCount);
+  const columnWidth = width > 0 ? (width - GAP * (columnCount - 1)) / columnCount : 300;
+
+  const renderItem = useCallback((entity) => (
+    <div className="relative h-full">
+      {selectMode && (
+        <button
+          onClick={e => { e.stopPropagation(); toggleSelect(entity.id); }}
+          className={`absolute top-2 left-2 z-10 w-5 h-5 rounded flex items-center justify-center transition-colors border ${
+            selected.has(entity.id)
+              ? 'bg-primary border-primary text-primary-foreground'
+              : 'bg-card/80 border-border text-transparent hover:border-primary/50'
+          }`}
+        >
+          {selected.has(entity.id) && <span className="text-xs leading-none">✓</span>}
+        </button>
+      )}
+      <div
+        className={selectMode ? 'pointer-events-none' : ''}
+        onClick={selectMode ? () => toggleSelect(entity.id) : undefined}
+      >
+        {renderCard(entity, viewMode)}
+      </div>
+    </div>
+  ), [selectMode, selected, toggleSelect, renderCard, viewMode]);
+
+  // For small lists (< 50 items), skip virtualization overhead
+  if (items.length < 50) {
+    return (
+      <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "flex flex-col gap-3"}>
+        {items.map(entity => (
+          <div key={entity.id}>{renderItem(entity)}</div>
+        ))}
+      </div>
+    );
+  }
+
+  if (viewMode === 'list') {
+    return (
+      <div ref={containerRef} style={{ height: 'calc(100vh - 320px)', minHeight: 400 }}>
+        {width > 0 && (
+          <VirtualList
+            height={Math.max(height, 400)}
+            width={width}
+            itemCount={items.length}
+            itemSize={LIST_ROW_HEIGHT}
+            overscanCount={5}
+          >
+            {({ index, style }) => (
+              <div style={{ ...style, paddingBottom: 12 }}>
+                {renderItem(items[index])}
+              </div>
+            )}
+          </VirtualList>
+        )}
+      </div>
+    );
+  }
+
+  // Grid mode
+  return (
+    <div ref={containerRef} style={{ height: 'calc(100vh - 320px)', minHeight: 400 }}>
+      {width > 0 && (
+        <VirtualGrid
+          height={Math.max(height, 400)}
+          width={width}
+          columnCount={columnCount}
+          columnWidth={columnWidth + GAP}
+          rowCount={rowCount}
+          rowHeight={GRID_ROW_HEIGHT + GAP}
+          overscanRowCount={3}
+        >
+          {({ columnIndex, rowIndex, style }) => {
+            const itemIndex = rowIndex * columnCount + columnIndex;
+            if (itemIndex >= items.length) return null;
+            return (
+              <div style={{ ...style, width: style.width - GAP, paddingBottom: GAP }}>
+                {renderItem(items[itemIndex])}
+              </div>
+            );
+          }}
+        </VirtualGrid>
+      )}
+    </div>
+  );
+}
+
 export default function EntityList({ title, icon: PageIcon, entities, entityType, onAdd, renderCard, filters, activeFilter, onFilterChange, totalCount: totalCountProp }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(new Set());
@@ -143,24 +262,24 @@ export default function EntityList({ title, icon: PageIcon, entities, entityType
   const clearSelect = () => { setSelected(new Set()); setSelectMode(false); };
 
   return (
-    <div className="flex-1 px-4 py-6 md:p-8 overflow-y-auto w-full">
-      {/* Header */}
-      <header className="mb-6">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1">
-            {PageIcon && <PageIcon size={22} className={ICON_COLORS[entityType] || 'text-muted-foreground'} />}
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">{title}</h2>
+    <div className="flex-1 overflow-y-auto w-full">
+      {/* Sticky Header block */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md px-4 pt-6 pb-3 md:px-8 md:pt-8 mb-5 border-b border-border/40 flex flex-col gap-5 shadow-sm">
+        {/* Title row */}
+        <header>
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              {PageIcon && <PageIcon size={22} className={ICON_COLORS[entityType] || 'text-muted-foreground'} />}
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">{title}</h2>
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {totalCount === 0
+                ? `No ${title.toLowerCase()} yet.`
+                : `${showingCount === totalCount ? totalCount : `${showingCount} of ${totalCount}`} ${title.toLowerCase()}`}
+            </p>
           </div>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {totalCount === 0
-              ? `No ${title.toLowerCase()} yet.`
-              : `${showingCount === totalCount ? totalCount : `${showingCount} of ${totalCount}`} ${title.toLowerCase()}`}
-          </p>
-        </div>
-      </header>
+        </header>
 
-      {/* Search, Actions & Filters (Sticky) */}
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md pt-4 pb-3 -mx-4 px-4 md:-mx-8 md:px-8 -mt-4 mb-5 border-b border-border/40 flex flex-col gap-3">
         {/* Top row: Search and Actions */}
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
           <div className="relative w-full sm:w-72 shrink-0">
@@ -256,57 +375,43 @@ export default function EntityList({ title, icon: PageIcon, entities, entityType
         )}
       </div>
 
-      {/* Empty states */}
-      {totalCount === 0 ? (
-        <div className="flex flex-col items-center justify-center p-16 text-center rounded-xl border border-dashed border-border">
-          <h3 className="text-lg font-semibold text-foreground mb-1">No {title.toLowerCase()} yet</h3>
-          <p className="text-sm text-muted-foreground mb-5">Get started by creating your first entry.</p>
-          <button
-            onClick={onAdd}
-            className="flex items-center gap-1.5 h-9 px-4 rounded-lg border border-border bg-secondary/50 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-          >
-            <Plus size={14} /> Create {title.slice(0, -1)}
-          </button>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-16 text-center rounded-xl border border-dashed border-border">
-          <Search size={28} className="text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">
-            {query ? `No results for "${query}"` : `No ${activeFilter} ${title.toLowerCase()}`}
-          </p>
-          <button
-            onClick={() => { setQuery(''); if (isFiltered) onFilterChange('All'); }}
-            className="mt-3 text-xs text-muted-foreground/60 hover:text-muted-foreground underline transition-colors"
-          >
-            Clear filters
-          </button>
-        </div>
-      ) : (
-        <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "flex flex-col gap-3"}>
-          {filtered.map(entity => (
-            <div key={entity.id} className="relative">
-              {selectMode && (
-                <button
-                  onClick={e => { e.stopPropagation(); toggleSelect(entity.id); }}
-                  className={`absolute top-2 left-2 z-10 w-5 h-5 rounded flex items-center justify-center transition-colors border ${
-                    selected.has(entity.id)
-                      ? 'bg-primary border-primary text-primary-foreground'
-                      : 'bg-card/80 border-border text-transparent hover:border-primary/50'
-                  }`}
-                >
-                  {selected.has(entity.id) && <span className="text-xs leading-none">✓</span>}
-                </button>
-              )}
-              <div
-                className={selectMode ? 'pointer-events-none' : ''}
-                onClick={selectMode ? () => toggleSelect(entity.id) : undefined}
-              >
-                {renderCard(entity, viewMode)}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="px-4 md:px-8 pb-8">
+        {/* Empty states */}
+        {totalCount === 0 ? (
+          <div className="flex flex-col items-center justify-center p-16 text-center rounded-xl border border-dashed border-border">
+            <h3 className="text-lg font-semibold text-foreground mb-1">No {title.toLowerCase()} yet</h3>
+            <p className="text-sm text-muted-foreground mb-5">Get started by creating your first entry.</p>
+            <button
+              onClick={onAdd}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-lg border border-border bg-secondary/50 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+            >
+              <Plus size={14} /> Create {title.slice(0, -1)}
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-16 text-center rounded-xl border border-dashed border-border">
+            <Search size={28} className="text-muted-foreground/30 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              {query ? `No results for "${query}"` : `No ${activeFilter} ${title.toLowerCase()}`}
+            </p>
+            <button
+              onClick={() => { setQuery(''); if (isFiltered) onFilterChange('All'); }}
+              className="mt-3 text-xs text-muted-foreground/60 hover:text-muted-foreground underline transition-colors"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <VirtualizedEntityGrid
+            items={filtered}
+            viewMode={viewMode}
+            selectMode={selectMode}
+            selected={selected}
+            toggleSelect={toggleSelect}
+            renderCard={renderCard}
+          />
+        )}
+      </div>
 
       {bulkTagOpen && entityType && (
         <BulkTagModal

@@ -1,14 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Dice5, Swords, Table2, Sparkles, Plus, Trash2, RotateCcw, Play,
   X, BookOpen, Gem, User, ChevronDown, ChevronUp, Shield, Heart,
-  Zap, AlertTriangle, Pause, SkipForward, Wand2, Box
+  Zap, AlertTriangle, Pause, SkipForward, Wand2, Box, Layers
 } from 'lucide-react';
 import DiceBox from '@3d-dice/dice-box';
 import SpellsList from '../components/dnd/SpellsList';
 import ItemsList from '../components/dnd/ItemsList';
 import { useAppSettings } from '../store/useAppSettings';
+import { useWorldStore } from '../store/useWorldStore';
+import { SRD_MONSTERS, SRD_SPELLS, SRD_ITEMS } from '../lib/dndCompendium';
 
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 
@@ -58,6 +60,8 @@ function DiceRoller() {
   const [results, setResults]   = useState(null);
   const [rolling, setRolling]   = useState(false);
   const [advantage, setAdvantage] = useState(null); // null | 'adv' | 'dis'
+  const [macros, setMacros]     = usePersisted('dice_macros', []);
+  const [macroName, setMacroName] = useState('');
 
   const diceBoxRef = useRef(null);
   const boxInstance = useRef(null);
@@ -174,6 +178,32 @@ function DiceRoller() {
 
   const quickRoll = (sides) => trigger3DRoll(sides, false);
   const roll = useCallback(() => trigger3DRoll(null, true), [pool, modifier, advantage]);
+  
+  const rollMacro = (macro) => {
+    setPool(macro.pool);
+    setModifier(macro.modifier);
+    setAdvantage(macro.advantage || null);
+    // setTimeout to allow state to settle before rolling, or just roll directly
+    // since trigger3DRoll uses current state, we need to pass params directly.
+    // Let's modify trigger3DRoll to take optional overrides, or just construct rollStr directly.
+    // To keep it simple, we update state, then trigger roll.
+    setTimeout(() => roll(), 50);
+  };
+
+  const saveMacro = () => {
+    if (!macroName.trim() || pool.length === 0) return;
+    const newMacro = {
+      id: Date.now().toString(),
+      name: macroName.trim(),
+      pool: [...pool],
+      modifier,
+      advantage: isD20Only ? advantage : null
+    };
+    setMacros(m => [...m, newMacro]);
+    setMacroName('');
+  };
+
+  const removeMacro = (id) => setMacros(m => m.filter(x => x.id !== id));
 
   const clear = () => { setPool([]); setResults(null); setAdvantage(null); };
 
@@ -280,6 +310,22 @@ function DiceRoller() {
           </div>
         )}
 
+        <div className="flex gap-2 items-center border-t border-border/50 pt-3 mt-1">
+          <input
+            value={macroName}
+            onChange={e => setMacroName(e.target.value)}
+            placeholder="Macro Name (e.g. Fireball)"
+            className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+          />
+          <button
+            onClick={saveMacro}
+            disabled={!macroName.trim() || pool.length === 0}
+            className="h-8 px-3 rounded-md bg-secondary border border-border text-xs font-medium hover:bg-secondary/80 transition-colors disabled:opacity-40"
+          >
+            Save Macro
+          </button>
+        </div>
+
         <button
           onClick={roll}
           disabled={!pool.length || rolling}
@@ -289,6 +335,35 @@ function DiceRoller() {
           {rolling ? 'Rolling…' : `Roll ${poolLabel}`}
         </button>
       </div>
+
+      {/* Saved Macros */}
+      {macros.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Saved Macros</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {macros.map(m => {
+              const mLabel = m.pool.map(d => `${d.count}d${d.sides}`).join('+') + (m.modifier ? (m.modifier > 0 ? `+${m.modifier}` : m.modifier) : '') + (m.advantage ? (m.advantage === 'adv' ? ' (Adv)' : ' (Dis)') : '');
+              return (
+                <div key={m.id} className="group relative flex flex-col rounded-lg border border-border bg-secondary/30 hover:bg-secondary/60 transition-colors">
+                  <button
+                    onClick={() => rollMacro(m)}
+                    className="flex-1 flex flex-col items-start p-2 text-left"
+                  >
+                    <span className="font-semibold text-sm text-foreground truncate w-full">{m.name}</span>
+                    <span className="text-xs text-muted-foreground font-mono">{mLabel}</span>
+                  </button>
+                  <button
+                    onClick={() => removeMacro(m.id)}
+                    className="absolute top-2 right-2 text-muted-foreground/0 group-hover:text-red-400/80 hover:!text-red-400 transition-all"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Result */}
       {results && (
@@ -395,20 +470,31 @@ function InitiativeTracker() {
   const [newAc, setNewAc]     = useState('');
   const [dmgInputs, setDmgInputs] = useState({});
   const [expandedId, setExpandedId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const navigate = useNavigate();
+
+  // Access realm lore entities for import
+  const characters = useWorldStore(s => s.characters) || [];
+  const creatures = useWorldStore(s => s.creatures) || [];
+  const importableEntities = [
+    ...characters.map(c => ({ ...c, __type: 'characters' })),
+    ...creatures.map(c => ({ ...c, __type: 'creatures' }))
+  ].sort((a, b) => a.name.localeCompare(b.name));
 
   const sorted = [...combatants].sort((a, b) => b.initiative - a.initiative || a.name.localeCompare(b.name));
 
-  const add = () => {
-    const name = newName.trim() || 'Combatant';
+  const add = (overrideName, overrideAc, overrideHp, overrideIsPlayer = false, entityId = null, entityType = null) => {
+    const name = overrideName || newName.trim() || 'Combatant';
     const init = parseInt(newInit) || Math.floor(Math.random() * 20) + 1;
-    const hp   = Math.max(1, parseInt(newHp) || 10);
-    const ac   = parseInt(newAc) || null;
+    const hp   = Math.max(1, overrideHp || parseInt(newHp) || 10);
+    const ac   = overrideAc || parseInt(newAc) || null;
     setCombatants(prev => [...prev, {
       id: Date.now(),
       name, initiative: init, maxHp: hp, currentHp: hp, ac,
-      conditions: [], deathSaves: { success: 0, fail: 0 }, isPlayer: false,
+      conditions: [], deathSaves: { success: 0, fail: 0 }, isPlayer: overrideIsPlayer, entityId, entityType
     }]);
     setNewName(''); setNewInit(''); setNewHp(''); setNewAc('');
+    setImporting(false);
   };
 
   const update = (id, patch) => setCombatants(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
@@ -463,7 +549,34 @@ function InitiativeTracker() {
     <div className="flex flex-col gap-4 max-w-2xl">
       {/* Add combatant */}
       <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Add Combatant</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Add Combatant</h3>
+          <button 
+            onClick={() => setImporting(!importing)}
+            className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+          >
+            <Box size={12} /> {importing ? 'Manual Add' : 'Import Lore'}
+          </button>
+        </div>
+        
+        {importing ? (
+          <div className="flex gap-2 flex-wrap">
+            <select
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const ent = importableEntities.find(x => x.id === e.target.value);
+                if (ent) {
+                  // Fallback to defaults since Realm Lore entities might not have D&D stats yet
+                  add(ent.name, ent.ac || null, ent.hp || null, false, ent.id, ent.__type);
+                }
+              }}
+              className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            >
+              <option value="">Select Character or Creature...</option>
+              {importableEntities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </div>
+        ) : (
         <div className="flex gap-2 flex-wrap">
           <input
             value={newName}
@@ -494,12 +607,13 @@ function InitiativeTracker() {
             className="w-16 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
           />
           <button
-            onClick={add}
+            onClick={() => add()}
             className="flex items-center gap-1.5 h-9 px-4 rounded-md text-sm font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
           >
             <Plus size={14} /> Add
           </button>
         </div>
+        )}
       </div>
 
       {/* Combat controls */}
@@ -583,6 +697,15 @@ function InitiativeTracker() {
                       <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 shrink-0">
                         <Shield size={9} /> {c.ac}
                       </span>
+                    )}
+                    {c.entityId && c.entityType && (
+                      <button 
+                        onClick={() => navigate(`/${c.entityType}/${c.entityId}`)}
+                        className="flex items-center gap-0.5 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 transition-colors shrink-0"
+                        title="View Lore"
+                      >
+                        <BookOpen size={10} /> Lore
+                      </button>
                     )}
                     {isActive && <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider shrink-0">Active</span>}
                   </div>
@@ -1755,9 +1878,74 @@ function NameGenerator() {
   );
 }
 
+// ─── Campaign Dashboard ───────────────────────────────────────────────────────
+
+function CampaignDashboard() {
+  const [activeTab, setActiveTab] = useState('initiative');
+
+  return (
+    <div className="flex flex-col xl:flex-row gap-6 w-full h-full max-w-[1600px] mx-auto">
+      {/* Left Column: Initiative Tracker */}
+      <div className="flex-1 min-w-[300px] xl:max-w-2xl flex flex-col gap-4">
+        <h3 className="font-semibold text-lg flex items-center gap-2 border-b border-border pb-2"><Swords size={20} className="text-violet-400" /> Initiative Tracker</h3>
+        <InitiativeTracker />
+      </div>
+
+      {/* Right Column: Split between Dice and Compendium */}
+      <div className="w-full xl:w-[450px] shrink-0 flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <h3 className="font-semibold text-lg flex items-center gap-2 border-b border-border pb-2"><Dice5 size={20} className="text-violet-400" /> Quick Dice</h3>
+          <DiceRoller />
+        </div>
+
+        <div className="flex flex-col gap-4 flex-1">
+          <h3 className="font-semibold text-lg flex items-center gap-2 border-b border-border pb-2"><BookOpen size={20} className="text-violet-400" /> Quick Compendium</h3>
+          
+          <div className="flex gap-2">
+            <button onClick={() => setActiveTab('monsters')} className={`px-3 py-1.5 text-xs font-medium rounded-md border ${activeTab === 'monsters' ? 'bg-violet-600 border-violet-600 text-white' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>Monsters</button>
+            <button onClick={() => setActiveTab('spells')} className={`px-3 py-1.5 text-xs font-medium rounded-md border ${activeTab === 'spells' ? 'bg-violet-600 border-violet-600 text-white' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>Spells</button>
+            <button onClick={() => setActiveTab('items')} className={`px-3 py-1.5 text-xs font-medium rounded-md border ${activeTab === 'items' ? 'bg-violet-600 border-violet-600 text-white' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>Items</button>
+          </div>
+
+          <div className="flex-1 bg-card border border-border rounded-xl p-4 overflow-y-auto max-h-[600px] flex flex-col gap-2">
+            {activeTab === 'monsters' && SRD_MONSTERS.map(m => (
+              <div key={m.id} className="p-3 border border-border/40 rounded-lg hover:border-violet-500/30 transition-colors">
+                <div className="flex justify-between items-start">
+                  <h4 className="font-semibold text-sm">{m.name}</h4>
+                  <span className="text-[10px] text-muted-foreground">CR {m.cr}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">AC: {m.ac} | HP: {m.maxHp} | {m.speed}</p>
+              </div>
+            ))}
+            {activeTab === 'spells' && SRD_SPELLS.map(s => (
+              <div key={s.id} className="p-3 border border-border/40 rounded-lg hover:border-violet-500/30 transition-colors">
+                <div className="flex justify-between items-start">
+                  <h4 className="font-semibold text-sm">{s.name}</h4>
+                  <span className="text-[10px] text-muted-foreground">Lvl {s.level}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 truncate">{s.school} • {s.castingTime}</p>
+              </div>
+            ))}
+            {activeTab === 'items' && SRD_ITEMS.map(i => (
+              <div key={i.id} className="p-3 border border-border/40 rounded-lg hover:border-violet-500/30 transition-colors">
+                <div className="flex justify-between items-start">
+                  <h4 className="font-semibold text-sm">{i.name}</h4>
+                  <span className="text-[10px] text-muted-foreground capitalize">{i.rarity}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 truncate">{i.type}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main DnD Tools page ──────────────────────────────────────────────────────
 
 const TOOL_MAP = {
+  '/tools/dashboard':  { label: 'Campaign Dashboard',  icon: Layers,   settingKey: 'campaignDashboard', component: CampaignDashboard, desc: 'Unified view of combat and reference tools.' },
   '/tools/dice':       { label: 'Dice Roller',         icon: Dice5,    settingKey: 'diceRoller',        component: DiceRoller,        desc: 'Roll any dice combination with advantage/disadvantage.' },
   '/tools/initiative': { label: 'Initiative Tracker',   icon: Swords,   settingKey: 'initiativeTracker', component: InitiativeTracker,  desc: 'Track turn order, HP, conditions, and death saves.' },
   '/tools/encounters': { label: 'Encounter Tables',     icon: Table2,   settingKey: 'encounterRoller',   component: EncounterRoller,    desc: 'Build and roll on custom random encounter tables.' },

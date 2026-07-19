@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import TextareaAutosize from 'react-textarea-autosize';
+import { useState, useMemo } from 'react';
 import { useWorldStore } from '../store/useWorldStore';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Plus, FileText, Pencil, Trash2,
-  Scroll, BookMarked, Library, Feather,
+  Scroll, BookMarked, Library, Feather, Search, X
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
@@ -24,14 +25,7 @@ const TYPE_LABELS = {
 const DEFAULT_COVER_COLORS = ['#4c1d95', '#7f1d1d', '#14532d', '#1e3a5f', '#78350f', '#312e81', '#064e3b'];
 const DEFAULT_SPINE_COLORS = ['#5b21b6', '#991b1b', '#166534', '#1e40af', '#92400e', '#3730a3', '#065f46'];
 
-function wordCount(text) {
-  if (!text) return 0;
-  return text.replace(/\f/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-}
-function cleanPreview(text) {
-  if (!text) return '';
-  return text.replace(/\f/g, ' ').replace(/\s+/g, ' ').trim();
-}
+
 
 function BookCover({ book, size = 'shelf' }) {
   const coverColor = book.coverColor || DEFAULT_COVER_COLORS[Math.abs(book.id?.charCodeAt(0) || 0) % DEFAULT_COVER_COLORS.length];
@@ -228,9 +222,9 @@ function BookModal({ initial = {}, onSave, onClose }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-foreground mb-1">Description</label>
-            <textarea value={values.description} onChange={e => set('description', e.target.value)}
+            <TextareaAutosize value={values.description} onChange={e => set('description', e.target.value)}
               placeholder="Back cover blurb..."
-              rows={3}
+              minRows={3}
               className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring resize-none placeholder:text-muted-foreground" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -251,7 +245,7 @@ function BookModal({ initial = {}, onSave, onClose }) {
 
 function LoosePageRow({ story, onEdit, onDelete }) {
   const navigate = useNavigate();
-  const words = wordCount(story.content);
+  const words = story.wordCount || 0;
   const statusStyle = STATUS_STYLES[story.status] || STATUS_STYLES.Draft;
 
   return (
@@ -266,8 +260,8 @@ function LoosePageRow({ story, onEdit, onDelete }) {
         <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
           {story.name}
         </p>
-        {story.content ? (
-          <p className="text-xs text-muted-foreground truncate mt-0.5">{cleanPreview(story.content).slice(0, 80)}…</p>
+        {story.preview ? (
+          <p className="text-xs text-muted-foreground truncate mt-0.5">{story.preview.slice(0, 80)}…</p>
         ) : (
           <p className="text-xs text-muted-foreground/40 italic mt-0.5">No content yet</p>
         )}
@@ -343,44 +337,72 @@ export default function Stories() {
   const [deletingStory, setDeletingStory] = useState(null);
   const [selectedBookId, setSelectedBookId] = useState(null);
 
-  const looseStories = stories.filter(s => !s.bookId);
-  const totalWords = stories.reduce((sum, s) => sum + wordCount(s.content), 0);
+  const looseStories = useMemo(() => {
+    return stories.filter(s => !s.bookId).sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [stories]);
+
+  const [query, setQuery] = useState('');
+
+  const q = query.trim().toLowerCase();
+  const filteredBooks = useMemo(() => q ? books.filter(b => b.name?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q)) : books, [books, q]);
+  const filteredLoose = useMemo(() => q ? looseStories.filter(s => s.name?.toLowerCase().includes(q)) : looseStories, [looseStories, q]);
+
+  const totalWords = stories.reduce((sum, s) => sum + (s.wordCount || 0), 0);
 
   const sortedBooks = [...books].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   const activeBook = books.find(b => b.id === selectedBookId) || sortedBooks[0];
 
   return (
     <>
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-6 pt-6 pb-5 border-b border-border bg-card shrink-0">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <div className="flex items-center gap-2.5 mb-1">
-                <Library size={22} className="text-violet-400" />
-                <h2 className="text-2xl font-bold tracking-tight text-foreground">Library</h2>
-              </div>
-              <p className="text-muted-foreground text-sm mt-0.5">
-                {books.length} {books.length === 1 ? 'volume' : 'volumes'} · {looseStories.length} loose {looseStories.length === 1 ? 'page' : 'pages'} · {totalWords.toLocaleString()} total words
-              </p>
+    <div className="flex-1 overflow-y-auto w-full">
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md px-4 pt-6 pb-3 md:px-8 md:pt-8 mb-5 border-b border-border/40 flex flex-col gap-5 shadow-sm">
+        <header>
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <Library size={22} className="text-violet-400" />
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">Library</h2>
             </div>
-            <div className="flex items-center gap-2">
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {books.length} {books.length === 1 ? 'volume' : 'volumes'} \u00b7 {looseStories.length} loose {looseStories.length === 1 ? 'page' : 'pages'} \u00b7 {totalWords.toLocaleString()} total words
+            </p>
+          </div>
+        </header>
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+          <div className="relative w-full sm:w-72 shrink-0">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search library..."
+              className="w-full pl-9 pr-9 py-2 text-sm bg-secondary/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+            />
+            {query && (
               <button
-                onClick={() => setAddingStandalone(true)}
-                className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                onClick={() => setQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Scroll size={14} /> New Loose Page
+                <X size={13} />
               </button>
-              <button
-                onClick={() => setAddingBook(true)}
-                className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 rounded-md text-sm font-medium transition-colors"
-              >
-                <Plus size={15} /> New Book
-              </button>
-            </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
+            <button
+              onClick={() => setAddingStandalone(true)}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Scroll size={14} /> New Loose Page
+            </button>
+            <button
+              onClick={() => setAddingBook(true)}
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Plus size={15} /> New Book
+            </button>
           </div>
         </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+      <div className="px-4 md:px-8 pb-8">
           {books.length === 0 && looseStories.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center pb-16">
               <div className="w-20 h-20 rounded-2xl bg-amber-900/20 border border-amber-800/20 flex items-center justify-center mb-4">
@@ -445,7 +467,7 @@ export default function Stories() {
                   <div className="bg-secondary/10 border border-border rounded-xl p-6">
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-5">Your Shelf</h4>
                     <div className="flex flex-wrap gap-5 items-end">
-                      {sortedBooks.map(book => {
+                      {filteredBooks.map(book => {
                         const isActive = book.id === activeBook?.id;
                         return (
                           <div 
@@ -473,7 +495,7 @@ export default function Stories() {
                 </section>
               )}
 
-              {looseStories.length > 0 && (
+              {filteredLoose.length > 0 && (
                 <section>
                   <div className="flex items-center gap-3 mb-4 mt-8">
                     <Feather size={16} className="text-muted-foreground" />
@@ -487,7 +509,7 @@ export default function Stories() {
                     </button>
                   </div>
                   <div className="space-y-2">
-                    {looseStories
+                    {filteredLoose
                       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
                       .map(story => (
                         <LoosePageRow

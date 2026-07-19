@@ -1,5 +1,9 @@
 // ── Name generation library ───────────────────────────────────────────────────
 
+import { ADJECTIVES, NOUNS, TOWN_PREFIXES, TOWN_SUFFIXES, TAVERN_NOUNS, SHIP_ADJECTIVES, SHIP_NOUNS, DEITY_DOMAINS } from './names/worldData';
+import * as CHAR_DATA from './names/characterData';
+
+
 const pick  = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const cap   = (s)   => s.charAt(0).toUpperCase() + s.slice(1);
 const maybe = (p)   => Math.random() < p;
@@ -72,9 +76,14 @@ const HUMAN_SURNAMES = [
   'Stone','Thorne','Vane','Ward','Wolfe','Yates',
 ];
 
-function generateHumanName() {
-  const gender = maybe(0.5) ? 'male' : 'female';
+function generateHumanName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
   const first = gender === 'male' ? pick(HUMAN_FIRST_MALE) : pick(HUMAN_FIRST_FEMALE);
+  
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(HUMAN_SURNAMES)}`;
+  
   const useSurname = maybe(0.6);
   return useSurname ? `${first} ${pick(HUMAN_SURNAMES)}` : first;
 }
@@ -157,7 +166,7 @@ const ELF_EPITHETS = [
   'Swiftarrow','Trueshot','Windstep','the Silent',
 ];
 
-function generateElfName() {
+function generateElfName(options = {}) {
   const style = Math.floor(Math.random() * 4);
   let first;
   if (style === 0) first = cap(pick(ELF_STARTS).toLowerCase() + pick(ELF_MIDS) + pick(ELF_ENDS));
@@ -165,11 +174,13 @@ function generateElfName() {
   else if (style === 2) first = pick(ELF_STARTS) + pick(ELF_MIDS);
   else first = cap(pick(ELF_STARTS).toLowerCase() + pick(ELF_MIDS) + pick(ELF_MIDS) + pick(ELF_ENDS));
 
-  // Occasionally add an apostrophe break for High Elf feel
   if (maybe(0.08) && first.length > 5) {
     const mid = Math.floor(first.length / 2);
     first = first.slice(0, mid) + "'" + first.slice(mid);
   }
+
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(ELF_SURNAMES)}`;
 
   if (maybe(0.45)) return `${first} ${pick(ELF_SURNAMES)}`;
   if (maybe(0.1))  return `${first} ${pick(ELF_EPITHETS)}`;
@@ -237,12 +248,15 @@ const DWARF_CLAN_NAMES = [
   'Goldvein','Mineshaft','Oreborn','Tunnelborn','Veinborn',
 ];
 
-function generateDwarfName() {
-  const gender = maybe(0.5) ? 'male' : 'female';
+function generateDwarfName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
   const first = gender === 'male' ? pick(DWARF_FIRST_MALE) : pick(DWARF_FIRST_FEMALE);
-  // Dwarves almost always use clan names
+  
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(DWARF_CLAN_NAMES)}`;
+
   if (maybe(0.75)) return `${first} ${pick(DWARF_CLAN_NAMES)}`;
-  // Occasionally "son/daughter of"
   const parent = gender === 'male' ? pick(DWARF_FIRST_MALE) : pick(DWARF_FIRST_FEMALE);
   if (maybe(0.3)) return `${first} ${parent}${maybe(0.5) ? 'son' : 'dottir'}`;
   return first;
@@ -327,9 +341,14 @@ const GNOME_SURNAMES = [
   'Zinglewick','Zipplewick',
 ];
 
-function generateGnomeName() {
-  const gender = maybe(0.5) ? 'male' : 'female';
+function generateGnomeName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
   const first = gender === 'male' ? pick(GNOME_FIRST_MALE) : pick(GNOME_FIRST_FEMALE);
+  
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(GNOME_SURNAMES)}`;
+
   if (maybe(0.65)) return `${first} ${pick(GNOME_SURNAMES)}`;
   return first;
 }
@@ -396,9 +415,14 @@ const ORC_CLANS = [
   'of the Wartusk Warband','of the Wolfmaw Clan',
 ];
 
-function generateOrcName() {
-  const gender = maybe(0.5) ? 'male' : 'female';
+function generateOrcName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
   const first = gender === 'male' ? pick(ORC_FIRST_MALE) : pick(ORC_FIRST_FEMALE);
+  
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(ORC_CLANS)}`;
+
   const roll = Math.random();
   if (roll < 0.35) return `${first} ${pick(ORC_TITLES)}`;
   if (roll < 0.55) return `${first} ${pick(ORC_CLANS)}`;
@@ -478,9 +502,14 @@ const HALFLING_SURNAMES = [
   'Warmhearth','Wheatfield','Willowwick','Windmill',
 ];
 
-function generateHalflingName() {
-  const gender = maybe(0.5) ? 'male' : 'female';
+function generateHalflingName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
   const first = gender === 'male' ? pick(HALFLING_FIRST_MALE) : pick(HALFLING_FIRST_FEMALE);
+  
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(HALFLING_SURNAMES)}`;
+
   if (maybe(0.7)) return `${first} ${pick(HALFLING_SURNAMES)}`;
   return first;
 }
@@ -539,16 +568,23 @@ const TIEFLING_SURNAMES = [
   'Wraithborn','Wrathfire',
 ];
 
-function generateTieflingName() {
+function generateTieflingName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
+
   const style = Math.floor(Math.random() * 3);
   if (style === 0) {
-    // Virtue name (any gender)
     const virtue = pick(TIEFLING_VIRTUE_NAMES);
+    if (options.format === 'first') return virtue;
+    if (options.format === 'full') return `${virtue} ${pick(TIEFLING_SURNAMES)}`;
     if (maybe(0.4)) return `${virtue} ${pick(TIEFLING_SURNAMES)}`;
     return virtue;
   }
-  const gender = maybe(0.5) ? 'male' : 'female';
   const first = gender === 'male' ? pick(TIEFLING_INFERNAL_MALE) : pick(TIEFLING_INFERNAL_FEMALE);
+  
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(TIEFLING_SURNAMES)}`;
+
   if (style === 1 && maybe(0.5)) return `${first} ${pick(TIEFLING_SURNAMES)}`;
   return first;
 }
@@ -592,9 +628,14 @@ const DRAGONBORN_CLANS = [
   'Stonescale','Stormwing','Sunscale','Thunderwing',
 ];
 
-function generateDragonbornName() {
-  const gender = maybe(0.5) ? 'male' : 'female';
+function generateDragonbornName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
   const first = gender === 'male' ? pick(DRAGONBORN_FIRST_MALE) : pick(DRAGONBORN_FIRST_FEMALE);
+  
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(DRAGONBORN_CLANS)}`;
+
   if (maybe(0.7)) return `${first} ${pick(DRAGONBORN_CLANS)}`;
   return first;
 }
@@ -602,22 +643,23 @@ function generateDragonbornName() {
 // ── Half-Orc ──────────────────────────────────────────────────────────────────
 // Mix of human and orc styling
 
-function generateHalfOrcName() {
+function generateHalfOrcName(options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
+
   const style = Math.floor(Math.random() * 3);
   if (style === 0) {
-    // Orc first name + human surname
-    const gender = maybe(0.5) ? 'male' : 'female';
     const first = gender === 'male' ? pick(ORC_FIRST_MALE) : pick(ORC_FIRST_FEMALE);
+    if (options.format === 'first') return first;
     return `${first} ${pick(HUMAN_SURNAMES)}`;
   }
   if (style === 1) {
-    // Human first name + orc title
-    const gender = maybe(0.5) ? 'male' : 'female';
     const first = gender === 'male' ? pick(HUMAN_FIRST_MALE) : pick(HUMAN_FIRST_FEMALE);
+    if (options.format === 'first') return first;
+    if (options.format === 'full') return `${first} ${pick(HUMAN_SURNAMES)}`;
     return `${first} ${pick(ORC_TITLES)}`;
   }
-  // Pure orc name
-  return generateOrcName();
+  return generateOrcName(options);
 }
 
 // ── Any (Generic fantasy — the original generator) ────────────────────────────
@@ -710,7 +752,7 @@ const CHAR_SURNAMES = [
   'Haliryn','Iladren','Kaelithar','Lirindel','Moralind','Narithal',
 ];
 
-function generateAnyCharacterName() {
+function generateAnyCharacterName(options = {}) {
   const style = Math.floor(Math.random() * 5);
   let first;
   if (style === 0) first = cap(pick(CHAR_STARTS).toLowerCase() + pick(CHAR_MIDS) + pick(CHAR_ENDS));
@@ -719,6 +761,9 @@ function generateAnyCharacterName() {
   else if (style === 3) first = cap(pick(CHAR_STARTS).toLowerCase() + pick(CHAR_MIDS));
   else first = cap(pick(CHAR_STARTS).toLowerCase() + pick(CHAR_ENDS));
 
+  if (options.format === 'first') return first;
+  if (options.format === 'full') return `${first} ${pick(CHAR_SURNAMES)}`;
+
   if (maybe(0.25)) return `${first} ${pick(CHAR_SURNAMES)}`;
   if (maybe(0.15)) return `${first} ${pick(CHAR_EPITHETS)}`;
   return first;
@@ -726,375 +771,265 @@ function generateAnyCharacterName() {
 
 // ── Character name dispatcher ─────────────────────────────────────────────────
 
+import fng from 'fantasy-name-generator';
+
 export const CHARACTER_RACES = [
-  { key: 'any',        label: 'Any',        emoji: '✨' },
-  { key: 'human',      label: 'Human',      emoji: '🧑' },
-  { key: 'elf',        label: 'Elf',        emoji: '🧝' },
-  { key: 'dwarf',      label: 'Dwarf',      emoji: '⛏️' },
-  { key: 'gnome',      label: 'Gnome',      emoji: '🍄' },
-  { key: 'halfling',   label: 'Halfling',   emoji: '🌿' },
-  { key: 'orc',        label: 'Orc',        emoji: '🪓' },
-  { key: 'half-orc',   label: 'Half-Orc',   emoji: '⚔️' },
-  { key: 'tiefling',   label: 'Tiefling',   emoji: '😈' },
-  { key: 'dragonborn', label: 'Dragonborn', emoji: '🐉' },
+  { key: 'any',        label: 'Any',          emoji: '✨' },
+  { key: 'human',      label: 'Human',        emoji: '🧑' },
+  { key: 'elf',        label: 'Elf',          emoji: '🧝' },
+  { key: 'half-elf',   label: 'Half-Elf',     emoji: '🧝‍♂️' },
+  { key: 'highelf',    label: 'High Elf',     emoji: '🪄' },
+  { key: 'drow',       label: 'Drow',         emoji: '🕷️' },
+  { key: 'dwarf',      label: 'Dwarf',        emoji: '⛏️' },
+  { key: 'gnome',      label: 'Gnome',        emoji: '🍄' },
+  { key: 'halfling',   label: 'Halfling',     emoji: '🌿' },
+  { key: 'orc',        label: 'Orc',          emoji: '🪓' },
+  { key: 'half-orc',   label: 'Half-Orc',     emoji: '⚔️' },
+  { key: 'tiefling',   label: 'Tiefling',     emoji: '😈' },
+  { key: 'dragonborn', label: 'Dragonborn',   emoji: '🐉' },
+  { key: 'aasimar',    label: 'Aasimar',      emoji: '👼' },
+  { key: 'tabaxi',     label: 'Tabaxi',       emoji: '🐆' },
+  { key: 'goliath',    label: 'Goliath',      emoji: '🏔️' },
+  { key: 'lizardfolk', label: 'Lizardfolk',   emoji: '🦎' },
+  { key: 'kobold',     label: 'Kobold',       emoji: '🐲' },
+  { key: 'kenku',      label: 'Kenku',        emoji: '🐦‍⬛' },
+  { key: 'firbolg',    label: 'Firbolg',      emoji: '🌲' },
+  { key: 'goblin',     label: 'Goblin',       emoji: '👺' },
+  { key: 'hobgoblin',  label: 'Hobgoblin',    emoji: '👹' },
+  { key: 'bugbear',    label: 'Bugbear',      emoji: '🐻' },
+  { key: 'ogre',       label: 'Ogre',         emoji: '🧟' },
+  { key: 'fairy',      label: 'Fairy',        emoji: '🧚' },
+  { key: 'triton',     label: 'Triton',       emoji: '🧜' },
 ];
 
-export function generateCharacterName(race = 'any') {
-  switch (race) {
-    case 'human':      return generateHumanName();
-    case 'elf':        return generateElfName();
-    case 'dwarf':      return generateDwarfName();
-    case 'gnome':      return generateGnomeName();
-    case 'halfling':   return generateHalflingName();
-    case 'orc':        return generateOrcName();
-    case 'half-orc':   return generateHalfOrcName();
-    case 'tiefling':   return generateTieflingName();
-    case 'dragonborn': return generateDragonbornName();
-    default:           return generateAnyCharacterName();
+const TABAXI_NATURE = ['Cloud','Storm','Star','River','Shadow','Wind','Rain','Thunder','Sun','Moon','Mountain','Leaf','Tree','Path','Snow','Ice','Fire','Smoke','Ash','Dust'];
+const TABAXI_NOUNS = ['Mountain','Peak','Valley','Forest','Stream','Canyon','Claw','Tail','Eye','Tooth','Breath','Whisper','Roar','Song','Feather'];
+
+const KENKU_SOUNDS = ['Smasher','Clanger','Whistler','Squeaker','Hammer','Ringer','Tinker','Chirp','Crack','Snap','Rustle','Clack','Gong','Chime'];
+const GOLIATH_TITLES = ['Bearbreaker','Dawncaller','Fearless','Flintfinder','Horncarver','Keeneye','Lonehunter','Longleaper','Rootsmasher','Skywatcher','Steadyhand','Threadtwister','Twice-Orphaned','Twistedlimb','Wordpainter'];
+
+export function generateCharacterName(race = 'any', options = {}) {
+  let gender = options.gender;
+  if (!gender || gender === 'any') gender = maybe(0.5) ? 'male' : 'female';
+
+  // Handle fully custom specialized races (Tabaxi, Kenku, Goliath, Half-Elf)
+  if (race === 'tabaxi') {
+    const first = cap(pick(TABAXI_NATURE)) + ' on the ' + cap(pick(TABAXI_NOUNS));
+    if (options.format === 'first') return first;
+    return first + (options.format === 'full' || maybe(0.6) ? ` (Clan ${pick(TOWN_SECOND)})` : '');
   }
+  if (race === 'kenku') {
+    return options.format === 'full' ? `${pick(KENKU_SOUNDS)} of the ${pick(TOWN_FIRST)}` : pick(KENKU_SOUNDS);
+  }
+  if (race === 'goliath') {
+    const first = cap(fng.nameByRace('human', { gender }));
+    if (options.format === 'first') return first;
+    return `${first} "${pick(GOLIATH_TITLES)}" ${pick(DWARF_CLAN_NAMES)}`;
+  }
+  if (race === 'half-elf') {
+    const first = cap(fng.nameByRace(maybe(0.5) ? 'human' : 'elf', { gender }));
+    if (options.format === 'first') return first;
+    return `${first} ${pick(maybe(0.5) ? HUMAN_SURNAMES : ELF_SURNAMES)}`;
+  }
+
+  // Randomly use the original hand-crafted generators for classic races 30% of the time
+  if (Math.random() < 0.3) {
+    switch (race) {
+      case 'human':      return generateHumanName(options);
+      case 'elf':        return generateElfName(options);
+      case 'dwarf':      return generateDwarfName(options);
+      case 'gnome':      return generateGnomeName(options);
+      case 'halfling':   return generateHalflingName(options);
+      case 'orc':        return generateOrcName(options);
+      case 'half-orc':   return generateHalfOrcName(options);
+      case 'tiefling':   return generateTieflingName(options);
+      case 'dragonborn': return generateDragonbornName(options);
+    }
+  }
+
+  // Map to FNG
+  const fngMap = {
+    'human': 'human',
+    'elf': 'elf',
+    'highelf': 'highelf',
+    'drow': 'drow',
+    'dwarf': 'dwarf',
+    'gnome': 'gnome',
+    'halfling': 'halfling',
+    'orc': 'orc',
+    'half-orc': 'orc',
+    'goblin': 'goblin',
+    'hobgoblin': 'goblin',
+    'bugbear': 'orc',
+    'ogre': 'ogre',
+    'tiefling': 'demon',
+    'aasimar': 'angel',
+    'angel': 'angel',
+    'dragonborn': 'dragon',
+    'lizardfolk': 'dragon',
+    'kobold': 'goblin', 
+    'fairy': 'fairy',
+    'firbolg': 'elf',
+    'triton': 'highelf',
+  };
+
+  let fngRace = fngMap[race];
+  if (!fngRace || race === 'any') {
+    const keys = Object.values(fngMap);
+    fngRace = pick(keys);
+  }
+
+  let first = cap(fng.nameByRace(fngRace, { gender }) || 'Brak');
+  // For kobolds, keep it short
+  if (race === 'kobold' && first.length > 5) first = first.slice(0, 5);
+
+  if (options.format === 'first') return first;
+
+  // Handle surnames
+  const surnameMap = {
+    'human': HUMAN_SURNAMES,
+    'elf': ELF_SURNAMES,
+    'highelf': ELF_SURNAMES,
+    'drow': ELF_SURNAMES,
+    'dwarf': DWARF_CLAN_NAMES,
+    'gnome': GNOME_SURNAMES,
+    'halfling': HALFLING_SURNAMES,
+    'orc': ORC_CLANS,
+    'half-orc': ORC_CLANS,
+    'goblin': CHAR_SURNAMES,
+    'hobgoblin': CHAR_SURNAMES,
+    'bugbear': ORC_TITLES,
+    'ogre': ORC_TITLES,
+    'tiefling': TIEFLING_SURNAMES,
+    'aasimar': TIEFLING_VIRTUE_NAMES,
+    'dragonborn': DRAGONBORN_CLANS,
+    'lizardfolk': DRAGONBORN_CLANS,
+    'fairy': ELF_SURNAMES,
+    'firbolg': ELF_SURNAMES,
+    'triton': ELF_SURNAMES,
+  };
+
+  const surList = surnameMap[race] || CHAR_SURNAMES;
+  
+  if (options.format === 'full') {
+    // some races use epithets/titles instead of clan surnames
+    if (race === 'bugbear' || race === 'ogre') return `${first} ${pick(ORC_TITLES)}`;
+    return `${first} ${pick(surList)}`;
+  }
+
+  const prob = race === 'human' ? 0.6 : 0.4;
+  return maybe(prob) ? `${first} ${pick(surList)}` : first;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TOWN / SETTLEMENT NAMES
+// WORLD GENERATORS (TOWNS, ITEMS, FACTIONS, PLACES, CREATURES, LORE, RACES)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TOWN_FIRST = [
-  'Ash','Birch','Black','Bracken','Bram','Bright','Brook','Briar',
-  'Cald','Cedar','Chalk','Cinder','Clay','Cliff','Cold','Copper',
-  'Crag','Cross','Crow','Dusk','Dew','Drake','Dun',
-  'Elder','Elm','Ember','Ever','Fair','Fen','Field','Flint','Ford',
-  'Glen','Gold','Grain','Green','Grey','Grim','Gorse',
-  'Hazel','Heather','High','Hill','Hollow','Holt','Horn',
-  'Iron','Ivy','Lake','Larch','Leaf','Long','Low',
-  'Marsh','Mill','Mist','Moss','Mud','Murk',
-  'Night','North','Oak','Old','Otter',
-  'Pine','Pool','Reed','River','Rock','Rook',
-  'Salt','Sand','Shale','Silver','Slate','South','Stone','Storm','Swan',
-  'Thorn','Timber','Trout',
-  'Weld','West','White','Wind','Winter','Wolf','Wood','Wren','Yarrow','Yew',
-  'Broken','Burnt','Dark','Dead','Deep','Dry','Far','Fast',
-  'Hidden','Last','Little','Lost','Narrow','New','Open','Over',
-  'Plain','Quick','Rough','Round','Small','Still','Upper','Wide',
-];
 
-const TOWN_SECOND = [
-  'barrow','beach','beck','bend','borough','bridge','brook','burn','bury',
-  'by','cliff','combe','crest','croft','cross','dale','dell','den',
-  'dike','ditch','don','down','drift','dun','edge','end',
-  'falls','farm','fell','fen','field','fold','ford','fork',
-  'gate','gill','glen','green','grove',
-  'hall','ham','haven','heath','hill','holt','home','hood',
-  'hollow','holm','hurst','ing','keep','landing','lea',
-  'lock','mead','mere','mill','moor','mouth','nest',
-  'pool','port','reach','rest','ridge','rise','rock','run',
-  'seat','shaw','side','slip','spring','stead','stone','strand',
-  'thorpe','ton','vale','view','watch','well','wick','wood','worth','yard',
-];
-
-const TOWN_PREFIXES = [
-  'Upper ','Lower ','East ','West ','North ','South ',
-  'Great ','Little ','Old ','New ','Port ','Fort ',
-];
 
 export function generateTownName() {
-  const prefix = maybe(0.12) ? pick(TOWN_PREFIXES) : '';
-  const possessive = maybe(0.08);
-  const base = pick(TOWN_FIRST);
-  const second = pick(TOWN_SECOND);
-  if (possessive) return `${prefix}${base}'s ${cap(second)}`;
-  return `${prefix}${base}${second}`;
+  const style = Math.floor(Math.random() * 6);
+  const prefix = maybe(0.15) ? pick(TOWN_PREFIXES) : '';
+  const base = pick(NOUNS);
+  
+  if (style === 0) return `${prefix}${pick(ADJECTIVES)} ${pick(TOWN_SUFFIXES)}`;
+  if (style === 1) return `${prefix}${base}${pick(TOWN_SUFFIXES)}`;
+  if (style === 2) return `${prefix}${pick(ADJECTIVES)}${pick(TOWN_SUFFIXES).toLowerCase()}`;
+  if (style === 3) return `${prefix}${base}'s ${cap(pick(TOWN_SUFFIXES))}`;
+  if (style === 4) return `${pick(ADJECTIVES)} ${base}`;
+  return `${prefix}${pick(NOUNS)}${pick(TOWN_SUFFIXES)}`;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ITEM NAMES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ITEM_ADJ = [
-  'Ancient','Battered','Blackened','Broken','Burnished','Chipped','Cracked',
-  'Dented','Dulled','Etched','Faded','Notched','Pitted','Rusted','Salt-worn',
-  'Scorched','Stained','Tarnished','Warped','Worn','Weathered',
-  'Bone','Brass','Carved','Curved','Double-edged','Flint','Forged','Gilded',
-  'Hammered','Heavy','Hollow','Hooked','Iron','Jagged','Knotted','Leaden',
-  'Long','Pale','Plain','Polished','Runed','Serrated','Short','Slim',
-  'Smooth','Steel','Stone','Thick','Thin','Twisted','Unadorned','Wrapped',
-  'Cursed','Blessed','Bound','Sealed','Marked','Whispering','Singing',
-  'Burning','Frozen','Living','Dead','Twice-Forged','Blood-Marked',
-  'Ash-Wrought','Storm-Tempered','Moon-Kissed','Shadow-Cast','Fell-Wrought',
-];
-
-const ITEM_MATERIAL = [
-  'ash','birch','bone','coral','elm','horn','ivory','leather','linen',
-  'oak','reed','willow','wool','yew','antler','chitin','hide','sinew',
-  'amber','shell','vine','root',
-  'clay','flint','jade','obsidian','quartz','slate','stone',
-  'brass','bronze','copper','gold','iron','pewter','silver','steel','tin',
-  'glass','crystal','moonstone','shadowglass','stormsteel','voidite',
-  'starstone','ashglass','ironwood','blackoak','deepstone','coldsilver',
-];
-
-const ITEM_NOUN = [
-  'axe','blade','bow','cleaver','crossbow','dagger','flail','glaive',
-  'greataxe','greatsword','halberd','hammer','handaxe','hatchet','javelin',
-  'knife','lance','mace','maul','morningstar','pick','pike','rapier',
-  'scimitar','scythe','sickle','spear','staff','sword','trident','warhammer','whip',
-  'belt','bracer','buckle','cap','chain','cloak','collar','coif','gauntlet',
-  'girdle','glove','gorget','greave','helm','hood','jerkin','mail','mantle',
-  'mask','pauldron','ring','robe','sash','shield','visor','wrap',
-  'amulet','astrolabe','band','bottle','brace','brooch','canteen','clasp',
-  'compass','crown','cup','disc','flask','focus','hook',
-  'horn','journal','key','lamp','lantern','locket','medallion',
-  'mirror','needle','orb','pendant','pin','pouch','quill','rod','rope',
-  'satchel','seal','signet','tome','torch','vial','wand','whistle',
-];
-
-const ITEM_OF = [
-  'the Dawn','the Dusk','the Deep','the Dark','the Void','the Storm',
-  'the Tide','the North Wind','the South Wind','the East Gate','the West Shore',
-  'the Rising Sun','the Fading Moon','the Starless Night','the Hidden Sky',
-  'the Sea','the River','the Vale','the Wood','the Mountain',
-  'the Fallen','the Lost','the Forgotten','the Harvest','the Watch',
-  'the Old Ways','the First Vow','the Last Word','the Unbroken Path',
-  'the Common Road','the Second Dawn','the Final Crossing',
-  'Ash and Ember','Bone and Salt','Iron and Oak','Stone and Root',
-  'Blood and Coin','Dust and Memory','Fire and Rain','Mud and Gold',
-  'Night and Fog','Wind and Tide','Teeth and Claw','Rust and Ruin',
-];
-
-const ITEM_PROPER_ADJ = [
-  'Undying','Forsaken','Eternal','Relentless','Faithful','Merciless',
-  'Steadfast','Shattered','Woven','Risen','Fallen','Burning','Fading',
-  'Silent','Hollow','Radiant','Cursed','Blessed','Sundered','Mended',
-];
 
 export function generateItemName() {
   const style = Math.floor(Math.random() * 6);
-  if (style === 0) return `${pick(ITEM_ADJ)} ${cap(pick(ITEM_MATERIAL))} ${cap(pick(ITEM_NOUN))}`;
-  if (style === 1) return `The ${pick(ITEM_ADJ)} ${cap(pick(ITEM_NOUN))}`;
-  if (style === 2) return `${cap(pick(ITEM_MATERIAL))} ${cap(pick(ITEM_NOUN))} of ${pick(ITEM_OF)}`;
-  if (style === 3) return `${pick(ITEM_ADJ)} ${cap(pick(ITEM_NOUN))} of ${pick(ITEM_OF)}`;
-  if (style === 4) return `The ${pick(ITEM_PROPER_ADJ)} ${cap(pick(ITEM_NOUN))}`;
-  const name = generateCharacterName('any').split(' ')[0];
-  return `${name}'s ${pick(ITEM_ADJ)} ${cap(pick(ITEM_NOUN))}`;
+  if (style === 0) return `${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 1) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 2) return `${pick(NOUNS)} of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 3) return `${pick(NOUNS)} of ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 4) return `${pick(ADJECTIVES)} ${pick(NOUNS)} of the ${pick(NOUNS)}`;
+  return `The ${pick(NOUNS)}'s ${pick(NOUNS)}`;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FACTION NAMES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FACTION_ADJ = [
-  'Ancient','Faithful','Free','Honored','Patient','Steadfast','True','Unbroken',
-  'Vigilant','Righteous','Sacred','Sworn','Undying','Everlasting','Enduring',
-  'Ashen','Bitter','Black','Blind','Broken','Burned','Cold','Crimson',
-  'Dark','Deep','Distant','Fallen','Grey','Hollow','Iron','Last',
-  'Lost','Mended','Old','Pale','Quiet','Red','Salt','Silent',
-  'Slow','Stone','Wandering','White','Worn',
-  'Amber','Briar','Cedar','Copper','Dusk','Ember','Frost','Gold',
-  'Green','Leaf','Moss','Oak','Pine','River','Root','Silver','Storm',
-  'Thorn','Tide','Vine','Wind','Wood',
-];
-
-const FACTION_NOUN = [
-  'Accord','Assembly','Canon','Chapter','Charter','Compact','Conclave',
-  'Congress','Consortium','Council','Court','Covenant','Decree',
-  'Delegation','Dominion','Embassy','Enclave','Forum',
-  'Band','Brotherhood','Cadre','Cohort','Company','Corps',
-  'Fist','Hand','Legion','Regiment','Vanguard','Warband',
-  'Circle','Creed','Cult','Fold','Gathering','Lodge','Order',
-  'Path','Rite','Ring','Secret','Shroud','Sisterhood','Society',
-  'Clan','Fellowship','Guild','House','Keep','League',
-  'Pact','Root','Sept','Sworn','Threshold','Union','Vigil','Watch','Way',
-];
-
-const FACTION_OF = [
-  'the Ash Road','the Black Mountain','the Broken Shore','the Cold River',
-  'the Common Field','the Deep Well','the Ember Gate','the Far Shore',
-  'the Grey Hills','the High Pass','the Iron Bell','the Last Bridge',
-  'the Mending','the North Wind','the Old Flame','the Open Hand',
-  'the Pale River','the Quiet Wood','the Salt Flats','the Still Pool',
-  'the Stone Keep','the Thornwood','the True Path','the Wandering Road',
-  'the Fallen Crown','the First Dawn','the Last Hour','the Long Road',
-  'the Old Oath','the Second Sun','the Silent Age','the Sundered Realm',
-  'Blood and Coin','Fire and Salt','Iron and Bone','Stone and Ash',
-  'Dust and Memory','Night and Fog','Root and Thorn','Wind and Rain',
-];
 
 export function generateFactionName() {
-  const style = Math.floor(Math.random() * 5);
-  if (style === 0) return `The ${pick(FACTION_ADJ)} ${pick(FACTION_NOUN)}`;
-  if (style === 1) return `${pick(FACTION_NOUN)} of ${pick(FACTION_OF)}`;
-  if (style === 2) return `The ${pick(FACTION_NOUN)} of ${pick(FACTION_OF)}`;
-  if (style === 3) return `The ${pick(FACTION_ADJ)} ${pick(FACTION_NOUN)} of ${pick(FACTION_OF)}`;
-  return `${pick(FACTION_ADJ)} ${pick(FACTION_NOUN)}`;
+  const style = Math.floor(Math.random() * 6);
+  if (style === 0) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 1) return `${pick(NOUNS)} of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 2) return `The ${pick(NOUNS)} of ${pick(NOUNS)}`;
+  if (style === 3) return `Order of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 4) return `${pick(ADJECTIVES)} ${pick(NOUNS)} Syndicate`;
+  return `The ${pick(NOUNS)} Brotherhood`;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PLACE NAMES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const PLACE_ADJ = [
-  'Ancient','Broken','Buried','Crumbling','Dead','Fallen','Forgotten',
-  'Frozen','Haunted','Overgrown','Ruined','Shattered','Sunken','Twisted',
-  'Waterlogged','Worn','Ashen','Bitter','Cold','Dark','Deep','Distant',
-  'Dried','Far','Flooded','Grey','High','Hollow','Low','Narrow','Old',
-  'Pale','Quiet','Salt','Silent','Wide','Wild','Windswept',
-  'Black','Bone-white','Crimson','Golden','Green','Iron','Misted',
-  'Muddy','Obsidian','Scarlet','Shadowed','Silver','Smoky','Stony','Thorned',
-];
-
-const PLACE_NOUN = [
-  'Abyss','Basin','Bay','Bluff','Canyon','Cavern','Chasm','Cliff',
-  'Crevasse','Dell','Depths','Desert','Divide','Dunes','Expanse','Falls',
-  'Fen','Fields','Flats','Gap','Gorge','Grove','Heights','Hollow',
-  'Isle','Isthmus','Labyrinth','Maw','Meadow','Moor','Narrows',
-  'Pass','Peak','Peninsula','Plain','Plateau','Reaches','Ridge','Rift',
-  'Shelf','Shore','Slope','Sprawl','Steppe','Swamp','Tangle',
-  'Tomb','Valley','Waste','Weald','Wood',
-  'Archway','Bastion','Catacombs','Citadel','Crossing','Dungeon',
-  'Fortress','Gate','Hall','Hold','Keep','Library','Monument',
-  'Observatory','Outpost','Ruin','Sanctuary','Shrine','Spire',
-  'Temple','Throne','Tower','Vault','Warren',
-];
-
-const PLACE_THE = [
-  'Expanse of ','Reaches of ','Depths of ','Wastes of ','Edge of ',
-  'Heart of ','Throat of ','Crown of ','Belly of ','Foot of ',
-];
 
 export function generatePlaceName() {
-  const style = Math.floor(Math.random() * 5);
-  if (style === 0) return generateTownName();
-  if (style === 1) return `The ${pick(PLACE_ADJ)} ${pick(PLACE_NOUN)}`;
-  if (style === 2) return `${pick(PLACE_ADJ)} ${pick(PLACE_NOUN)}`;
-  if (style === 3) return `The ${pick(PLACE_THE)}${pick(PLACE_ADJ).toLowerCase()} ${pick(PLACE_NOUN).toLowerCase()}`;
-  const owner = generateCharacterName('any').split(' ')[0];
-  return `${owner}'s ${pick(PLACE_NOUN)}`;
+  const style = Math.floor(Math.random() * 6);
+  if (style === 0) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 1) return `${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 2) return `${pick(NOUNS)} of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 3) return `${pick(NOUNS)} of ${pick(NOUNS)}`;
+  if (style === 4) return `The ${pick(NOUNS)}'s ${pick(NOUNS)}`;
+  return `${pick(ADJECTIVES)} ${pick(NOUNS)} ${pick(NOUNS)}`;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CREATURE NAMES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const CREATURE_STARTS = [
-  'Alder','Bark','Barrow','Bog','Bone','Bram','Briar','Burrow',
-  'Cinder','Clay','Crag','Dark','Deep','Dusk','Dust','Ember',
-  'Fen','Field','Flint','Frost','Gale','Glen','Gloom','Gnaw',
-  'Grim','Grove','Hollow','Iron','Mire','Mist','Moat','Moss',
-  'Mud','Night','Rain','Reed','River','Rock','Root','Rush',
-  'Salt','Shade','Silt','Slate','Smoke','Snag','Stone','Storm',
-  'Thorn','Timber','Vale','Vine','Wallow','Web','Wind','Wood',
-  'Bellow','Bite','Blood','Claw','Coil','Crawl','Creep','Dire',
-  'Dread','Fang','Fell','Fierce','Grin','Growl','Hiss','Howl',
-  'Hunt','Kill','Lunge','Prowl','Rend','Rip','Roar','Savage',
-  'Shriek','Skulk','Snarl','Snap','Stalk','Strike','Tear','Track',
-  'Ash','Black','Blind','Bright','Brown','Crimson','Dun','Ghost',
-  'Gold','Green','Grey','Pale','Red','Rust','Shadow','Silver','White',
-  'Cavern','Cave','Deep','Lake','Marsh','Mountain','Ocean','River',
-  'Sea','Sky','Swamp','Tree','Under','Water',
-];
-
-const CREATURE_ENDS = [
-  'back','beak','belly','brow','chin','claw','coat','ear',
-  'eye','fang','fin','foot','gill','hide','horn','jaw',
-  'mane','maw','muzzle','neck','paw','scale','shell','skin',
-  'snout','spine','tail','thorn','tooth','tusk',
-  'bite','breath','call','chaser','coil','crawl','creep',
-  'fang','grub','hook','hound','lurk','moth','prowl',
-  'runner','skull','stalk','stalker','track','tread',
-  'veil','walker','watcher','worm','wrap',
-  'basker','bearer','bleeder','bloat','burrower',
-  'caller','drifter','devourer','feeder','flier','grazer',
-  'gnasher','grappler','hauler','herder','killer','leaper',
-  'lurker','masher','nester','raider','ravager','reaper',
-  'roamer','screamer','scuttler','seeker','shrieker','slayer',
-  'slinker','snapper','soarer','spawner','spearer','spinner',
-  'stalker','stomper','strider','swimmer','swiper',
-  'trampler','trawler','tunneler','twister','wanderer',
-];
 
 export function generateCreatureName() {
-  const style = Math.floor(Math.random() * 4);
-  if (style === 0) return pick(CREATURE_STARTS) + pick(CREATURE_ENDS);
-  if (style === 1) return `${pick(CREATURE_STARTS)}-${pick(CREATURE_ENDS)}`;
-  if (style === 2) return `${pick(CREATURE_STARTS)} ${cap(pick(CREATURE_STARTS))}${pick(CREATURE_ENDS)}`;
-  return `The ${pick(CREATURE_STARTS)}${pick(CREATURE_ENDS)}`;
+  const style = Math.floor(Math.random() * 6);
+  if (style === 0) return `${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 1) return `${pick(ADJECTIVES)}-${pick(NOUNS).toLowerCase()}`;
+  if (style === 2) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 3) return `${pick(NOUNS)}${pick(NOUNS).toLowerCase()}`;
+  if (style === 4) return `${pick(NOUNS)} of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  return `${pick(ADJECTIVES)} ${pick(NOUNS)} ${pick(NOUNS)}`;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// LORE / CONCEPT NAMES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const LORE_ADJ = [
-  'Ancient','Eternal','Final','First','Last','Long-Forgotten','Old',
-  'Second','Third','Unending','Undying','Vanished',
-  'Ashen','Binding','Bitter','Black','Blind','Broken','Buried',
-  'Cold','Common','Dark','Dead','Deep','Distant','Fallen','Fading',
-  'Forbidden','Forgotten','Grey','Hidden','High','Hollow',
-  'Lost','Low','Pale','Patient','Quiet','Red','Salt',
-  'Silent','Slow','Sunken','True','Unspoken','Wandering','Worn',
-];
-
-const LORE_NOUN = [
-  'Age','Arrival','Ascension','Awakening','Battle','Birth','Breaking',
-  'Burning','Calling','Catastrophe','Change','Collapse','Coming','Crossing',
-  'Dawn','Death','Departure','Descent','End','Erasure','Exodus','Fall',
-  'Flood','Founding','Herald','Hour','Hunger','Leaving','Martyrdom',
-  'Passage','Purge','Reckoning','Return','Rise','Rupture','Schism',
-  'Shattering','Siege','Silence','Sundering','Tide','Turning','Vanishing','War',
-  'Accord','Annals','Axiom','Binding','Canon','Chronicle','Compact',
-  'Covenant','Creed','Cycle','Decree','Doctrine','Edict','Era',
-  'Flame','Law','Lament','Legacy','Oath','Omen','Order','Proclamation',
-  'Promise','Prophecy','Revelation','Rite','Rule','Seal','Testament',
-  'Trial','Truth','Vigil','Vow','Warning','Way','Word','Wound',
-];
-
-const LORE_OF = [
-  'the First Age','the Second Crossing','the Third Dawn',
-  'the Fallen Kingdom','the Broken Empire','the Sundered World',
-  'the Ancient Court','the Lost City','the Vanished People',
-  'the Old Covenant','the First War','the Final Hour',
-  'the Blind King','the Last Queen','the Wandering Prophet',
-  'the Unnamed God','the Betrayed Saint','the Forsaken Hero',
-  'the Silent Empress','the Iron Warlord','the Weeping Scholar',
-  'the Grey Mountains','the Deep River','the Ashen Wastes',
-  'the Sunken Vale','the Hollow Shore','the Forgotten Tomb',
-  'the Black Gate','the Silver Tower','the Iron Throne',
-];
 
 export function generateLoreName() {
-  const style = Math.floor(Math.random() * 5);
-  if (style === 0) return `The ${pick(LORE_ADJ)} ${pick(LORE_NOUN)}`;
-  if (style === 1) return `${pick(LORE_ADJ)} ${pick(LORE_NOUN)}`;
-  if (style === 2) return `The ${pick(LORE_NOUN)} of ${pick(LORE_OF)}`;
-  if (style === 3) return `${pick(LORE_NOUN)} of the ${pick(LORE_ADJ).toLowerCase()} ${pick(LORE_NOUN).toLowerCase()}`;
-  return `The ${pick(LORE_ADJ)} ${pick(LORE_NOUN)}: ${pick(LORE_OF)}`;
+  const style = Math.floor(Math.random() * 6);
+  if (style === 0) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 1) return `${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 2) return `The ${pick(NOUNS)} of ${pick(NOUNS)}`;
+  if (style === 3) return `${pick(NOUNS)} of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 4) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)}: ${pick(NOUNS)} of ${pick(NOUNS)}`;
+  return `Age of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RACE / SPECIES NAMES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const RACE_STARTS = [
-  'Aer','Alar','Aur','Bael','Bhor','Cal','Dhar','Drav',
-  'Eldrin','Erak','Eryn','Fal','Fir','Ghor','Gor','Grel',
-  'Har','Hel','Il','Ith','Kal','Khar','Kir','Kral',
-  'Lir','Lor','Mal','Mhar','Mor','Nar','Nel','Nith',
-  'Orak','Oryn','Phal','Ral','Rel','Rhal','Rin','Rok',
-  'Sal','Ser','Shal','Skael','Skor','Sol','Tal','Thar',
-  'Thel','Thor','Til','Tur','Urak','Val','Vel','Vor',
-  'Wal','Wyr','Xal','Xen','Yar','Yen','Zal','Zel',
-];
-
-const RACE_MIDS = ['an','ar','el','en','ir','or','in','on','ath','eth','ith','oth','aen','ien','oen','aer','ier','oer'];
-const RACE_ENDS = ['i','in','en','an','on','un','ar','er','ir','or','ur','ath','eth','oth','ael','iel','uel','kin','ren','dar','nor','sor','tor','war'];
-const RACE_DEMONYMS = ['folk','kin','born','blood','sworn','kind','spawn','brood','touched','marked','blessed','cursed','chosen','lost','fallen'];
 
 export function generateRaceName() {
   const style = Math.floor(Math.random() * 5);
-  if (style === 0) return cap(pick(RACE_STARTS).toLowerCase() + pick(RACE_MIDS) + pick(RACE_ENDS));
-  if (style === 1) return cap(pick(CREATURE_STARTS).toLowerCase()) + pick(RACE_DEMONYMS);
-  if (style === 2) return `The ${cap(pick(RACE_STARTS).toLowerCase() + pick(RACE_ENDS))}`;
-  if (style === 3) return `${pick(LORE_ADJ)} ${cap(pick(RACE_ENDS))}folk`;
-  return pick(RACE_STARTS) + pick(RACE_DEMONYMS);
+  const raceBase = pick(['folk', 'kin', 'born', 'blood', 'spawn', 'brood', 'touched', 'marked']);
+  if (style === 0) return `${pick(ADJECTIVES)}${raceBase}`;
+  if (style === 1) return `${pick(NOUNS)}${raceBase}`;
+  if (style === 2) return `The ${pick(ADJECTIVES)} ${cap(raceBase)}`;
+  if (style === 3) return `${pick(ADJECTIVES)} ${pick(NOUNS)} ${cap(raceBase)}`;
+  return `${pick(NOUNS)}${pick(NOUNS).toLowerCase()}`;
+}
+
+export function generateTavernName() {
+  const style = Math.floor(Math.random() * 6);
+  if (style === 0) return `The ${pick(ADJECTIVES)} ${pick(TAVERN_NOUNS)}`;
+  if (style === 1) return `The ${pick(TAVERN_NOUNS)} and ${pick(TAVERN_NOUNS)}`;
+  if (style === 2) return `The ${pick(ADJECTIVES)} ${pick(TAVERN_NOUNS)} Inn`;
+  if (style === 3) return `${pick(TAVERN_NOUNS)}'s Rest`;
+  if (style === 4) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  return `The ${pick(NOUNS)} & ${pick(TAVERN_NOUNS)}`;
+}
+
+export function generateShipName() {
+  const style = Math.floor(Math.random() * 6);
+  if (style === 0) return `The ${pick(SHIP_ADJECTIVES)} ${pick(SHIP_NOUNS)}`;
+  if (style === 1) return `${pick(SHIP_ADJECTIVES)} ${pick(SHIP_NOUNS)}`;
+  if (style === 2) return `The ${pick(NOUNS)}'s ${pick(SHIP_NOUNS)}`;
+  if (style === 3) return `${pick(SHIP_NOUNS)} of the ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 4) return `${pick(ADJECTIVES)} ${pick(SHIP_NOUNS)}`;
+  return `The ${pick(SHIP_NOUNS)} of ${pick(NOUNS)}`;
+}
+
+export function generateDeityName() {
+  const style = Math.floor(Math.random() * 6);
+  const name = pick(NOUNS); 
+  const domain = pick(DEITY_DOMAINS);
+  if (style === 0) return `${name}, ${domain}`;
+  if (style === 1) return `The ${pick(ADJECTIVES)} God of ${pick(NOUNS)}`;
+  if (style === 2) return `${name}, The ${pick(ADJECTIVES)} ${pick(NOUNS)}`;
+  if (style === 3) return `The ${pick(ADJECTIVES)} ${pick(NOUNS)} of ${domain}`;
+  if (style === 4) return `${pick(ADJECTIVES)} ${name}, ${domain}`;
+  return `${name}, ${domain} and ${pick(DEITY_DOMAINS)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1110,10 +1045,13 @@ export const GENERATOR_TYPES = [
   { key: 'creature',  label: 'Creature',       fn: generateCreatureName  },
   { key: 'lore',      label: 'Lore / Concept', fn: generateLoreName      },
   { key: 'race',      label: 'Race / Species', fn: generateRaceName      },
+  { key: 'tavern',    label: 'Tavern / Inn',   fn: generateTavernName    },
+  { key: 'ship',      label: 'Ship / Vessel',  fn: generateShipName      },
+  { key: 'deity',     label: 'Deity / Myth',   fn: generateDeityName     },
 ];
 
-export function generateName(type, race = 'any') {
-  if (type === 'character') return generateCharacterName(race);
+export function generateName(type, race = 'any', options = {}) {
+  if (type === 'character') return generateCharacterName(race, options);
   const gen = GENERATOR_TYPES.find(g => g.key === type);
   return gen ? gen.fn() : '';
 }
