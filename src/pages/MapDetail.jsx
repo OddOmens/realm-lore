@@ -2174,6 +2174,7 @@ export default function MapDetail() {
                   <span className="text-[10px] text-muted-foreground ml-auto">{map?.pins?.length || 0}</span>
                 </div>
               )}
+
               {addingLayer ? (
                 <div className="flex items-center gap-1 px-2 py-1">
                   <input
@@ -2245,7 +2246,7 @@ export default function MapDetail() {
               {map.image && (
                 <img
                   ref={imgRef}
-                  src={map.image}
+                  src={map.image.startsWith('__local__') ? `asset://${activeWorld}/maps/${map.image.replace('__local__', '')}.img` : map.image}
                   alt={map.name || 'Map'}
                   draggable={false}
                   onLoad={(e) => {

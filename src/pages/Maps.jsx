@@ -229,6 +229,7 @@ function NewMapModal({ onSave, onClose }) {
 }
 
 function MapCard({ map, onOpen, onDelete }) {
+  const activeWorld = useWorldStore(s => s.activeWorld);
   const pinCount = (map.pins?.length || 0) + (map.protagonist ? 1 : 0);
   const strokeCount = map.strokes?.length || 0;
   return (
@@ -240,7 +241,7 @@ function MapCard({ map, onOpen, onDelete }) {
       >
         {map.image ? (
           <img
-            src={map.image}
+            src={map.image.startsWith('__local__') ? `asset://${activeWorld}/maps/${map.image.replace('__local__', '')}.img` : map.image}
             alt={map.name}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             draggable={false}
@@ -295,8 +296,9 @@ export default function Maps() {
 
   return (
     <>
-      <div className="flex-1 px-4 py-6 md:p-8 overflow-y-auto w-full">
-        <header className="flex justify-between items-start gap-4 mb-5">
+    <div className="flex-1 overflow-y-auto w-full">
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md px-4 pt-6 pb-3 md:px-8 md:pt-8 mb-5 border-b border-border/40 flex flex-col gap-5 shadow-sm">
+        <header>
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <MapIcon size={22} className="text-emerald-400" />
@@ -306,33 +308,38 @@ export default function Maps() {
               Draw your world from scratch or import a background image, then pin the places that matter.
             </p>
           </div>
-          <button
-            onClick={() => setAdding(true)}
-            className="shrink-0 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={15} /> New Map
-          </button>
         </header>
 
-        {maps.length > 0 && (
-          <div className="relative mb-5 max-w-md">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+          <div className="relative w-full sm:w-72 shrink-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search maps\u2026"
-              className="w-full bg-secondary text-foreground text-sm rounded-md pl-9 pr-9 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+              placeholder="Search maps..."
+              className="w-full bg-secondary/50 text-foreground text-sm rounded-lg pl-9 pr-9 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 transition-all"
             />
             {query && (
               <button
                 onClick={() => setQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             )}
           </div>
-        )}
+          <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
+            <button
+              onClick={() => setAdding(true)}
+              className="shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus size={15} /> New Map
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 md:px-8 pb-8">
 
         {maps.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center max-w-xl mx-auto">
@@ -362,6 +369,7 @@ export default function Maps() {
           </div>
         )}
       </div>
+    </div>
 
       {adding && (
         <NewMapModal onSave={handleCreate} onClose={() => setAdding(false)} />

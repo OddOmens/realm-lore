@@ -38,6 +38,20 @@ function parseMd(fileContent) {
   return { data, content: match[2].trim() };
 }
 
+function parseFrontmatterOnly(raw) {
+  const data = {};
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    const idx = line.indexOf(':');
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim();
+    let value = line.slice(idx + 1).trim();
+    try { value = JSON.parse(value); } catch { /* keep raw */ }
+    data[key] = value;
+  }
+  return data;
+}
+
 // ── dbService ─────────────────────────────────────────────────────────────────
 
 export const dbService = {
@@ -62,17 +76,20 @@ export const dbService = {
 
   async getAll(storeName) {
     const dirPath = `${activeWorld}/${storeName}`;
-    const result = await window.electronAPI.fsRead(dirPath);
-    if (!result || !result.isDir) return [];
-    const results = await Promise.all(
-      result.files.filter(f => f.endsWith('.md')).map(async fileName => {
-        const fileRes = await window.electronAPI.fsRead(`${dirPath}/${fileName}`);
-        if (!fileRes || fileRes.isDir) return null;
-        const { data, content } = parseMd(fileRes.content);
-        return { ...data, content, id: data.id || fileName.replace('.md', '') };
-      })
-    );
-    return results.filter(Boolean);
+    const files = await window.electronAPI.fsReadDirContent(dirPath, '.md');
+    return files.map(fileRes => {
+      const { data, content } = parseMd(fileRes.content);
+      return { ...data, content, id: data.id || fileRes.fileName.replace('.md', '') };
+    });
+  },
+
+  async getAllIndex(storeName) {
+    const dirPath = `${activeWorld}/${storeName}`;
+    const files = await window.electronAPI.fsReadDirIndex(dirPath, '.md');
+    return files.map(fileRes => {
+      const data = parseFrontmatterOnly(fileRes.frontmatter);
+      return { ...data, id: data.id || fileRes.fileName.replace('.md', '') };
+    });
   },
 
   async get(storeName, id) {
@@ -86,12 +103,43 @@ export const dbService = {
     item.updatedAt = Date.now();
     if (!item.createdAt) item.createdAt = Date.now();
     if (!item.id) item.id = uuidv4();
+
+    if (storeName === 'stories') {
+      const contentText = item.content || '';
+      item.wordCount = contentText.replace(/\f/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+      item.preview = contentText.replace(/\f/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+    }
+
     const content = item.content || '';
     const dataToSave = { ...item };
     delete dataToSave.content;
     const mdString = serializeToMd(dataToSave, content);
     await window.electronAPI.fsWrite(`${activeWorld}/${storeName}/${item.id}.md`, mdString);
     return item;
+  },
+
+  async putMany(storeName, items) {
+    const serialized = items.map(item => {
+      item.updatedAt = Date.now();
+      if (!item.createdAt) item.createdAt = Date.now();
+      if (!item.id) item.id = uuidv4();
+
+      if (storeName === 'stories') {
+        const contentText = item.content || '';
+        item.wordCount = contentText.replace(/\f/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+        item.preview = contentText.replace(/\f/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+      }
+
+      const content = item.content || '';
+      const dataToSave = { ...item };
+      delete dataToSave.content;
+      return {
+        filePath: `${activeWorld}/${storeName}/${item.id}.md`,
+        content: serializeToMd(dataToSave, content),
+      };
+    });
+    await window.electronAPI.fsWriteBatch(serialized);
+    return items;
   },
 
   async delete(storeName, id) {

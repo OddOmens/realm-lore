@@ -344,8 +344,6 @@ function createWindow() {
 
 app.whenReady().then(() => {
   protocol.handle('asset', (request) => {
-    // request.url is something like "asset://worldname/assets/foo.png"
-    // URL parsing can be tricky with custom schemes, so manual parsing is safer.
     const urlStr = request.url.replace(/^asset:\/\//, '');
     const firstSlash = urlStr.indexOf('/');
     if (firstSlash === -1) return new Response('Bad Request', { status: 400 });
@@ -353,6 +351,23 @@ app.whenReady().then(() => {
     const restPath = decodeURIComponent(urlStr.substring(firstSlash + 1));
     const worldRoot = resolveWorldPath(worldName);
     const fullPath = path.join(worldRoot, restPath);
+
+    if (fullPath.endsWith('.img') && fs.existsSync(fullPath)) {
+      try {
+        const content = fs.readFileSync(fullPath, 'utf8');
+        if (content.startsWith('data:image/')) {
+          const match = content.match(/^data:(image\/[^;]+);base64,(.+)$/);
+          if (match) {
+            const mimeType = match[1];
+            const buffer = Buffer.from(match[2], 'base64');
+            return new Response(buffer, { headers: { 'Content-Type': mimeType } });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to parse .img file as asset', err);
+      }
+    }
+
     return net.fetch('file://' + fullPath);
   });
 
@@ -597,6 +612,49 @@ ipcMain.handle('fs:read', (_, { filePath }) => {
   return { isDir: false, content: fs.readFileSync(full, 'utf-8') };
 });
 
+ipcMain.handle('fs:readDirContent', async (_, { dirPath, extension }) => {
+  const parts = dirPath.replace(/\\\\/g, '/').split('/');
+  const worldName = parts[0];
+  const full = resolveFilePath(dirPath);
+  if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
+  try { if (!(await fs.promises.stat(full)).isDirectory()) return []; } catch { return []; }
+
+  let files = await fs.promises.readdir(full);
+  if (extension) files = files.filter(f => f.endsWith(extension));
+
+  const results = await Promise.all(files.map(async file => {
+    const filePath = path.join(full, file);
+    try {
+      if ((await fs.promises.stat(filePath)).isDirectory()) return null;
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      return { fileName: file, content };
+    } catch { return null; }
+  }));
+  return results.filter(Boolean);
+});
+
+ipcMain.handle('fs:readDirIndex', async (_, { dirPath, extension }) => {
+  const parts = dirPath.replace(/\\\\/g, '/').split('/');
+  const worldName = parts[0];
+  const full = resolveFilePath(dirPath);
+  if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
+  try { if (!(await fs.promises.stat(full)).isDirectory()) return []; } catch { return []; }
+
+  let files = await fs.promises.readdir(full);
+  if (extension) files = files.filter(f => f.endsWith(extension));
+
+  const results = await Promise.all(files.map(async file => {
+    const filePath = path.join(full, file);
+    try {
+      if ((await fs.promises.stat(filePath)).isDirectory()) return null;
+      const raw = await fs.promises.readFile(filePath, 'utf-8');
+      const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+      return { fileName: file, frontmatter: fmMatch ? fmMatch[1] : '' };
+    } catch { return null; }
+  }));
+  return results.filter(Boolean);
+});
+
 ipcMain.handle('fs:write', async (_, { filePath, content }) => {
   const parts = filePath.replace(/\\\\/g, '/').split('/');
   const worldName = parts[0];
@@ -631,6 +689,27 @@ ipcMain.handle('fs:write', async (_, { filePath, content }) => {
       }).catch(() => {});
     }
   } catch { /* never block a save due to a plugin error */ }
+
+  return { success: true };
+});
+
+ipcMain.handle('fs:writeBatch', async (_, { items }) => {
+  // Validate all paths first before writing any files
+  const resolved = items.map(({ filePath, content }) => {
+    const parts = filePath.replace(/\\\\/g, '/').split('/');
+    const worldName = parts[0];
+    const full = resolveFilePath(filePath);
+    if (!isPathAllowed(full, worldName)) throw new Error('Forbidden');
+    return { full, content };
+  });
+
+  await Promise.all(resolved.map(async ({ full, content }) => {
+    ensureDir(path.dirname(full));
+    if (fs.existsSync(full)) fs.copyFileSync(full, full + '.bak');
+    const tmp = full + '.tmp';
+    await fs.promises.writeFile(tmp, content, 'utf-8');
+    await fs.promises.rename(tmp, full);
+  }));
 
   return { success: true };
 });

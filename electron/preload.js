@@ -11,7 +11,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Filesystem
   fsRead:       (filePath)            => ipcRenderer.invoke('fs:read',  { filePath }),
+  fsReadDirContent: (dirPath, extension) => ipcRenderer.invoke('fs:readDirContent', { dirPath, extension }),
+  fsReadDirIndex:   (dirPath, extension) => ipcRenderer.invoke('fs:readDirIndex',   { dirPath, extension }),
   fsWrite:      (filePath, content)   => ipcRenderer.invoke('fs:write', { filePath, content }),
+  fsWriteBatch: (items)               => ipcRenderer.invoke('fs:writeBatch', { items }),
   fsDelete:     (filePath)            => ipcRenderer.invoke('fs:delete', { filePath }),
 
   // Trash

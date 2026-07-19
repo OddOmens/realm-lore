@@ -27,6 +27,9 @@ export const TEMPLATES = {
         { key: 'abilities',  label: 'Abilities / Powers', type: 'textarea', placeholder: 'Magic, combat skills, special gifts…', rows: 3 },
         { key: 'weaknesses', label: 'Weaknesses',         type: 'textarea', placeholder: 'Vulnerabilities, flaws, fears…', rows: 2 },
       ]},
+      { title: 'Inventory & Assigned Things', sidebar: true, fields: [
+        { key: 'assignedThings', label: 'Assigned Things', type: 'thing-select' },
+      ]},
       { title: 'Notes', fields: [
         { key: 'image', label: 'Portrait / Image URL', type: 'text',     placeholder: 'https://…' },
         { key: 'notes', label: 'Notes',                type: 'textarea', placeholder: 'Anything else worth tracking…', rows: 3 },
@@ -180,6 +183,9 @@ export const TEMPLATES = {
         { key: 'history',    label: 'History & Origin',     type: 'textarea', placeholder: 'How did this race come to be? Key historical events…', rows: 3 },
         { key: 'relations',  label: 'Relations with Others',type: 'textarea', placeholder: 'Allies, rivals, ancient grudges with other races…', rows: 2 },
       ]},
+      { title: 'Sub-races & Variants', fields: [
+        { key: 'subraces', label: 'Sub-races / Variants', type: 'subraces' },
+      ]},
       { title: 'Notes', fields: [
         { key: 'image', label: 'Image URL', type: 'text',     placeholder: 'https://…' },
         { key: 'notes', label: 'Notes',     type: 'textarea', placeholder: 'Anything else worth tracking…', rows: 3 },
@@ -209,6 +215,9 @@ export const TEMPLATES = {
         { key: 'abilities',   label: 'Abilities',   type: 'textarea', placeholder: 'Special attacks, powers, resistances…', rows: 3 },
         { key: 'weaknesses',  label: 'Weaknesses',  type: 'textarea', placeholder: 'What can kill or repel it?', rows: 2 },
       ]},
+      { title: 'Loot & Assigned Things', sidebar: true, fields: [
+        { key: 'assignedThings', label: 'Assigned Things', type: 'thing-select' },
+      ]},
       { title: 'Notes', fields: [
         { key: 'image', label: 'Image URL', type: 'text',     placeholder: 'https://…' },
         { key: 'notes', label: 'Notes',     type: 'textarea', placeholder: 'Myths, rumors, tamability…', rows: 3 },
@@ -229,24 +238,7 @@ export const TEMPLATES = {
         { key: 'origin',      label: 'Origin / History', type: 'textarea', placeholder: 'How did they come to be?', rows: 3 },
       ]},
 
-      { title: 'Race — Biology & Culture', showIf: { key: 'subtype', values: ['Race'] }, fields: [
-        { key: 'homeland',      label: 'Homeland / Regions',       type: 'textarea', placeholder: 'Where do they live?', rows: 2 },
-        { key: 'physiology',    label: 'Physical Traits',          type: 'textarea', placeholder: 'Height, build, lifespan, features…', rows: 2 },
-        { key: 'culture',       label: 'Culture & Society',        type: 'textarea', placeholder: 'Traditions, values, social structure…', rows: 3 },
-        { key: 'raceRelations', label: 'Relations with Other Races',type: 'textarea', placeholder: 'Allies, rivals, ancient grudges…', rows: 2 },
-      ]},
 
-      { title: 'Faction — Organisation', showIf: { key: 'subtype', values: ['Faction'] }, fields: [
-        { key: 'factionType',  label: 'Type',        type: 'select',   options: ['Guild','Kingdom','Empire','Cult','Order','Tribe','Syndicate','Alliance','Other'] },
-        { key: 'alignment',    label: 'Alignment',   type: 'select',   options: ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral','True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil'] },
-        { key: 'leader',       label: 'Leader',      type: 'text',     placeholder: 'Current leader or ruling body' },
-        { key: 'headquarters', label: 'Headquarters',type: 'text',     placeholder: 'Base of operations' },
-        { key: 'goals',        label: 'Goals',       type: 'textarea', placeholder: 'What does this faction want?', rows: 2 },
-        { key: 'membership',   label: 'Membership',  type: 'textarea', placeholder: 'Who can join? Ranks, initiation…', rows: 2 },
-        { key: 'resources',    label: 'Resources',   type: 'textarea', placeholder: 'Wealth, armies, influence…', rows: 2 },
-        { key: 'allies',       label: 'Allies',      type: 'text',     placeholder: 'Friendly factions or individuals' },
-        { key: 'enemies',      label: 'Enemies',     type: 'text',     placeholder: 'Rivals or sworn foes' },
-      ]},
 
       { title: 'Class — Mechanics & Role', showIf: { key: 'subtype', values: ['Class'] }, fields: [
         { key: 'role',         label: 'Role',               type: 'select',   options: ['Warrior','Mage','Rogue','Healer','Support','Summoner','Ranger','Scholar','Other'] },

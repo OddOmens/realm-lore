@@ -1,6 +1,6 @@
 {
   "name": "realm-lore",
-  "version": "2026.5.4",
+  "version": "2026.5.5",
   "author": {
     "name": "OddOmens",
     "email": "hello@oddomens.com"
@@ -15,11 +15,13 @@
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5180 && NODE_ENV=development electron .\"",
     "electron:build": "vite build && electron-builder --mac",
     "electron:build:win": "vite build && electron-builder --win",
-    "electron:build:linux": "vite build && electron-builder --linux"
+    "electron:build:linux": "vite build && electron-builder --linux",
+    "electron:build:all": "vite build && electron-builder -mwl"
   },
   "build": {
     "appId": "com.realmlore.app",
     "productName": "Realm Lore",
+    "artifactName": "realm-lore-${version}-${os}-${arch}.${ext}",
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -68,12 +70,15 @@
     "electron-updater": "^6.8.3",
     "epub-gen-memory": "^1.1.2",
     "express": "^5.2.1",
+    "fantasy-name-generator": "^2.0.0",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.8.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",
+    "react-textarea-autosize": "^8.5.9",
+    "react-window": "^2.2.7",
     "uuid": "^14.0.0",
     "zustand": "^5.0.12"
   },

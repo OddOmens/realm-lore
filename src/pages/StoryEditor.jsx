@@ -1,3 +1,4 @@
+import TextareaAutosize from 'react-textarea-autosize';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
@@ -151,6 +152,7 @@ export default function StoryEditor() {
   const books = useWorldStore(state => state.books);
   const activeWorld = useWorldStore(state => state.activeWorld);
   const updateEntity = useWorldStore(state => state.updateEntity);
+  const fetchEntityContent = useWorldStore(state => state.fetchEntityContent);
 
   const story = stories.find(s => s.id === id);
   const parentBook = story?.bookId ? books.find(b => b.id === story.bookId) : null;
@@ -173,10 +175,18 @@ export default function StoryEditor() {
   const [showFindReplace, setShowFindReplace] = useState(false);
   const { time: sessionTime } = useSessionTimer();
   const [sessionBaselineWords, setSessionBaselineWords] = useState(null);
+  const isStoryLoaded = story && story.content !== undefined;
 
   const latestRef = useRef({ title, content, dirty: false });
   const autosaveTimer = useRef(null);
   const notesTimer = useRef(null);
+
+  // Load the full story content from disk on mount / ID change
+  useEffect(() => {
+    if (id && story && story.content === undefined) {
+      fetchEntityContent('stories', id);
+    }
+  }, [id, story, fetchEntityContent]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- sync controlled fields when opening a different chapter */
   useEffect(() => {
@@ -189,7 +199,7 @@ export default function StoryEditor() {
       latestRef.current = { title: story.name || '', content: story.content || '', dirty: false };
       setSessionBaselineWords(wordCount(story.content || ''));
     }
-  }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [story?.id, story?.content, story?.notes, story?.name]); // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const doSave = useCallback(async (t, c) => {
@@ -249,6 +259,13 @@ export default function StoryEditor() {
 
   if (!story) return (
     <div className="flex-1 flex items-center justify-center text-muted-foreground">Story not found.</div>
+  );
+
+  if (!isStoryLoaded) return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground bg-background">
+      <Loader2 className="animate-spin text-primary" size={24} />
+      <p className="text-sm">Loading chapter…</p>
+    </div>
   );
 
   const backPath = parentBook ? `/books/${parentBook.id}` : '/stories';
@@ -468,7 +485,7 @@ export default function StoryEditor() {
               </div>
               <button onClick={() => setShowNotes(false)} className="text-muted-foreground hover:text-foreground transition-colors text-xs">✕</button>
             </div>
-            <textarea
+            <TextareaAutosize
               value={notes}
               onChange={e => saveNotes(e.target.value)}
               placeholder="Jot down ideas, reminders, outline points for this chapter…"

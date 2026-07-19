@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useWorldStore } from '../store/useWorldStore';
-import { Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Upload, Trash2, Image as ImageIcon, Search, X } from 'lucide-react';
 
 export default function AssetGallery() {
   const activeWorld = useWorldStore(s => s.activeWorld);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
 
   const fetchAssets = async () => {
     if (!activeWorld) return;
@@ -54,20 +55,48 @@ export default function AssetGallery() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="px-6 py-4 border-b border-border shrink-0 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ImageIcon className="text-muted-foreground" size={18} />
-          <h2 className="text-base font-semibold text-foreground">Asset Gallery</h2>
+    <div className="flex-1 overflow-y-auto w-full">
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md px-4 pt-6 pb-3 md:px-8 md:pt-8 mb-5 border-b border-border/40 flex flex-col gap-5 shadow-sm">
+        <header>
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <ImageIcon size={22} className="text-muted-foreground" />
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">Asset Gallery</h2>
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">Manage uploaded images for characters, locations, and more.</p>
+          </div>
+        </header>
+
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+          <div className="relative w-full sm:w-72 shrink-0">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search assets..."
+              className="w-full pl-9 pr-9 py-2 text-sm bg-secondary/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
+            <button
+              onClick={handleImport}
+              className="shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Upload size={15} /> Upload Image
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleImport}
-          className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 flex items-center gap-2 transition-colors"
-        >
-          <Upload size={14} /> Upload Image
-        </button>
       </div>
-      <div className="p-6 flex-1 overflow-y-auto">
+
+      <div className="px-4 md:px-8 pb-8">
         {loading ? (
           <p className="text-muted-foreground text-sm">Loading assets...</p>
         ) : assets.length === 0 ? (
@@ -86,7 +115,7 @@ export default function AssetGallery() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {assets.map(asset => (
+            {(query.trim() ? assets.filter(a => a.label?.toLowerCase().includes(query.trim().toLowerCase())) : assets).map(asset => (
               <div key={asset.rel} className="group relative rounded-md border border-border bg-card overflow-hidden flex flex-col">
                 <div className="aspect-square bg-secondary/30 relative flex items-center justify-center p-2">
                   <img src={`asset://${activeWorld}/assets/${asset.rel}`} alt={asset.label} className="max-w-full max-h-full object-contain" />

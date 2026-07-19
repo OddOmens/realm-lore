@@ -8,6 +8,7 @@ export const useWorldStore = create((set, get) => ({
   characters: [],
   locations: [],
   things: [],
+  notes: [],
   lore: [],
   factions: [],
   creatures: [],
@@ -29,6 +30,35 @@ export const useWorldStore = create((set, get) => ({
   },
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 
+  // Fetch full content for a single entity on demand (for detail pages)
+  fetchEntityContent: async (type, id) => {
+    const full = await dbService.get(type, id);
+    if (!full) return null;
+    // Merge the full content back into the store so it's cached
+    set((state) => ({
+      [type]: state[type].map(e => e.id === id ? { ...e, ...full } : e)
+    }));
+    return full;
+  },
+
+  backfillStories: async (storiesList) => {
+    const missing = storiesList.filter(s => s.wordCount === undefined);
+    if (missing.length === 0) return;
+    // Sequential background backfill to avoid file locks
+    for (const storyIndex of missing) {
+      try {
+        const full = await dbService.get('stories', storyIndex.id);
+        if (full) {
+          await dbService.put('stories', full);
+        }
+      } catch (err) {
+        console.error("Failed to backfill story metadata for", storyIndex.id, err);
+      }
+    }
+    const updated = await dbService.getAllIndex('stories');
+    set({ stories: updated });
+  },
+
   initialize: async () => {
     set({ isLoading: true });
     try {
@@ -46,36 +76,28 @@ export const useWorldStore = create((set, get) => ({
         setActiveWorld(current);
       }
 
-      const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities] = await Promise.all([
-        dbService.getAll('characters'),
-        dbService.getAll('locations'),
-        dbService.getAll('things'),
-        dbService.getAll('lore'),
-        dbService.getAll('factions'),
-        dbService.getAll('creatures'),
-        dbService.getAll('races'),
-        dbService.getAll('stories'),
-        dbService.getAll('relationships'),
-        dbService.getAll('maps'),
+      const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities, notes] = await Promise.all([
+        dbService.getAllIndex('characters'),
+        dbService.getAllIndex('locations'),
+        dbService.getAllIndex('things'),
+        dbService.getAllIndex('lore'),
+        dbService.getAllIndex('factions'),
+        dbService.getAllIndex('creatures'),
+        dbService.getAllIndex('races'),
+        dbService.getAllIndex('stories'),
+        dbService.getAllIndex('relationships'),
+        dbService.getAllIndex('maps'),
         dbService.getAll('books'),
         dbService.getAll('customStamps'),
         dbService.getAll('_customTypes'),
-        dbService.getAll('customEntities'),
+        dbService.getAllIndex('customEntities'),
+        dbService.getAllIndex('notes'),
       ]);
 
-      // Resolve local image references for maps
-      const maps = await Promise.all(rawMaps.map(async m => {
-        if (m.image && m.image.startsWith('__local__')) {
-          const imgId = m.image.replace('__local__', '');
-          try {
-            const data = await window.electronAPI.fsRead(`${current}/maps/${imgId}.img`);
-            if (data && !data.isDir) return { ...m, image: data.content || m.image };
-          } catch { /* leave as-is */ }
-        }
-        return m;
-      }));
-
-      set({ worlds, activeWorld: current, characters, locations, things, lore, factions, creatures, races, stories, relationships, maps, books, customStamps, customTypes, customEntities, isLoading: false });
+      set({ worlds, activeWorld: current, characters, locations, things, lore, factions, creatures, races, stories, relationships, maps: rawMaps, books, customStamps, customTypes, customEntities, notes, isLoading: false });
+      
+      // Asynchronously trigger self-healing backfill for stories
+      get().backfillStories(stories);
     } catch (error) {
       set({ isLoading: false });
       console.error("Failed to load data", error);
@@ -87,33 +109,27 @@ export const useWorldStore = create((set, get) => ({
     setActiveWorld(worldName);
     set({ activeWorld: worldName, isLoading: true });
 
-    const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities] = await Promise.all([
-        dbService.getAll('characters'),
-        dbService.getAll('locations'),
-        dbService.getAll('things'),
-        dbService.getAll('lore'),
-        dbService.getAll('factions'),
-        dbService.getAll('creatures'),
-        dbService.getAll('races'),
-        dbService.getAll('stories'),
-        dbService.getAll('relationships'),
-        dbService.getAll('maps'),
+    const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities, notes] = await Promise.all([
+        dbService.getAllIndex('characters'),
+        dbService.getAllIndex('locations'),
+        dbService.getAllIndex('things'),
+        dbService.getAllIndex('lore'),
+        dbService.getAllIndex('factions'),
+        dbService.getAllIndex('creatures'),
+        dbService.getAllIndex('races'),
+        dbService.getAllIndex('stories'),
+        dbService.getAllIndex('relationships'),
+        dbService.getAllIndex('maps'),
         dbService.getAll('books'),
         dbService.getAll('customStamps'),
         dbService.getAll('_customTypes'),
-        dbService.getAll('customEntities'),
+        dbService.getAllIndex('customEntities'),
+        dbService.getAllIndex('notes'),
     ]);
-    const maps = await Promise.all(rawMaps.map(async m => {
-      if (m.image && m.image.startsWith('__local__')) {
-        const imgId = m.image.replace('__local__', '');
-        try {
-          const data = await window.electronAPI.fsRead(`${worldName}/maps/${imgId}.img`);
-          if (data && !data.isDir) return { ...m, image: data.content || m.image };
-        } catch { /* leave as-is */ }
-      }
-      return m;
-    }));
-    set({ characters, locations, things, lore, factions, creatures, races, stories, relationships, maps, books, customStamps, customTypes, customEntities, isLoading: false });
+    set({ characters, locations, things, lore, factions, creatures, races, stories, relationships, maps: rawMaps, books, customStamps, customTypes, customEntities, notes, isLoading: false });
+    
+    // Asynchronously trigger self-healing backfill for stories
+    get().backfillStories(stories);
   },
 
   createWorld: async (name) => {
@@ -217,7 +233,7 @@ export const useWorldStore = create((set, get) => ({
 
     const oldTag = `[[${oldName}]]`;
     const newTag = `[[${newName}]]`;
-    const CONTENT_TYPES = ['stories', 'characters', 'locations', 'things', 'lore', 'factions', 'creatures', 'races', 'customEntities'];
+    const CONTENT_TYPES = ['stories', 'characters', 'locations', 'things', 'lore', 'factions', 'creatures', 'races', 'customEntities', 'notes'];
     // All prose fields that can contain [[references]] across entity types
     const PROSE_FIELDS = [
       'content', 'description', 'background', 'personality', 'appearance',
@@ -244,11 +260,15 @@ export const useWorldStore = create((set, get) => ({
       }
     }
 
-    // Persist every changed entity to disk (skip the renamed entity itself — handled below)
+    // Persist every changed entity to disk in a single batch (skip the renamed entity itself — handled below)
+    const batchByType = {};
+    for (const { collectionType, entity: e } of updates) {
+      if (collectionType === type && e.id === id) continue;
+      if (!batchByType[collectionType]) batchByType[collectionType] = [];
+      batchByType[collectionType].push(e);
+    }
     await Promise.all(
-      updates
-        .filter(({ collectionType, entity: e }) => !(collectionType === type && e.id === id))
-        .map(({ collectionType, entity: e }) => dbService.put(collectionType, e))
+      Object.entries(batchByType).map(([ct, items]) => dbService.putMany(ct, items))
     );
 
     // Update in-memory state for all affected collections at once
@@ -428,7 +448,7 @@ export const useWorldStore = create((set, get) => ({
       const s = stories.find(s => s.id === id);
       return { ...s, chapterNumber: index + 1 };
     });
-    await Promise.all(reordered.map(s => dbService.put('stories', s)));
+    await dbService.putMany('stories', reordered);
     set((state) => ({
       stories: state.stories.map(s => {
         const updated = reordered.find(r => r.id === s.id);
@@ -443,7 +463,7 @@ export const useWorldStore = create((set, get) => ({
       const s = stories.find(s => s.id === id);
       return { ...s, order: index };
     });
-    await Promise.all(reordered.map(s => dbService.put('stories', s)));
+    await dbService.putMany('stories', reordered);
     set({ stories: reordered });
   },
 

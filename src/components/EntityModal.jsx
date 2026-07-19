@@ -1,3 +1,4 @@
+import TextareaAutosize from 'react-textarea-autosize';
 import { useState } from 'react';
 import Modal from './Modal';
 
@@ -46,12 +47,12 @@ export default function EntityModal({ entityType, initial = {}, onSave, onClose 
           <div key={field.key}>
             <label className="block text-sm font-medium text-foreground mb-1.5">{field.label}</label>
             {field.multiline ? (
-              <textarea
+              <TextareaAutosize
                 autoFocus={fields[0].key === field.key}
                 value={values[field.key]}
                 onChange={e => setValues(v => ({ ...v, [field.key]: e.target.value }))}
                 placeholder={field.placeholder}
-                rows={4}
+                minRows={4}
                 className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring resize-none placeholder:text-muted-foreground"
               />
             ) : (

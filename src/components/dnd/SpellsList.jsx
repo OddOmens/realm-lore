@@ -1,6 +1,8 @@
+import TextareaAutosize from 'react-textarea-autosize';
 import { useState } from 'react';
-import { Plus, X, Wand2, ArrowRight } from 'lucide-react';
+import { Plus, X, Wand2, ArrowRight, Search } from 'lucide-react';
 import { useWorldStore } from '../../store/useWorldStore';
+import { SRD_SPELLS } from '../../lib/dndCompendium';
 
 // We'll borrow the usePersisted pattern
 function loadState(key, fallback) {
@@ -22,7 +24,11 @@ const DEFAULT_SPELLS = [
 export default function SpellsList() {
   const [spells, setSpells] = useState(() => loadState('spellsList', DEFAULT_SPELLS));
   const [newSpell, setNewSpell] = useState({ name: '', level: 1, school: 'Evocation', description: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+
   const addEntity = useWorldStore(s => s.addEntity);
+  const things = useWorldStore(s => s.things) || [];
+  const lore = useWorldStore(s => s.lore) || [];
 
   const saveSpells = (newSpells) => {
     setSpells(newSpells);
@@ -50,6 +56,28 @@ export default function SpellsList() {
     alert(`Added ${spell.name} to the world as a Thing!`);
   };
 
+  const realmSpells = [
+    ...things.filter(t => t.type === 'Spell'),
+    ...lore.filter(l => l.type === 'Spell')
+  ].map(s => ({
+    id: `realm_${s.id}`,
+    name: s.name,
+    level: s.level || '?',
+    school: s.school || 'Unknown',
+    description: s.description || 'Realm Lore spell.',
+    source: 'realm'
+  }));
+
+  const srdSpells = SRD_SPELLS.map(s => ({ ...s, source: 'srd' }));
+  const localSpells = spells.map(s => ({ ...s, source: 'local' }));
+
+  const allSpells = [...localSpells, ...realmSpells, ...srdSpells];
+
+  const filteredSpells = allSpells.filter(s => 
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
       <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
@@ -76,7 +104,7 @@ export default function SpellsList() {
               className="w-32 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
           </div>
-          <textarea
+          <TextareaAutosize
             value={newSpell.description}
             onChange={e => setNewSpell({ ...newSpell, description: e.target.value })}
             placeholder="Spell Description..."
@@ -92,26 +120,44 @@ export default function SpellsList() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {spells.map(spell => (
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search spells across Local, Realm Lore, and SRD..."
+            className="w-full bg-card border border-border rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+          />
+        </div>
+
+        {filteredSpells.map(spell => (
           <div key={spell.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2 group">
             <div className="flex justify-between items-start">
               <div>
                 <h4 className="font-semibold text-foreground flex items-center gap-2">
-                  <Wand2 size={14} className="text-violet-400" /> {spell.name}
+                  <Wand2 size={14} className={spell.source === 'srd' ? 'text-amber-400' : spell.source === 'realm' ? 'text-green-400' : 'text-violet-400'} /> 
+                  {spell.name}
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground ml-2">
+                    {spell.source}
+                  </span>
                 </h4>
                 <p className="text-xs text-muted-foreground">Level {spell.level} {spell.school}</p>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => populateWorld(spell)}
-                  className="text-xs flex items-center gap-1 text-muted-foreground hover:text-violet-400 transition-colors"
-                  title="Add to World"
-                >
-                  <ArrowRight size={14} /> To World
-                </button>
-                <button onClick={() => removeSpell(spell.id)} className="text-muted-foreground hover:text-red-400 transition-colors">
-                  <X size={14} />
-                </button>
+                {spell.source === 'local' && (
+                  <>
+                    <button
+                      onClick={() => populateWorld(spell)}
+                      className="text-xs flex items-center gap-1 text-muted-foreground hover:text-violet-400 transition-colors"
+                      title="Add to World"
+                    >
+                      <ArrowRight size={14} /> To World
+                    </button>
+                    <button onClick={() => removeSpell(spell.id)} className="text-muted-foreground hover:text-red-400 transition-colors">
+                      <X size={14} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <p className="text-sm text-foreground/80 mt-1 whitespace-pre-wrap">{spell.description}</p>

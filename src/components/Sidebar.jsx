@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Globe, Users, Map, Library, Settings, Box, Plus, Search, TrendingUp, Flag, PawPrint, MapPin, Trash2, Wand2, Dna, FolderOpen, Dice5, Swords, Table2, Sparkles, Puzzle, BarChart2, Star, BookOpen, Layers, Zap, FlaskConical, Gem, User, Network, Image } from 'lucide-react';
+import { Globe, Users, Map, Library, Settings, Box, Plus, Search, TrendingUp, Flag, PawPrint, MapPin, Trash2, Wand2, Dna, FolderOpen, Dice5, Swords, Table2, Sparkles, Puzzle, BarChart2, Star, BookOpen, Layers, Zap, FlaskConical, Gem, User, Network, Image, StickyNote } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
 import { useAppSettings } from '../store/useAppSettings';
 import { usePluginStore } from '../store/usePluginStore';
@@ -26,9 +26,9 @@ const navItems = [
   { path: '/timeline', label: 'Timeline', icon: TrendingUp },
   { path: '/maps', label: 'Maps', icon: MapPin },
   { path: '/stories', label: 'Library', icon: Library },
+  { path: '/notes', label: 'Notes', icon: StickyNote },
   { path: '/names', label: 'Names', icon: Wand2 },
   { path: '/assets', label: 'Asset Gallery', icon: Image },
-  { path: '/trash', label: 'Trash', icon: Trash2 },
 ];
 
 
@@ -59,6 +59,12 @@ function SidebarNav({ setMobileMenuOpen }) {
         <>
           <div className="my-2 border-t border-border" />
           <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">DnD Tools</p>
+          {dndTools.campaignDashboard && (
+            <NavLink to="/tools/dashboard" onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+              <Layers size={17} /><span>Campaign Dashboard</span>
+            </NavLink>
+          )}
           {dndTools.diceRoller && (
             <NavLink to="/tools/dice" onClick={() => setMobileMenuOpen(false)}
               className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
@@ -243,7 +249,8 @@ export default function Sidebar() {
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'd' && dndTools.enabled) {
         e.preventDefault();
-        const first = dndTools.diceRoller        ? '/tools/dice'
+        const first = dndTools.campaignDashboard ? '/tools/dashboard'
+          : dndTools.diceRoller        ? '/tools/dice'
           : dndTools.initiativeTracker ? '/tools/initiative'
           : dndTools.encounterRoller   ? '/tools/encounters'
           : dndTools.spellSlots        ? '/tools/spells'
@@ -337,6 +344,16 @@ export default function Sidebar() {
         <SidebarNav setMobileMenuOpen={setMobileMenuOpen} />
 
         <div className="p-4 border-t border-border mt-auto flex flex-col gap-0.5">
+          <NavLink
+            to="/trash"
+            onClick={() => setMobileMenuOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`
+            }
+          >
+            <Trash2 size={17} />
+            <span>Trash</span>
+          </NavLink>
           <NavLink
             to="/settings"
             onClick={() => setMobileMenuOpen(false)}

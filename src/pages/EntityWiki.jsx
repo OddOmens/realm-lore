@@ -1,17 +1,21 @@
+import TextareaAutosize from 'react-textarea-autosize';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, BookOpen, CheckCircle2, Loader2, Save, Tag,
   ExternalLink, Link2, Trash2, Plus, List, Bold, Italic,
-  Heading2, AlignLeft, ChevronDown, Edit3, Eye, X, Pencil,
+  Heading2, AlignLeft, ChevronDown, ChevronUp, Edit3, Eye, X, Pencil,
   FileDown, Network, Star, Package, Backpack, Home, Landmark,
   ChevronRight, GripVertical, Hash, Info, Users,
 } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
+import { useAppSettings } from '../store/useAppSettings';
 import { getTemplate, getAllFieldKeys, getVisibleSections } from '../config/templates';
 import ConfirmModal from '../components/ConfirmModal';
 import { serializeNode, getCaretOffset, setCaretOffset, stripBrackets, buildEditHTML, parseSegments, TYPE_CHIP } from '../components/richEditor';
 import { isFavorite, toggleFavorite } from '../lib/favorites';
+import StatBlockEditor from '../components/dnd/StatBlockEditor';
+import OrgChart from '../components/OrgChart';
 
 const AUTOSAVE_DELAY = 1200;
 
@@ -592,8 +596,11 @@ function CharacterSelectField({ value = [], onChange, readOnly = false }) {
     else onChange([...selected, charId]);
   };
 
-  const selectedChars = characters.filter(c => selected.includes(c.id));
-  const unselected    = characters.filter(c => !selected.includes(c.id)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const { selectedChars, unselected } = useMemo(() => {
+    const s = characters.filter(c => selected.includes(c.id));
+    const u = characters.filter(c => !selected.includes(c.id)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return { selectedChars: s, unselected: u };
+  }, [characters, selected]);
 
   if (readOnly) {
     if (!selectedChars.length) return <p className="text-sm text-muted-foreground/40 italic">No members assigned</p>;
@@ -669,8 +676,275 @@ function CharacterSelectField({ value = [], onChange, readOnly = false }) {
   );
 }
 
+// ── Thing Select (multi-pick from things list) ─────────────────────────
+function ThingSelectField({ value = [], onChange, readOnly = false }) {
+  const things = useWorldStore(s => s.things);
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState({});
+  const ref = useRef(null);
+  const btnRef = useRef(null);
+  const selected = Array.isArray(value) ? value : [];
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const toggle = (thingId) => {
+    if (selected.includes(thingId)) onChange(selected.filter(id => id !== thingId));
+    else onChange([...selected, thingId]);
+  };
+
+  const { selectedThings, unselected } = useMemo(() => {
+    const s = things.filter(t => selected.includes(t.id));
+    const u = things.filter(t => !selected.includes(t.id)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return { selectedThings: s, unselected: u };
+  }, [things, selected]);
+
+  if (readOnly) {
+    if (!selectedThings.length) return <p className="text-sm text-muted-foreground/40 italic">No items assigned</p>;
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {selectedThings.map(t => (
+          <button
+            key={t.id}
+            onClick={() => navigate(`/things/${t.id}`)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 hover:bg-amber-500/20 transition-colors"
+          >
+            {t.name || 'Unnamed'}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="space-y-2">
+      {selectedThings.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedThings.map(t => (
+            <span key={t.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+              {t.name || 'Unnamed'}
+              <button onClick={() => toggle(t.id)} className="text-amber-400/60 hover:text-amber-300 ml-0.5 transition-colors">
+                <X size={9} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="relative">
+        <button
+          ref={btnRef}
+          onClick={() => {
+            if (!open && btnRef.current) {
+              const rect = btnRef.current.getBoundingClientRect();
+              const spaceBelow = window.innerHeight - rect.bottom;
+              const dropH = Math.min(unselected.length * 36 + 8, 220);
+              if (spaceBelow < dropH && rect.top > dropH) {
+                setDropdownStyle({ position: 'fixed', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: 224, top: 'auto' });
+              } else {
+                setDropdownStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, width: 224 });
+              }
+            }
+            setOpen(o => !o);
+          }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+        >
+          <Plus size={11} /> Add thing
+        </button>
+        {open && (
+          <div style={{ ...dropdownStyle, zIndex: 9999 }} className="bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+            <div className="max-h-52 overflow-y-auto">
+              {unselected.length === 0
+                ? <p className="text-xs text-muted-foreground/50 px-3 py-2 italic">All things added</p>
+                : unselected.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => { toggle(t.id); setOpen(false); }}
+                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary transition-colors"
+                  >
+                    {t.name || 'Unnamed'}
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-races editor ──────────────────────────────────────────────────────────
+function SubracesEditor({ value = [], onChange, readOnly = false }) {
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = (e, idx) => {
+    dragItem.current = idx;
+    setIsDragging(true);
+  };
+  const handleDragEnter = (e, idx) => {
+    dragOverItem.current = idx;
+  };
+  const handleDragEnd = () => {
+    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      const _levels = [...levels];
+      const dragged = _levels.splice(dragItem.current, 1)[0];
+      _levels.splice(dragOverItem.current, 0, dragged);
+      onChange(_levels);
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setIsDragging(false);
+  };
+
+  const levels = Array.isArray(value) ? value : [];
+
+  const addLevel = () => onChange([...levels, { id: crypto.randomUUID(), title: '', description: '', traits: '' }]);
+
+  const updateLevel = (idx, patch) => {
+    const next = levels.map((l, i) => i === idx ? { ...l, ...patch } : l);
+    onChange(next);
+  };
+
+  const removeLevel = (idx) => onChange(levels.filter((_, i) => i !== idx));
+
+  const moveLevelUp = (idx) => {
+    if (idx === 0) return;
+    const next = [...levels];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    onChange(next);
+  };
+
+  const moveLevelDown = (idx) => {
+    if (idx === levels.length - 1) return;
+    const next = [...levels];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    onChange(next);
+  };
+
+  if (readOnly) {
+    if (!levels.length) return <p className="text-sm text-muted-foreground/40 italic">No sub-races defined</p>;
+    return (
+      <div className="space-y-3">
+        {levels.map((level, idx) => (
+          <div key={level.id || idx} className="rounded-lg border border-border bg-secondary/20 overflow-hidden">
+            <div className="px-3 py-2 bg-secondary/30 border-b border-border/60">
+              <span className="text-sm font-bold text-foreground uppercase tracking-wide">{level.title || 'Untitled Sub-race'}</span>
+            </div>
+            <div className="px-3 py-2.5 space-y-3">
+              {level.description && (
+                <div>
+                  <p className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-wrap">{level.description}</p>
+                </div>
+              )}
+              {level.traits && (
+                <div className="pt-2 border-t border-border/40">
+                  <p className="text-xs font-semibold text-foreground mb-1 uppercase tracking-wider">Traits & Abilities</p>
+                  <p className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-wrap">{level.traits}</p>
+                </div>
+              )}
+              {!level.description && !level.traits && (
+                <p className="text-xs text-muted-foreground/30 italic">No details</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {levels.map((level, idx) => (
+        <div 
+          key={level.id || idx} 
+          className="rounded-lg border border-border bg-secondary/20 overflow-hidden"
+          draggable
+          onDragStart={(e) => handleDragStart(e, idx)}
+          onDragEnter={(e) => handleDragEnter(e, idx)}
+          onDragEnd={handleDragEnd}
+          onDragOver={(e) => e.preventDefault()}
+        >
+          <div className="flex items-center gap-2 px-3 py-2 bg-secondary/30 border-b border-border/60">
+            <input
+              value={level.title}
+              onChange={e => updateLevel(idx, { title: e.target.value })}
+              placeholder="Sub-race / Variant Name (e.g. Drow)"
+              className="flex-1 text-sm font-semibold bg-transparent text-foreground focus:outline-none placeholder:text-muted-foreground/40 placeholder:font-normal"
+            />
+            <div className="flex items-center gap-1 shrink-0">
+              <div className="cursor-grab text-muted-foreground/30 hover:text-foreground/50 transition-colors px-1" title="Drag to reorder">
+                <GripVertical size={14} />
+              </div>
+              <button onClick={() => removeLevel(idx)} className="text-muted-foreground/40 hover:text-red-400 transition-colors ml-1">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="px-3 py-2.5 space-y-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Description</p>
+              <TextareaAutosize
+                value={level.description || ''}
+                onChange={e => updateLevel(idx, { description: e.target.value })}
+                placeholder="Describe the culture, appearance, or lore of this variant..."
+                minRows={3}
+                className="w-full text-sm text-foreground bg-secondary/40 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
+              />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Traits & Abilities</p>
+              <TextareaAutosize
+                value={level.traits || ''}
+                onChange={e => updateLevel(idx, { traits: e.target.value })}
+                placeholder="Specific mechanics or innate abilities..."
+                minRows={2}
+                className="w-full text-sm text-foreground bg-secondary/40 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+      <button
+        onClick={addLevel}
+        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors w-full justify-center"
+      >
+        <Plus size={14} /> Add Sub-race
+      </button>
+    </div>
+  );
+}
+
 // ── Membership Levels editor ──────────────────────────────────────────────────
 function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = (e, idx) => {
+    dragItem.current = idx;
+    setIsDragging(true);
+  };
+  const handleDragEnter = (e, idx) => {
+    dragOverItem.current = idx;
+  };
+  const handleDragEnd = () => {
+    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      const _levels = [...levels];
+      const dragged = _levels.splice(dragItem.current, 1)[0];
+      _levels.splice(dragOverItem.current, 0, dragged);
+      onChange(_levels);
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setIsDragging(false);
+  };
+
   const characters = useWorldStore(s => s.characters);
   const navigate   = useNavigate();
   const levels = Array.isArray(value) ? value : [];
@@ -683,6 +957,20 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
   };
 
   const removeLevel = (idx) => onChange(levels.filter((_, i) => i !== idx));
+
+  const moveLevelUp = (idx) => {
+    if (idx === 0) return;
+    const next = [...levels];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    onChange(next);
+  };
+
+  const moveLevelDown = (idx) => {
+    if (idx === levels.length - 1) return;
+    const next = [...levels];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    onChange(next);
+  };
 
   const toggleMember = (idx, charId) => {
     const l = levels[idx];
@@ -734,7 +1022,15 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
         const assignedChars = characters.filter(c => (level.members || []).includes(c.id));
         const unassigned    = characters.filter(c => !(level.members || []).includes(c.id)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         return (
-          <div key={level.id || idx} className="rounded-lg border border-border bg-secondary/20 overflow-hidden">
+          <div 
+            key={level.id || idx} 
+            className="rounded-lg border border-border bg-secondary/20 overflow-hidden"
+            draggable
+            onDragStart={(e) => handleDragStart(e, idx)}
+            onDragEnter={(e) => handleDragEnter(e, idx)}
+            onDragEnd={handleDragEnd}
+            onDragOver={(e) => e.preventDefault()}
+          >
             <div className="flex items-center gap-2 px-3 py-2 bg-secondary/30 border-b border-border/60">
               <input
                 value={level.title}
@@ -742,9 +1038,14 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
                 placeholder="Level title (e.g. Initiate)"
                 className="flex-1 text-xs font-semibold bg-transparent text-foreground focus:outline-none placeholder:text-muted-foreground/40 placeholder:font-normal"
               />
-              <button onClick={() => removeLevel(idx)} className="text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0">
-                <X size={12} />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="cursor-grab text-muted-foreground/30 hover:text-foreground/50 transition-colors px-1" title="Drag to reorder">
+                  <GripVertical size={14} />
+                </div>
+                <button onClick={() => removeLevel(idx)} className="text-muted-foreground/40 hover:text-red-400 transition-colors ml-1">
+                  <X size={14} />
+                </button>
+              </div>
             </div>
             <div className="px-3 py-2.5 space-y-2.5">
               <div>
@@ -756,11 +1057,11 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
               </div>
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Benefits & privileges</p>
-                <textarea
+                <TextareaAutosize
                   value={level.benefits || ''}
                   onChange={e => updateLevel(idx, { benefits: e.target.value })}
                   placeholder="What does this rank grant?"
-                  rows={2}
+                  minRows={2}
                   className="w-full text-xs text-foreground bg-secondary/40 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
                 />
               </div>
@@ -1595,6 +1896,7 @@ function InfoView({ infoFields, values, c, memberCount = null }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function EntityWikiContent() {
+  const dndEnabled = useAppSettings(s => s.dndTools?.enabled);
   const location     = useLocation();
   const params       = useParams();
   const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -1613,6 +1915,7 @@ export function EntityWikiContent() {
   const updateEntity              = useWorldStore(s => s.updateEntity);
   const deleteEntity              = useWorldStore(s => s.deleteEntity);
   const renameEntityAcrossLibrary = useWorldStore(s => s.renameEntityAcrossLibrary);
+  const fetchEntityContent        = useWorldStore(s => s.fetchEntityContent);
   const characters   = useWorldStore(s => s.characters);
   const locations    = useWorldStore(s => s.locations);
   const things       = useWorldStore(s => s.things);
@@ -1662,6 +1965,26 @@ export function EntityWikiContent() {
   const allKeys  = template ? template.sections.flatMap(s => s.fields).map(f => f.key) : [];
   const entity   = entities.find(e => e.id === id);
 
+  // Lazy content loading: fetch full content from disk on mount if not already loaded
+  const [contentLoaded, setContentLoaded] = useState(false);
+  useEffect(() => {
+    if (!entity || !id || !entityType) return;
+    // If entity already has content loaded (e.g. from a previous visit), skip
+    const textareaKeys = allKeys.filter(k => {
+      const field = template?.sections.flatMap(s => s.fields).find(f => f.key === k);
+      return field?.type === 'textarea';
+    });
+    const hasContent = textareaKeys.some(k => entity[k] != null && entity[k] !== '');
+    if (hasContent) {
+      setContentLoaded(true);
+      return;
+    }
+    // Fetch full content from disk
+    fetchEntityContent(entityType, id).then((full) => {
+      setContentLoaded(true);
+    });
+  }, [entityType, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [values, setValues] = useState(() => {
     if (!entity) return {};
     const v = {};
@@ -1681,7 +2004,22 @@ export function EntityWikiContent() {
     return v;
   });
 
+  // When full content arrives from disk, merge it into the local values
+  useEffect(() => {
+    if (!contentLoaded || !entity) return;
+    setValues(prev => {
+      const next = { ...prev };
+      allKeys.forEach(k => {
+        if (entity[k] != null && (prev[k] === '' || prev[k] === undefined)) {
+          next[k] = entity[k];
+        }
+      });
+      return next;
+    });
+  }, [contentLoaded, entity?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [mode, setMode]           = useState(location.state?.autoEdit ? 'edit' : 'view');
+  const [mainTab, setMainTab]     = useState('lore');
 
   // Clear autoEdit from history state so it doesn't persist on back-navigation
   useEffect(() => {
@@ -1774,7 +2112,7 @@ export function EntityWikiContent() {
     .flatMap(s => s.fields)
     .filter(f => f.type !== 'textarea' && f.type !== 'tags' && f.key !== 'name' && f.key !== 'alias' && f.key !== 'image' && (f.type === 'text' || f.type === 'select' || f.type === 'race-select' || f.type === 'faction-rank-select'));
 
-  const CUSTOM_FIELD_TYPES = ['character-select', 'membership-levels'];
+  const CUSTOM_FIELD_TYPES = ['character-select', 'thing-select', 'membership-levels', 'subraces'];
   const SIDEBAR_SECTION_TITLES = entityType === 'characters' ? ['Skills & Abilities'] : [];
   const sidebarTemplateSections = visibleSections.filter(s => s.sidebar);
   const proseSections  = visibleSections.filter(s => !s.sidebar && s.fields.some(f => f.type === 'textarea') && !SIDEBAR_SECTION_TITLES.includes(s.title));
@@ -1951,14 +2289,38 @@ export function EntityWikiContent() {
           </div>
         </div>
 
+        {/* ── Tabs for Characters/Creatures ── */}
+        {dndEnabled && (entityType === 'characters' || entityType === 'creatures') && (
+          <div className="px-4 md:px-8 pt-4 flex gap-6 border-b border-border bg-card/40">
+            <button onClick={() => setMainTab('lore')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'lore' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Lore & Details</button>
+            <button onClick={() => setMainTab('statblock')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'statblock' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>D&D Stat Block</button>
+          </div>
+        )}
+
+        {/* ── Tabs for Factions ── */}
+        {entityType === 'factions' && (
+          <div className="px-4 md:px-8 pt-4 flex gap-6 border-b border-border bg-card/40">
+            <button onClick={() => setMainTab('lore')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'lore' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Lore & Details</button>
+            <button onClick={() => setMainTab('orgchart')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'orgchart' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Org Chart</button>
+          </div>
+        )}
+
         {/* ── Two-column layout ── */}
         <div className="flex flex-col lg:flex-row min-h-0">
 
           {/* ── Main column ── */}
           <div className="flex-1 min-w-0 flex flex-col lg:border-r lg:border-border">
 
+            {mainTab === 'statblock' && (
+              <StatBlockEditor values={values} onChange={set} isEdit={isEdit} />
+            )}
+
+            {mainTab === 'orgchart' && (
+              <OrgChart membership={values.membership || []} />
+            )}
+
             {/* Prose content */}
-            <div className="px-4 md:px-8 py-6 space-y-10">
+            <div className={`px-4 md:px-8 py-6 space-y-10 ${mainTab !== 'lore' ? 'hidden' : ''}`}>
               {proseSections.map((section, idx) => {
                 const textFields = section.fields.filter(f => f.type === 'textarea');
                 const hasImageField = isEdit && section.fields.some(f => f.key === 'image');
@@ -1981,7 +2343,7 @@ export function EntityWikiContent() {
                           value={values[f.key] || ''}
                           onChange={v => set(f.key, v)}
                           placeholder={f.placeholder}
-                          rows={f.rows || 4}
+                          minRows={f.rows || 4}
                         />
                       ) : (
                         <ProseViewer
@@ -2050,8 +2412,22 @@ export function EntityWikiContent() {
                               readOnly={!isEdit}
                             />
                           )}
+                          {f.type === 'thing-select' && (
+                            <ThingSelectField
+                              value={values[f.key] || []}
+                              onChange={v => set(f.key, v)}
+                              readOnly={!isEdit}
+                            />
+                          )}
                           {f.type === 'membership-levels' && (
                             <MembershipLevelsEditor
+                              value={values[f.key] || []}
+                              onChange={v => set(f.key, v)}
+                              readOnly={!isEdit}
+                            />
+                          )}
+                          {f.type === 'subraces' && (
+                            <SubracesEditor
                               value={values[f.key] || []}
                               onChange={v => set(f.key, v)}
                               readOnly={!isEdit}
@@ -2106,11 +2482,11 @@ export function EntityWikiContent() {
                       {section.fields.filter(f => f.type === 'textarea').map(f => (
                         <div key={f.key} className="px-4 py-3">
                           <label className="block text-xs text-muted-foreground mb-1.5 font-medium">{f.label}</label>
-                          <textarea
+                          <TextareaAutosize
                             value={values[f.key] || ''}
                             onChange={e => set(f.key, e.target.value)}
                             placeholder={f.placeholder || '—'}
-                            rows={f.rows || 3}
+                            minRows={f.rows || 3}
                             className="w-full text-sm text-foreground bg-secondary/50 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
                           />
                         </div>
@@ -2128,6 +2504,9 @@ export function EntityWikiContent() {
                     <div className="px-4 py-3.5">
                       {section.fields.filter(f => f.type === 'character-select').map(f => (
                         <CharacterSelectField key={f.key} value={values[f.key] || []} onChange={v => set(f.key, v)} />
+                      ))}
+                      {section.fields.filter(f => f.type === 'thing-select').map(f => (
+                        <ThingSelectField key={f.key} value={values[f.key] || []} onChange={v => set(f.key, v)} />
                       ))}
                     </div>
                   </div>
@@ -2172,6 +2551,9 @@ export function EntityWikiContent() {
                     <div className="px-4 py-3.5">
                       {section.fields.filter(f => f.type === 'character-select').map(f => (
                         <CharacterSelectField key={f.key} value={values[f.key] || []} onChange={() => {}} readOnly />
+                      ))}
+                      {section.fields.filter(f => f.type === 'thing-select').map(f => (
+                        <ThingSelectField key={f.key} value={values[f.key] || []} onChange={() => {}} readOnly />
                       ))}
                     </div>
                   </div>
