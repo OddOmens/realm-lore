@@ -34,7 +34,7 @@ export default function Modal({ title, children, onClose, size = 'md' }) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative w-full ${sizeClass} sm:mx-4 bg-card border border-border border-b-0 sm:border-b rounded-t-[14px] sm:rounded-xl shadow-2xl max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] sm:max-h-[90vh] flex flex-col animate-sheet`}
+        className={`relative w-full ${sizeClass} sm:mx-4 bg-card border border-border border-b-0 sm:border-b rounded-t-[14px] sm:rounded-xl shadow-2xl max-h-[calc(100%-env(safe-area-inset-top)-12px)] sm:max-h-[90vh] flex flex-col animate-sheet`}
       >
         <div {...dragHandlers} className="sm:hidden flex justify-center pt-[6px] pb-1 shrink-0 touch-none">
           <div className="h-[5px] w-9 rounded-full bg-muted-foreground/40" />

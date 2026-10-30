@@ -140,7 +140,7 @@ export default function GlobalSearch({ onClose }) {
       className="fixed inset-0 z-50 flex items-start justify-center sm:pt-[12vh] bg-black/70 backdrop-blur-sm animate-backdrop-in"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Search" className="w-full h-[100dvh] sm:h-auto sm:max-w-2xl sm:mx-4 bg-card sm:border border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:max-h-[70vh] pt-[env(safe-area-inset-top)] sm:pt-0">
+      <div role="dialog" aria-modal="true" aria-label="Search" className="w-full h-full sm:h-auto sm:max-w-2xl sm:mx-4 bg-card sm:border border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:max-h-[70vh] pt-[env(safe-area-inset-top)] sm:pt-0">
         {/* Search bar */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
           <Search size={17} className="text-muted-foreground shrink-0" />

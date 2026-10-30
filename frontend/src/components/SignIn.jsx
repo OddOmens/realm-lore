@@ -27,7 +27,7 @@ export default function SignIn({ unreachable, onSignedIn }) {
   };
 
   return (
-    <div className="dark theme-dark flex h-[100dvh] w-screen items-center justify-center bg-background text-foreground p-4">
+    <div className="dark theme-dark flex h-full w-full items-center justify-center bg-background text-foreground p-4">
       <form onSubmit={submit} className="w-full max-w-sm flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
         <div className="flex items-center gap-3">
           <Layers size={24} className="text-violet-400" />

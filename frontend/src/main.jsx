@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import SignIn from './components/SignIn.jsx'
 import { initPrefs } from './lib/prefs.js'
+import { keepWindowPinned } from './lib/nativeFeel.js'
+
+keepWindowPinned()
 
 const root = createRoot(document.getElementById('root'))
 

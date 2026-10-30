@@ -174,12 +174,22 @@
   }
   html, body {
     width: 100%;
-    height: 100vh;
-    height: 100dvh;
+    height: 100%;
     margin: 0;
     overflow: hidden;
     overscroll-behavior: none;
     @apply font-sans;
+  }
+  /* The page itself never scrolls; pages scroll inside the app shell. Pinning
+     body to the screen edges (instead of sizing it with vh/dvh, which iOS
+     home-screen apps have measured short) keeps the tab bar on the bottom
+     edge, and stops iOS leaving the page shifted after the keyboard closes. */
+  body {
+    position: fixed;
+    inset: 0;
+  }
+  #root {
+    height: 100%;
   }
   html {
     -webkit-text-size-adjust: 100%;

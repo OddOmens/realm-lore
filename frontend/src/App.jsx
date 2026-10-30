@@ -74,7 +74,7 @@ function Shell() {
   }, []);
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
       <Sidebar />
       <main ref={pageRef} className="app-safe-area flex-1 flex flex-col overflow-hidden relative bg-background">
         <div id="app-scroll" ref={scrollRef} className="app-scroll flex-1 flex flex-col overflow-y-auto relative mobile-bottom-pad">

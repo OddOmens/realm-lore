@@ -163,6 +163,25 @@ export function useEdgeSwipeBack(pageRef) {
   }, [pageRef, navigate]);
 }
 
+const isEditable = (el) => !!el && (el.matches('input, textarea, select') || el.isContentEditable);
+
+/**
+ * The window itself should never be scrolled: pages scroll inside the shell.
+ * iOS scrolls the window to keep a focused field above the keyboard and often
+ * leaves it there once the keyboard closes, which lifts the tab bar off the
+ * bottom edge. Put it back whenever nothing is being typed into.
+ */
+export function keepWindowPinned() {
+  const pin = () => {
+    if (isEditable(document.activeElement)) return;
+    if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+  };
+  // focusout fires before focus lands on the next field; check once it has.
+  window.addEventListener('focusout', () => setTimeout(pin, 50));
+  window.addEventListener('scroll', pin, { passive: true });
+  window.visualViewport?.addEventListener('resize', pin);
+}
+
 /** Keeps the browser/status-bar tint in step with the current theme. */
 export function syncThemeColor() {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
