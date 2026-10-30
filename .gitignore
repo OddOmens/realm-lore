@@ -8,8 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+frontend/dist
+frontend/dist-ssr
 *.local
 .env
 .env.*
@@ -29,7 +29,6 @@ dist-ssr
 *.sw?
 
 # Build output & release artifacts
-dist/
 release/
 dist-release/
 *.zip
@@ -43,11 +42,9 @@ test-*.html
 # App data that shouldn't be in the repo
 customStamps/
 Worlds/
-plugin-settings.json
-window-state.json
-launched.json
+/data/
+realm-lore-transfer-*
 
-# User-installed plugins (keep only bundled examples)
-plugins/*
-!plugins/example-logger/
-!plugins/world-stats/
+# Built web app embedded into the Go binary
+backend/internal/webui/dist/*
+!backend/internal/webui/dist/.gitkeep

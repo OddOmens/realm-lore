@@ -1,0 +1,500 @@
+import { create } from 'zustand';
+import { dbService, getActiveWorld } from './db';
+import { v4 as uuidv4 } from 'uuid';
+import { api } from '../lib/api';
+
+export const useWorldStore = create((set, get) => ({
+  worlds: [],
+  activeWorld: 'My World',
+  characters: [],
+  locations: [],
+  things: [],
+  notes: [],
+  lore: [],
+  factions: [],
+  creatures: [],
+  races: [],
+  stories: [],
+  relationships: [],
+  maps: [],
+  books: [],
+  customStamps: [],
+  customTypes: [],
+  customEntities: [],
+  isLoading: true,
+  // Server-side backup schedule; loaded from the server in initialize().
+  backupConfig: {
+    location: 'Backups',
+    frequency: 0,        // in minutes, 0 = off
+    retentionDays: 30,   // 0 = keep forever
+    lastBackupAt: null,  // ISO string
+  },
+
+  // Fetch full content for a single entity on demand (for detail pages)
+  fetchEntityContent: async (type, id) => {
+    const full = await dbService.get(type, id);
+    if (!full) return null;
+    // Merge the full content back into the store so it's cached
+    set((state) => ({
+      [type]: state[type].map(e => e.id === id ? { ...e, ...full } : e)
+    }));
+    return full;
+  },
+
+  backfillStories: async (storiesList) => {
+    const missing = storiesList.filter(s => s.wordCount === undefined);
+    if (missing.length === 0) return;
+    // Sequential background backfill to avoid file locks
+    for (const storyIndex of missing) {
+      try {
+        const full = await dbService.get('stories', storyIndex.id);
+        if (full) {
+          await dbService.put('stories', full);
+        }
+      } catch (err) {
+        console.error("Failed to backfill story metadata for", storyIndex.id, err);
+      }
+    }
+    const updated = await dbService.getAllIndex('stories');
+    set({ stories: updated });
+  },
+
+  initialize: async () => {
+    set({ isLoading: true });
+    try {
+      const { getActiveWorld, setActiveWorld } = await import('./db');
+
+      api.getBackupConfig()
+        .then(config => { if (config) set(state => ({ backupConfig: { ...state.backupConfig, ...config } })); })
+        .catch(err => console.error('Failed to load backup settings', err));
+
+      const worlds = await dbService.getWorlds();
+      if (worlds.length === 0) {
+         await dbService.createWorld('My World');
+         worlds.push('My World');
+      }
+
+      let current = getActiveWorld();
+      if (!worlds.includes(current)) {
+        current = worlds[0];
+        setActiveWorld(current);
+      }
+
+      const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities, notes] = await Promise.all([
+        dbService.getAllIndex('characters'),
+        dbService.getAllIndex('locations'),
+        dbService.getAllIndex('things'),
+        dbService.getAllIndex('lore'),
+        dbService.getAllIndex('factions'),
+        dbService.getAllIndex('creatures'),
+        dbService.getAllIndex('races'),
+        dbService.getAllIndex('stories'),
+        dbService.getAllIndex('relationships'),
+        dbService.getAllIndex('maps'),
+        dbService.getAll('books'),
+        dbService.getAll('customStamps'),
+        dbService.getAll('_customTypes'),
+        dbService.getAllIndex('customEntities'),
+        dbService.getAllIndex('notes'),
+      ]);
+
+      set({ worlds, activeWorld: current, characters, locations, things, lore, factions, creatures, races, stories, relationships, maps: rawMaps, books, customStamps, customTypes, customEntities, notes, isLoading: false });
+      
+      // Asynchronously trigger self-healing backfill for stories
+      get().backfillStories(stories);
+    } catch (error) {
+      set({ isLoading: false });
+      console.error("Failed to load data", error);
+    }
+  },
+
+  switchWorld: async (worldName) => {
+    const { setActiveWorld } = await import('./db');
+    setActiveWorld(worldName);
+    set({ activeWorld: worldName, isLoading: true });
+
+    const [characters, locations, things, lore, factions, creatures, races, stories, relationships, rawMaps, books, customStamps, customTypes, customEntities, notes] = await Promise.all([
+        dbService.getAllIndex('characters'),
+        dbService.getAllIndex('locations'),
+        dbService.getAllIndex('things'),
+        dbService.getAllIndex('lore'),
+        dbService.getAllIndex('factions'),
+        dbService.getAllIndex('creatures'),
+        dbService.getAllIndex('races'),
+        dbService.getAllIndex('stories'),
+        dbService.getAllIndex('relationships'),
+        dbService.getAllIndex('maps'),
+        dbService.getAll('books'),
+        dbService.getAll('customStamps'),
+        dbService.getAll('_customTypes'),
+        dbService.getAllIndex('customEntities'),
+        dbService.getAllIndex('notes'),
+    ]);
+    set({ characters, locations, things, lore, factions, creatures, races, stories, relationships, maps: rawMaps, books, customStamps, customTypes, customEntities, notes, isLoading: false });
+    
+    // Asynchronously trigger self-healing backfill for stories
+    get().backfillStories(stories);
+  },
+
+  createWorld: async (name) => {
+    const safeName = await dbService.createWorld(name);
+    if (safeName) {
+      const worlds = await dbService.getWorlds();
+      set({ worlds });
+      get().switchWorld(safeName);
+    }
+  },
+
+  openWorldFolder: async () => {
+    const result = await api.openWorld();
+    if (result?.canceled) return null;
+    if (result?.error) return result;
+    if (result?.success) {
+      const worlds = await dbService.getWorlds();
+      set({ worlds });
+      get().switchWorld(result.world);
+    }
+    return result;
+  },
+
+  deleteWorld: async (name) => {
+    const success = await dbService.deleteWorld(name);
+    if (success) {
+      const worlds = await dbService.getWorlds();
+      set({ worlds });
+      if (get().activeWorld === name) {
+        if (worlds.length > 0) {
+          get().switchWorld(worlds[0]);
+        } else {
+          await get().createWorld('My World');
+        }
+      }
+    }
+  },
+
+  updateBackupConfig: async (newConfig) => {
+    const config = { ...get().backupConfig, ...newConfig };
+    set({ backupConfig: config });
+    const saved = await api.saveBackupConfig(config);
+    if (saved) set(state => ({ backupConfig: { ...state.backupConfig, ...saved } }));
+    return saved;
+  },
+
+  triggerBackup: async () => {
+    const activeWorld = get().activeWorld;
+    if (!activeWorld) return;
+    const result = await api.runBackup({ activeWorld });
+    if (result?.timestamp) {
+      set(state => ({ backupConfig: { ...state.backupConfig, lastBackupAt: result.timestamp } }));
+    }
+    return result;
+  },
+
+  // Generic functions
+  addEntity: async (type, data) => {
+    const newEntity = {
+      id: uuidv4(),
+      ...data,
+    };
+    const saved = await dbService.put(type, newEntity);
+    set((state) => ({
+      [type]: [...state[type], saved]
+    }));
+    return saved;
+  },
+
+  updateEntity: async (type, id, data) => {
+    const existing = get()[type].find(e => e.id === id);
+    if (!existing) return null;
+
+    const updated = { ...existing, ...data };
+    const saved = await dbService.put(type, updated);
+
+    set((state) => ({
+      [type]: state[type].map(e => e.id === id ? saved : e)
+    }));
+    return saved;
+  },
+
+  // Rename an entity AND replace all [[OldName]] → [[NewName]] tags across every
+  // content-bearing collection in the world (stories, characters, locations, things, lore).
+  // extraData: any additional field updates to merge into the renamed entity on save.
+  renameEntityAcrossLibrary: async (type, id, oldName, newName, extraData = {}) => {
+    if (!oldName || !newName || oldName === newName) {
+      // Just a normal update if the name didn't really change
+      return get().updateEntity(type, id, { name: newName, ...extraData });
+    }
+
+    const oldTag = `[[${oldName}]]`;
+    const newTag = `[[${newName}]]`;
+    const CONTENT_TYPES = ['stories', 'characters', 'locations', 'things', 'lore', 'factions', 'creatures', 'races', 'customEntities', 'notes'];
+    // All prose fields that can contain [[references]] across entity types
+    const PROSE_FIELDS = [
+      'content', 'description', 'background', 'personality', 'appearance',
+      'motivation', 'abilities', 'weaknesses', 'notes', 'atmosphere', 'secrets',
+      'history', 'goals', 'origin', 'doctrine', 'culture', 'behavior',
+      'diet', 'habitat', 'resources', 'membership',
+    ];
+    const state = get();
+
+    // Collect every entity that contains the old tag in any prose field
+    const updates = [];
+    for (const collectionType of CONTENT_TYPES) {
+      const collection = state[collectionType] || [];
+      for (const entity of collection) {
+        const patch = {};
+        for (const field of PROSE_FIELDS) {
+          if (entity[field] && entity[field].includes(oldTag)) {
+            patch[field] = entity[field].split(oldTag).join(newTag);
+          }
+        }
+        if (Object.keys(patch).length > 0) {
+          updates.push({ collectionType, entity: { ...entity, ...patch } });
+        }
+      }
+    }
+
+    // Persist every changed entity to disk in a single batch (skip the renamed entity itself — handled below)
+    const batchByType = {};
+    for (const { collectionType, entity: e } of updates) {
+      if (collectionType === type && e.id === id) continue;
+      if (!batchByType[collectionType]) batchByType[collectionType] = [];
+      batchByType[collectionType].push(e);
+    }
+    await Promise.all(
+      Object.entries(batchByType).map(([ct, items]) => dbService.putMany(ct, items))
+    );
+
+    // Update in-memory state for all affected collections at once
+    const statePatches = {};
+    for (const { collectionType, entity } of updates) {
+      if (!statePatches[collectionType]) statePatches[collectionType] = [...(state[collectionType] || [])];
+      statePatches[collectionType] = statePatches[collectionType].map(e =>
+        e.id === entity.id ? entity : e
+      );
+    }
+
+    // Now rename the entity itself — start from the already-patched version if it
+    // was in the updates list (so field replacements aren't overwritten by existing)
+    const alreadyPatched = updates.find(u => u.collectionType === type && u.entity.id === id);
+    const base = alreadyPatched ? alreadyPatched.entity : state[type].find(e => e.id === id);
+    if (base) {
+      const renamed = { ...base, ...extraData, name: newName };
+      const saved = await dbService.put(type, renamed);
+      if (!statePatches[type]) statePatches[type] = [...(state[type] || [])];
+      statePatches[type] = statePatches[type].map(e => e.id === id ? saved : e);
+    }
+
+    set(statePatches);
+    return updates.length;
+  },
+
+  deleteEntity: async (type, id) => {
+    await dbService.delete(type, id);
+
+    // Cascade-delete every relationship that references this entity so we
+    // don't leave orphaned rows on disk that would render as ghosts in any
+    // future "all relationships" view.
+    const orphanRels = get().relationships.filter(r => r.fromId === id || r.toId === id);
+    await Promise.all(orphanRels.map(r => dbService.delete('relationships', r.id)));
+
+    // Also strip the deleted entity from any map pins / protagonist marker so
+    // the user never sees a "ghost" pin pointing nowhere.
+    const mapsToTouch = get().maps.filter(m =>
+      (m.pins || []).some(p => p.entityId === id) ||
+      (m.protagonist && m.protagonist.entityId === id)
+    );
+    await Promise.all(mapsToTouch.map(m => {
+      const cleaned = {
+        ...m,
+        pins: (m.pins || []).filter(p => p.entityId !== id),
+        protagonist: (m.protagonist && m.protagonist.entityId === id) ? null : m.protagonist,
+      };
+      // Persist a disk-friendly copy that points at the on-disk image file
+      // rather than the resolved data URL we keep in memory.
+      const diskVersion = { ...cleaned, image: `__local__${m.id}` };
+      return dbService.put('maps', diskVersion);
+    }));
+
+    set((state) => ({
+      [type]: state[type].filter(e => e.id !== id),
+      relationships: state.relationships.filter(r => r.fromId !== id && r.toId !== id),
+      maps: state.maps.map(m => {
+        if (!mapsToTouch.find(t => t.id === m.id)) return m;
+        return {
+          ...m,
+          pins: (m.pins || []).filter(p => p.entityId !== id),
+          protagonist: (m.protagonist && m.protagonist.entityId === id) ? null : m.protagonist,
+        };
+      }),
+    }));
+  },
+
+  saveMap: async (mapData) => {
+    const id = mapData.id || uuidv4();
+    let imageRef = mapData.image;
+    if (mapData.image && mapData.image.startsWith('data:')) {
+      await api.fsWrite(`${getActiveWorld()}/maps/${id}.img`, mapData.image);
+      imageRef = `__local__${id}`;
+    }
+    const toSave = { ...mapData, id, image: imageRef };
+    const saved = await dbService.put('maps', toSave);
+    const inMemory = { ...saved, image: mapData.image };
+    set(state => {
+      const exists = state.maps.find(m => m.id === saved.id);
+      return { maps: exists ? state.maps.map(m => m.id === saved.id ? inMemory : m) : [...state.maps, inMemory] };
+    });
+    return inMemory;
+  },
+
+  deleteMap: async (id) => {
+    await dbService.delete('maps', id);
+    await api.fsDelete(`${getActiveWorld()}/maps/${id}.img`).catch(() => {});
+    set(state => ({ maps: state.maps.filter(m => m.id !== id) }));
+  },
+
+  // Partial update for everything that ISN'T the image (pins, name, description,
+  // protagonist marker). This avoids re-writing the multi-MB image file every
+  // time the user nudges a pin. The on-disk record always points at the
+  // image-file reference (`__local__<id>`) while in-memory keeps the resolved
+  // data URL so previews stay snappy.
+  updateMapMeta: async (id, updates) => {
+    const existing = get().maps.find(m => m.id === id);
+    if (!existing) return null;
+    const merged = { ...existing, ...updates };
+    const diskVersion = { ...merged, image: `__local__${id}` };
+    await dbService.put('maps', diskVersion);
+    set(state => ({ maps: state.maps.map(m => m.id === id ? merged : m) }));
+    return merged;
+  },
+
+  addRelationship: async (fromId, fromType, toId, toType, label) => {
+    const rel = { id: uuidv4(), fromId, fromType, toId, toType, label };
+    await dbService.put('relationships', rel);
+    set(state => ({ relationships: [...state.relationships, rel] }));
+    return rel;
+  },
+
+  deleteRelationship: async (id) => {
+    await dbService.delete('relationships', id);
+    set(state => ({ relationships: state.relationships.filter(r => r.id !== id) }));
+  },
+
+  addBook: async (data) => {
+    const newBook = { id: uuidv4(), ...data };
+    const saved = await dbService.put('books', newBook);
+    set((state) => ({ books: [...state.books, saved] }));
+    return saved;
+  },
+
+  updateBook: async (id, data) => {
+    const existing = get().books.find(b => b.id === id);
+    if (!existing) return null;
+    const updated = { ...existing, ...data };
+    const saved = await dbService.put('books', updated);
+    set((state) => ({ books: state.books.map(b => b.id === id ? saved : b) }));
+    return saved;
+  },
+
+  deleteBook: async (id) => {
+    await dbService.delete('books', id);
+    const affectedStories = get().stories.filter(s => s.bookId === id);
+    await Promise.all(affectedStories.map(s => dbService.put('stories', { ...s, bookId: null, chapterNumber: null })));
+    set((state) => ({
+      books: state.books.filter(b => b.id !== id),
+      stories: state.stories.map(s => s.bookId === id ? { ...s, bookId: null, chapterNumber: null } : s),
+    }));
+  },
+
+  addCustomStamp: async ({ name, tags = [], svg, color = null }) => {
+    const now = new Date().toISOString();
+    const stamp = {
+      id: uuidv4(),
+      name: (name || 'Untitled').trim(),
+      tags: Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [],
+      svg: typeof svg === 'string' ? svg : '',
+      color: color || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const saved = await dbService.put('customStamps', stamp);
+    set(state => ({ customStamps: [...state.customStamps, saved] }));
+    return saved;
+  },
+
+  updateCustomStamp: async (id, patch) => {
+    const existing = get().customStamps.find(s => s.id === id);
+    if (!existing) return null;
+    const updated = { ...existing, ...patch, updatedAt: new Date().toISOString() };
+    const saved = await dbService.put('customStamps', updated);
+    set(state => ({ customStamps: state.customStamps.map(s => s.id === id ? saved : s) }));
+    return saved;
+  },
+
+  deleteCustomStamp: async (id) => {
+    await dbService.delete('customStamps', id);
+    set(state => ({ customStamps: state.customStamps.filter(s => s.id !== id) }));
+  },
+
+  reorderChapters: async (bookId, orderedIds) => {
+    const stories = get().stories;
+    const reordered = orderedIds.map((id, index) => {
+      const s = stories.find(s => s.id === id);
+      return { ...s, chapterNumber: index + 1 };
+    });
+    await dbService.putMany('stories', reordered);
+    set((state) => ({
+      stories: state.stories.map(s => {
+        const updated = reordered.find(r => r.id === s.id);
+        return updated || s;
+      }),
+    }));
+  },
+
+  reorderStories: async (orderedIds) => {
+    const stories = get().stories;
+    const reordered = orderedIds.map((id, index) => {
+      const s = stories.find(s => s.id === id);
+      return { ...s, order: index };
+    });
+    await dbService.putMany('stories', reordered);
+    set({ stories: reordered });
+  },
+
+  /** Soft-deleted entities live under `{world}/trash/{collection}/{id}.md`. */
+  listTrashItems: async () => dbService.listTrash(get().activeWorld),
+
+  restoreTrashEntry: async (trashPath) => {
+    await dbService.restoreFromTrash(trashPath);
+    await get().switchWorld(get().activeWorld);
+  },
+
+  purgeTrashEntry: async (trashPath) => {
+    await dbService.purgeTrashItem(trashPath);
+  },
+
+  // Custom Entity Types Management
+  addCustomType: async (data) => {
+    const newType = { id: uuidv4(), ...data };
+    const saved = await dbService.put('_customTypes', newType);
+    set((state) => ({ customTypes: [...state.customTypes, saved] }));
+    return saved;
+  },
+
+  updateCustomType: async (id, data) => {
+    const existing = get().customTypes.find(t => t.id === id);
+    if (!existing) return null;
+    const updated = { ...existing, ...data };
+    const saved = await dbService.put('_customTypes', updated);
+    set((state) => ({ customTypes: state.customTypes.map(t => t.id === id ? saved : t) }));
+    return saved;
+  },
+
+  deleteCustomType: async (id) => {
+    await dbService.delete('_customTypes', id);
+    // Cascade delete all entities of this type
+    const affectedEntities = get().customEntities.filter(e => e.entityType === id);
+    await Promise.all(affectedEntities.map(e => get().deleteEntity('customEntities', e.id)));
+    set((state) => ({ customTypes: state.customTypes.filter(t => t.id !== id) }));
+  },
+}));

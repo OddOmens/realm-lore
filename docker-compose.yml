@@ -1,0 +1,30 @@
+# Realm Lore: your worldbuilding app, self-hosted.
+#
+#   cp .env.example .env      # then set REALMLORE_PASSWORD
+#   mkdir -p data             # before the first start, so it's yours and not root's
+#   docker compose up -d --build
+#
+# Open http://<server>:8095 (or whatever REALMLORE_PORT is). Keep it on your
+# LAN or Tailscale; put HTTPS in front of it before exposing it any further.
+#
+# Moving from the Mac app: see README → Moving from the Mac app.
+
+name: realm-lore
+
+services:
+  realm-lore:
+    build:
+      context: .
+      args:
+        VERSION: ${REALMLORE_VERSION:-dev}
+    image: realm-lore:${REALMLORE_VERSION:-dev}
+    restart: unless-stopped
+    # Run as the owner of ./data so you can open the Markdown files directly.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "${REALMLORE_PORT:-8095}:8080"
+    environment:
+      REALMLORE_PASSWORD: ${REALMLORE_PASSWORD:?Set REALMLORE_PASSWORD in .env}
+      TZ: ${TZ:-UTC} # backup folders are named in this time zone
+    volumes:
+      - ./data:/data

@@ -1,0 +1,10 @@
+.git
+**/node_modules
+frontend/dist
+backend/internal/webui/dist/*
+!backend/internal/webui/dist/.gitkeep
+data
+Worlds
+scripts
+*.tar.gz
+.env
