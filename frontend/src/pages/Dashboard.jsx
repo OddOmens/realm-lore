@@ -237,7 +237,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
         {/* Recently Updated */}
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center gap-2 mb-3">

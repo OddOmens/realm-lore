@@ -233,6 +233,16 @@ button, [role="button"], nav, .no-select {
   -webkit-overflow-scrolling: touch;
 }
 
+/* An app page never pans sideways; one long word or wide card must not turn
+   the whole screen into a 2D scroller. Rows meant to scroll (filter pills,
+   tabs) have their own overflow-x-auto and still do. */
+@media (max-width: 1023px) {
+  .app-scroll,
+  .app-scroll > * {
+    overflow-x: hidden;
+  }
+}
+
 /* The status bar is translucent in the installed app, so the shell starts
    below it; landscape notches get the same treatment on the sides. */
 @media (max-width: 1023px) {
