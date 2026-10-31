@@ -9,8 +9,13 @@
 // chunk borders with no seams. Chunks are built in a pool of workers (see
 // terrainWorker.js), or on the main thread within a small per-frame budget
 // where workers can't draw; lower-detail bitmaps stand in until they're ready.
+//
+// Painting doesn't wait for any of that: cells that differ from what a chunk's
+// bitmap was drawn from show as a flat wash of their biome colour over it. A
+// brush stroke only updates that wash, and the art is redrawn once the brush
+// lifts.
 
-import { CELL, CHUNK_SIZE, hash2, chunkKey, parseKey } from './terrain';
+import { CELL, CHUNK, CHUNK_SIZE, hash2, chunkKey, parseKey } from './terrain';
 import { PAPER, hex, smoothstep, buildChunk } from './terrainCore';
 
 export { PAPER };
@@ -19,8 +24,6 @@ const LEVELS = [1, 2, 4, 8, 16];
 const BUDGET_MS = 8;
 const INTERACTIVE_MS = 350;  // an edit within this long counts as painting in progress
 const MAX_CACHE_PX = 24e6;   // ~96 MB of bitmaps
-const PREVIEW_LEVEL = 2;     // detail of the instant raster-only bitmap shown while painting
-const PREVIEW_MS = 6;        // main-thread time per frame for those previews
 
 // ── Sea background ────────────────────────────────────────────────────────────
 // Open sea is see-through in chunk bitmaps, so one world-anchored texture
@@ -151,6 +154,29 @@ function drawChunk(ctx, m, canvas, cx, cy) {
   ctx.drawImage(canvas, x0, y0, x1 - x0, y1 - y0);
 }
 
+// ── Paint wash ────────────────────────────────────────────────────────────────
+
+const WASH = PAPER.biome.map(hex);
+
+// Fills a CHUNK×CHUNK canvas (1 px per cell) with the cells in `cells` that
+// differ from `base` (null = all ocean) in their flat biome colours, leaving
+// the rest see-through. Returns whether any cell differs.
+function paintWash(canvas, cells, base) {
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(CHUNK, CHUNK);
+  const d = img.data;
+  let any = false;
+  for (let i = 0; i < CHUNK * CHUNK; i++) {
+    const b = cells ? cells[i] : 0;
+    if (b === (base ? base[i] : 0)) continue;
+    const c = WASH[b] || WASH[0];
+    d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+    any = true;
+  }
+  ctx.putImageData(img, 0, 0);
+  return any;
+}
+
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
 function levelFor(pxPerCell) {
@@ -205,8 +231,11 @@ const closeBitmap = (c) => { if (c && typeof c.close === 'function') c.close(); 
 // `onUpdate` (optional) is called when a worker finishes a chunk, so the
 // editor can redraw then instead of polling every frame.
 export function createTerrainRenderer(terrain, { onUpdate } = {}) {
-  // cacheKey `${chunk}|${level}|${symbols}` → { canvas|null, sig, own, used, px }
+  // cacheKey `${chunk}|${level}|${symbols}` → { canvas|null, sig, own, cells, used, px }
+  // (`cells` is the chunk's own cells the bitmap was drawn from)
   const cache = new Map();
+  const snaps = new Map();  // chunk key → { own, cells }: one copy per version, shared by entries
+  const washes = new Map(); // chunk key → { canvas|null, base, own }
   let cachedPx = 0;
   let tick = 0;
   let lastEdit = -Infinity;
@@ -266,7 +295,7 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
     // A newer bitmap may already be here (versions only grow); keep the newest.
     const old = cache.get(job.key);
     if (old && old.sig > job.sig) closeBitmap(msg.bitmap);
-    else put(job.key, msg.bitmap, job.sig, job.own);
+    else put(job.key, msg.bitmap, job.sig, job.own, job.cells);
     dispatch();
     onUpdate?.();
   }
@@ -300,6 +329,10 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
       const slot = pickSlot(job, edits > 0, painting);
       if (!slot) { rest.push(job); continue; }
       if (job.prio === 0) edits--;
+      // the workers now have the chunk as it is (syncWorkers above)
+      const snap = snapshot(job.cx, job.cy);
+      job.own = snap.own;
+      job.cells = snap.cells;
       job.id = nextJob++;
       inflight.set(job.id, job);
       inflightByKey.set(job.key, job.sig);
@@ -349,18 +382,53 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
     }
   }
 
-  function put(k, canvas, sig, own) {
+  function put(k, canvas, sig, own, cells) {
     const old = cache.get(k);
     if (old) { cachedPx -= old.px; if (old.canvas !== canvas) closeBitmap(old.canvas); }
     const px = canvas ? canvas.width * canvas.height : 0;
-    cache.set(k, { canvas, sig, own, used: tick, px });
+    const e = { canvas, sig, own, cells, used: tick, px };
+    cache.set(k, e);
     cachedPx += px;
+    return e;
+  }
+
+  // The chunk's cells now, copied once per version.
+  function snapshot(cx, cy) {
+    const k = chunkKey(cx, cy);
+    const own = terrain.version(k);
+    let s = snaps.get(k);
+    if (!s || s.own !== own) {
+      const arr = terrain.chunks.get(k);
+      s = { own, cells: arr ? arr.slice() : null };
+      snaps.set(k, s);
+    }
+    return s;
   }
 
   function build(cx, cy, L, symbols, sig) {
     const canvas = buildChunk(terrain, cx, cy, L, symbols);
-    put(`${cx},${cy}|${L}|${symbols ? 1 : 0}`, canvas, sig, terrain.version(chunkKey(cx, cy)));
-    return canvas;
+    const snap = snapshot(cx, cy);
+    return put(`${cx},${cy}|${L}|${symbols ? 1 : 0}`, canvas, sig, snap.own, snap.cells);
+  }
+
+  // The wash for a chunk drawn from `base` (a cache entry, or null for none),
+  // or null when the bitmap already shows the chunk's own cells.
+  function washFor(cx, cy, base) {
+    const k = chunkKey(cx, cy);
+    const own = terrain.version(k);
+    if (base ? base.own === own : own === 0) return null;
+    let w = washes.get(k);
+    if (!w || w.base !== base || w.own !== own) {
+      let canvas = w?.canvas;
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.width = canvas.height = CHUNK;
+      }
+      w = { canvas, base, own, any: paintWash(canvas, terrain.chunks.get(k), base?.cells) };
+      washes.set(k, w);
+    }
+    w.used = tick;
+    return w.any ? w.canvas : null;
   }
 
   // Best stand-in while a chunk's wanted level is being built: any cached
@@ -412,30 +480,16 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
   // Queues worker jobs for the chunks in `pending` (already sorted by
   // priority) plus a ring of neighbours just outside the view, and returns
   // whether everything visible is already final.
-  function schedule(pending, L, sym, interactive, ring, start) {
+  function schedule(pending, L, sym, interactive, ring) {
     const symKey = sym ? 1 : 0;
     const jobs = [];
-    let previews = 0;
     for (const it of pending) {
-      // While an edit is in progress, edited chunks come back at no more than
-      // 8 px per cell so painting keeps up; full detail follows once it pauses.
-      const lvl = interactive && it.prio === 0 && L > 8 ? 8 : L;
-      const key = `${it.cx},${it.cy}|${lvl}|${symKey}`;
-      const ready = cache.get(key);
-      if (lvl !== L && ready && ready.sig === it.sig) { ready.used = tick; it.canvas = ready.canvas; continue; }
-      const ph = placeholder(it.cx, it.cy, it.sig);
-      it.canvas = ph?.canvas || null;
-      // A chunk being painted with nothing current to show gets a quick
-      // raster-only bitmap (no symbols, low detail) built right here, so the
-      // paint appears on the next frame; the worker's full version follows.
-      if (it.prio === 0 && (!ph || ph.sig !== it.sig) && (previews === 0 || performance.now() - start < PREVIEW_MS)) {
-        const pl = Math.min(L, PREVIEW_LEVEL);
-        it.canvas = build(it.cx, it.cy, pl, false, it.sig);
-        previews++;
-      }
-      // Neighbour-only changes refine once painting pauses.
-      if (interactive && it.prio === 2) continue;
-      jobs.push({ key, prio: it.prio, cx: it.cx, cy: it.cy, L: lvl, symbols: sym, sig: it.sig, own: terrain.version(chunkKey(it.cx, it.cy)) });
+      it.ent = placeholder(it.cx, it.cy, it.sig);
+      // Chunks under the brush wait for it to lift (the wash shows the paint);
+      // neighbour-only changes refine once painting pauses.
+      if (it.held || (interactive && it.prio === 2)) continue;
+      const key = `${it.cx},${it.cy}|${L}|${symKey}`;
+      jobs.push({ key, prio: it.prio, cx: it.cx, cy: it.cy, L, symbols: sym, sig: it.sig });
     }
     // Prefetch: one ring of chunks beyond the view at this level.
     for (const [cx, cy] of ring) {
@@ -443,7 +497,7 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
       const sig = signature(cx, cy);
       const e = cache.get(key);
       if (e && e.sig === sig) { e.used = tick; continue; }
-      jobs.push({ key, prio: 3, cx, cy, L, symbols: sym, sig, own: terrain.version(chunkKey(cx, cy)) });
+      jobs.push({ key, prio: 3, cx, cy, L, symbols: sym, sig });
     }
     // Rebuild the queue from what's wanted now: chunks that scrolled away drop out.
     queue = jobs.filter(j => inflightByKey.get(j.key) !== j.sig);
@@ -478,20 +532,23 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
       // were just edited first, then missing ones nearest the middle of the
       // view, then chunks whose neighbour changed (an edit next door only
       // touches a bitmap's margin, so the old one stands in meanwhile).
+      // Chunks under a brush stroke still in progress are held until it ends.
       const symKey = sym ? 1 : 0;
       const now = performance.now();
       const items = [];
       const pending = [];
       for (const [cx, cy] of list) {
         const sig = signature(cx, cy);
-        const ent = cache.get(`${cx},${cy}|${L}|${symKey}`);
-        const it = { cx, cy, sig, canvas: null };
+        const k = chunkKey(cx, cy);
+        const ent = cache.get(`${k}|${L}|${symKey}`);
+        const it = { cx, cy, sig, ent: null };
         items.push(it);
-        if (ent && ent.sig === sig) { ent.used = tick; it.canvas = ent.canvas; continue; }
-        const own = terrain.version(chunkKey(cx, cy));
+        if (ent && ent.sig === sig) { ent.used = tick; it.ent = ent; continue; }
+        const own = terrain.version(k);
         if (!ent) it.prio = ownChanged(cx, cy, own) ? 0 : 1;
         else it.prio = ent.own === own ? 2 : 0;
-        if (it.prio === 0) lastEdit = now;
+        it.held = terrain.inEdit(k);
+        if (it.prio === 0 || it.held) lastEdit = now;
         pending.push(it);
       }
       pending.sort((p, q) => p.prio - q.prio);
@@ -507,34 +564,34 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
           ring = chunksInView(minX - pad, minY - pad, maxX + pad, maxY + pad)
             .filter(([x, y]) => !seen.has(chunkKey(x, y)));
         }
-        complete = schedule(pending, L, sym, interactive, ring, start);
+        complete = schedule(pending, L, sym, interactive, ring);
         // Results arrive through onUpdate when the editor wired it; otherwise
         // keep asking for frames until the view is final.
         if (!complete && onUpdate) complete = true;
       } else {
         let built = 0;
         for (const it of pending) {
-          const inBudget = built === 0 || performance.now() - start < BUDGET_MS;
-          if (interactive && it.prio === 0 && L > 8) {
-            // quick interim bitmap at level 8 while the edit goes on
-            if (inBudget) { it.canvas = build(it.cx, it.cy, 8, sym, it.sig); built++; }
-            else it.canvas = placeholder(it.cx, it.cy, it.sig)?.canvas || null;
-            complete = false;
-          } else if (inBudget && !(interactive && it.prio === 2)) {
-            it.canvas = build(it.cx, it.cy, L, sym, it.sig);
+          if (it.held) { it.ent = placeholder(it.cx, it.cy, it.sig); continue; }
+          if ((built === 0 || performance.now() - start < BUDGET_MS) && !(interactive && it.prio === 2)) {
+            it.ent = build(it.cx, it.cy, L, sym, it.sig);
             built++;
           } else {
             complete = false;
-            const ph = placeholder(it.cx, it.cy, it.sig);
-            it.canvas = ph ? ph.canvas : null;
+            it.ent = placeholder(it.cx, it.cy, it.sig);
           }
         }
       }
       const m = ctx.getTransform();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       for (const it of items) {
-        if (it.canvas) drawChunk(ctx, m, it.canvas, it.cx, it.cy);
+        if (it.ent?.canvas) drawChunk(ctx, m, it.ent.canvas, it.cx, it.cy);
       }
+      // Washes go on top, so a neighbour's bitmap margin can't cover them.
+      for (const it of items) {
+        const wash = washFor(it.cx, it.cy, it.ent);
+        if (wash) drawChunk(ctx, m, wash, it.cx, it.cy);
+      }
+      for (const [k, w] of washes) if (w.used !== tick) washes.delete(k);
       ctx.setTransform(m);
       ctx.imageSmoothingEnabled = prevSmooth;
       evict();
@@ -559,10 +616,14 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
     clear() {
       for (const e of cache.values()) closeBitmap(e.canvas);
       cache.clear();
+      snaps.clear();
+      washes.clear();
       cachedPx = 0;
     },
 
-    renderRegion(rect, scale, { symbols = true } = {}) {
+    // `reuse` (for thumbnails) draws any current cached bitmap at least as
+    // detailed as needed, shrunk, rather than building the chunk again.
+    renderRegion(rect, scale, { symbols = true, reuse = false } = {}) {
       const w = Math.max(1, Math.ceil((rect.maxX - rect.minX) * scale));
       const h = Math.max(1, Math.ceil((rect.maxY - rect.minY) * scale));
       const out = document.createElement('canvas');
@@ -579,12 +640,21 @@ export function createTerrainRenderer(terrain, { onUpdate } = {}) {
       for (const [cx, cy] of chunksInView(rect.minX, rect.minY, rect.maxX, rect.maxY)) {
         const sig = signature(cx, cy);
         // Exports at full detail can be large; don't keep those bitmaps around.
-        const k = `${cx},${cy}|${L}|${sym ? 1 : 0}`;
-        const cached = cache.get(k);
-        const canvas = cached && cached.sig === sig ? cached.canvas : buildChunk(terrain, cx, cy, L, sym);
+        let cached = null;
+        for (const l of LEVELS) {
+          if (l < L || (l > L && !reuse)) continue;
+          const e = cache.get(`${cx},${cy}|${l}|${sym ? 1 : 0}`);
+          if (e && e.sig === sig) { cached = e; break; }
+        }
+        const canvas = cached ? cached.canvas : buildChunk(terrain, cx, cy, L, sym);
         if (canvas) drawChunk(ctx, m, canvas, cx, cy);
       }
       return out;
+    },
+
+    // True while workers are still building bitmaps for the view.
+    busy() {
+      return inflight.size > 0 || queue.some(j => j.prio < 3);
     },
 
     // Stops the workers (the editor calls this when the map closes).

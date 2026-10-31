@@ -36,7 +36,7 @@ export const PAPER = {
     '#b8c389', // 2 forest
     '#9fb77a', // 3 jungle
     '#edd498', // 4 desert
-    '#d9c391', // 5 hills
+    '#c6cf8e', // 5 hills
     '#cdbb98', // 6 mountains
     '#f3f1ea', // 7 snow
     '#bcc198', // 8 swamp
@@ -45,6 +45,8 @@ export const PAPER = {
     '#e2d592', // 11 farmland
     '#d8ccb2', // 12 city: paved, between the roofs
     '#e2d8b2', // 13 town
+    '#e4e5df', // 14 snowy mountains
+    '#c9c6bd', // 15 ash
   ],
   // Fills used inside the ink symbols.
   crown: '#9aae6c',
@@ -56,12 +58,14 @@ export const PAPER = {
   mountainShade: '#a8977a',
   snowCap: '#f8f7f2',
   snowShade: '#cdd4d8',
-  hillLit: '#dfcb98',
-  hillShade: '#cdb685',
+  hillLit: '#d2db9c',
+  hillShade: '#9db06a',
   duneShade: '#d8b977',
   reed: '#6f7f55',
   mesa: '#c98d63',
   mesaShade: '#a96f4c',
+  ashRock: '#b3afa5',
+  ashRockShade: '#8f8b82',
   roof: '#b9886a',
   roofShade: '#9c6f55',
   wall: '#efe6cf',
@@ -71,7 +75,7 @@ export const PAPER = {
   wave: '#5d7f84',
 };
 
-const CITY = BIOME.CITY, FARM = BIOME.FARMLAND, MOUNT = BIOME.MOUNTAINS, HILL = BIOME.HILLS, SNOWB = BIOME.SNOW;
+const CITY = BIOME.CITY, FARM = BIOME.FARMLAND, MOUNT = BIOME.MOUNTAINS, HILL = BIOME.HILLS, SNOWB = BIOME.SNOW, SNOWPK = BIOME.SNOWPEAKS;
 
 // Farm fields: size along and across the furrows (world units) and tints.
 const FIELD_U = 34, FIELD_V = 24;
@@ -216,11 +220,11 @@ function rasterChunk(reader, cx, cy, L) {
         + (valueNoise((gx0 + i) / 41, (gy0 + j) / 41, 913) - 0.5) * 10;
     }
   }
-  if (counts[MOUNT] || counts[HILL] || counts[SNOWB]) {
+  if (counts[MOUNT] || counts[HILL] || counts[SNOWB] || counts[SNOWPK]) {
     const rel = new Float32Array(S * S);
     for (let i = 0; i < S * S; i++) {
       const v = g[i];
-      rel[i] = v === MOUNT ? 1 : v === SNOWB ? 0.7 : v === HILL ? 0.45 : 0;
+      rel[i] = v === MOUNT || v === SNOWPK ? 1 : v === SNOWB ? 0.7 : v === HILL ? 0.45 : 0;
     }
     const RB = blur(rel, 3, 2);
     for (let j = 1; j < S - 1; j++) {
@@ -736,6 +740,27 @@ function snowSym(ctx, x, y, s, w) {
 }
 
 // Badlands: a flat-topped mesa with banded, shaded sides.
+// A rocky outcrop on the ash plains: a low jagged crag, shaded on the right.
+function rockSym(ctx, x, y, s, w, h) {
+  const peak = 0.42 + h * 0.14;
+  const pts = [[-0.5, 0], [-0.4, -0.2], [-0.22, -0.3], [-0.06, -peak], [0.1, -0.32], [0.26, -0.38], [0.42, -0.16], [0.5, 0]];
+  const body = () => { ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo(x + px * s, y + py * s) : ctx.moveTo(x + px * s, y + py * s))); };
+  body(); ctx.closePath();
+  ctx.fillStyle = PAPER.ashRock; ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.06, y - s * peak); ctx.lineTo(x + s * 0.1, y - s * 0.32); ctx.lineTo(x + s * 0.26, y - s * 0.38);
+  ctx.lineTo(x + s * 0.42, y - s * 0.16); ctx.lineTo(x + s * 0.5, y); ctx.lineTo(x + s * 0.02, y);
+  ctx.closePath();
+  ctx.fillStyle = PAPER.ashRockShade; ctx.fill();
+  ctx.lineWidth = w;
+  body(); ctx.stroke();
+  ctx.lineWidth = w * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.06, y - s * peak); ctx.lineTo(x - s * 0.02, y - s * 0.16);
+  ctx.moveTo(x + s * 0.26, y - s * 0.38); ctx.lineTo(x + s * 0.24, y - s * 0.2);
+  ctx.stroke();
+}
+
 function mesaSym(ctx, x, y, s, w, h) {
   const tw = 0.24 + h * 0.14;
   const body = () => { ctx.beginPath(); ctx.moveTo(x - s * 0.52, y); ctx.lineTo(x - s * tw, y - s * 0.44); ctx.lineTo(x + s * tw, y - s * 0.44); ctx.lineTo(x + s * 0.52, y); };
@@ -817,28 +842,31 @@ function houseSym(ctx, x, y, s, w, h) {
   ctx.stroke();
 }
 
-// How each biome scatters symbols at full detail: lattice step (cells), chance,
-// size (world units), and how far (in symbol sizes) the footprint check reaches.
-// At lower detail levels step and size grow together so symbols keep the same
-// size on screen and simply thin out, as on an atlas.
+// How each biome scatters symbols: lattice step (cells), chance, size (world
+// units), and an optional scale. Steps and sizes are multiplied by the scale
+// (SYMBOL_SCALE unless set) at every detail level, so the map has the
+// same symbols at any zoom: zooming in makes them bigger, never more of them.
 // Farmland has no symbols: its fields are part of the raster.
 const SCATTER = {
   [BIOME.FOREST]:    { step: 1, p: 0.7,  size: [12, 15], draw: 'tree', jitter: 0.45 },
   [BIOME.JUNGLE]:    { step: 1, p: 0.85, size: [14, 18], draw: 'jungle', jitter: 0.45 },
-  [BIOME.MOUNTAINS]: { step: 3, p: 0.9,  size: [30, 38], draw: 'mountain', rowShift: true },
-  [BIOME.HILLS]:     { step: 3, p: 0.5,  size: [17, 22], draw: 'hill', rowShift: true },
+  [BIOME.MOUNTAINS]: { step: 3, p: 0.9,  size: [30, 38], draw: 'mountain', rowShift: true, scale: 3.5 },
+  [BIOME.SNOWPEAKS]: { step: 3, p: 0.9,  size: [30, 38], draw: 'mountain', rowShift: true, scale: 3.5, snowy: true },
+  [BIOME.HILLS]:     { step: 3, p: 0.6,  size: [17, 22], draw: 'hill', rowShift: true, scale: 3 },
   [BIOME.DESERT]:    { step: 3, p: 0.5,  size: [15, 20], draw: 'dune', rowShift: true },
   [BIOME.SWAMP]:     { step: 2, p: 0.5,  size: [10, 13], draw: 'swamp' },
   [BIOME.SNOW]:      { step: 3, p: 0.35, size: [14, 18], draw: 'snow' },
   [BIOME.BADLANDS]:  { step: 3, p: 0.5,  size: [17, 22], draw: 'mesa' },
+  [BIOME.ASH]:       { step: 3, p: 0.32, size: [13, 18], draw: 'rock' },
   [BIOME.GRASS]:     { step: 3, p: 0.12, size: [8, 10],  draw: 'grass' },
   // Cities pack roofs on a loose grid, leaving every fifth row and column as a street.
-  [BIOME.CITY]:      { step: 1, p: 0.95, size: [9, 11], draw: 'house', streets: 5, jitter: 0.12 },
-  [BIOME.TOWN]:      { step: 2, p: 0.45, size: [10, 12], draw: 'house' },
+  [BIOME.CITY]:      { step: 1, p: 0.95, size: [9, 11], draw: 'house', streets: 5, jitter: 0.12, scale: 3 },
+  [BIOME.TOWN]:      { step: 2, p: 0.55, size: [10, 12], draw: 'house', scale: 3 },
 };
+const SYMBOL_SCALE = 5;
 const SCATTER_LIST = Object.entries(SCATTER).map(([b, sc]) => ({ biome: Number(b), ...sc }));
 // The odd tower over a city's roofs.
-SCATTER_LIST.push({ biome: BIOME.CITY, step: 4, p: 0.2, size: [15, 18], draw: 'tower', streets: 0 });
+SCATTER_LIST.push({ biome: BIOME.CITY, step: 4, p: 0.2, size: [15, 18], draw: 'tower', streets: 0, scale: 3 });
 
 // Mountains are sized by how deep into their range they stand, so ranges
 // read as ranges: big peaks along the spine, foothills at the edges.
@@ -847,7 +875,9 @@ const RANGE_SIZE = [0.62, 0.8, 1.0, 1.22];
 
 // Symbols are drawn once per (kind, variant, size, level) into a small sprite
 // and stamped with drawImage, which is far faster than re-stroking thousands
-// of paths per chunk.
+// of paths per chunk. Up close, where symbols are big and few, they are drawn
+// directly instead so the cache doesn't fill with huge sprites.
+const SPRITE_MAX_PX = 160;
 const VARIANTS = 4;
 const SIZE_BUCKETS = 3;
 const spriteCache = new Map();
@@ -863,6 +893,7 @@ function drawGlyph(ctx, kind, s, w, h) {
     case 'swamp': swampSym(ctx, 0, 0, s, w, h); break;
     case 'snow': snowSym(ctx, 0, 0, s, w); break;
     case 'mesa': mesaSym(ctx, 0, 0, s, w, h); break;
+    case 'rock': rockSym(ctx, 0, 0, s, w, h); break;
     case 'grass': grassSym(ctx, 0, 0, s, w); break;
     case 'house': houseSym(ctx, 0, 0, s, w, h); break;
     case 'tower': towerSym(ctx, 0, 0, s, w); break;
@@ -891,12 +922,12 @@ function sprite(kind, variant, s, L) {
 }
 
 function drawSymbols(ctx, reader, cx, cy, L) {
-  const k = Math.max(1, CELL / L); // symbol scale for this detail level
   const list = [];
   const bx = cx * CHUNK, by = cy * CHUNK;
   // Footprint sample points, in symbol sizes from the anchor (base centre).
   const FOOT = [[0, 0], [-0.5, 0], [0.5, 0], [-0.3, -0.45], [0.3, -0.45], [0, -0.85]];
   for (const sc of SCATTER_LIST) {
+    const k = sc.scale || SYMBOL_SCALE;
     const step = Math.max(1, Math.round(sc.step * k));
     const maxSize = sc.size[1] * k;
     const ext = Math.ceil(maxSize * 1.15 / CELL) + step; // cells a symbol can reach past its anchor
@@ -938,13 +969,13 @@ function drawSymbols(ctx, reader, cx, cy, L) {
           let n = 0, snowy = false;
           for (const [ox, oy] of RING) {
             const v = reader.raw(Math.floor(ax + ox * rr), Math.floor(ay + oy * rr));
-            if (v === MOUNT) n++;
+            if (v === MOUNT || v === SNOWPK) n++;
             else if (v === SNOWB) { n += 0.75; snowy = true; }
           }
           const depth = n / RING.length;
           size *= RANGE_SIZE[Math.min(RANGE_SIZE.length - 1, Math.floor(depth * RANGE_SIZE.length))];
           // the tallest peaks along the spine carry snow too
-          if (snowy || (depth > 0.95 && bucket === SIZE_BUCKETS - 1 && h < sc.p * 0.2)) kind = 'mountainSnow';
+          if (sc.snowy || snowy || (depth > 0.95 && bucket === SIZE_BUCKETS - 1 && h < sc.p * 0.2)) kind = 'mountainSnow';
         }
         let ok = true;
         for (const [fx, fy] of FOOT) {
@@ -963,7 +994,20 @@ function drawSymbols(ctx, reader, cx, cy, L) {
   const ox = cx * CHUNK_SIZE, oy = cy * CHUNK_SIZE;
   const W = CHUNK * L;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const w = lineW(L);
   for (const p of list) {
+    if (p.s * px > SPRITE_MAX_PX) {
+      const x = (p.x - ox) * px, y = (p.y - oy) * px, r = p.s * px * 1.2;
+      if (x - r > W || y - r * 1.2 > W || x + r < 0 || y + r * 0.5 < 0) continue;
+      ctx.save();
+      ctx.setTransform(px, 0, 0, px, x, y);
+      ctx.strokeStyle = PAPER.ink;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      drawGlyph(ctx, p.kind, p.s, w, (p.variant + 0.5) / VARIANTS);
+      ctx.restore();
+      continue;
+    }
     const sp = sprite(p.kind, p.variant, p.s, L);
     const dx = Math.round((p.x - ox) * px - sp.ax), dy = Math.round((p.y - oy) * px - sp.ay);
     if (dx > W || dy > W || dx + sp.canvas.width < 0 || dy + sp.canvas.height < 0) continue;

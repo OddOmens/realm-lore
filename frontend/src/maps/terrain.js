@@ -26,6 +26,9 @@ export const BIOMES = [
   { id: 11, key: 'farmland',  label: 'Farmland' },
   { id: 12, key: 'city',      label: 'City' },
   { id: 13, key: 'town',      label: 'Town' },
+  // ids are stored in maps, so new biomes go at the end; `order` places them in the palette
+  { id: 14, key: 'snowpeaks', label: 'Snowy peaks', order: 6.5 },
+  { id: 15, key: 'ash',       label: 'Ash',         order: 10.5 },
 ];
 export const BIOME = Object.fromEntries(BIOMES.map(b => [b.key.toUpperCase(), b.id]));
 export const BIOME_BY_ID = BIOMES;
@@ -158,6 +161,9 @@ export class Terrain {
   // { before, after } (Map key → Uint8Array|null), or null if nothing changed.
   beginEdit() { this._edit = { before: new Map() }; }
 
+  /** True while an open edit (a brush stroke in progress) has changed this chunk. */
+  inEdit(key) { return !!this._edit?.before.has(key); }
+
   endEdit() {
     const edit = this._edit;
     this._edit = null;
@@ -187,32 +193,53 @@ export class Terrain {
   }
 
   /**
-   * Paints a disc of `biome` centred on world (wx, wy) with world radius r.
+   * Paints `biome` over a capsule: a disc of world radius r swept from
+   * (x0, y0) to (x1, y1), which is what a brush dab or drag covers.
    * opts.rough (0..1) wobbles the edge with noise for natural coastlines.
    * opts.mask: 'land' only repaints land cells, 'water' only water cells.
+   * Each cell is visited once, chunk by chunk, and the edge noise is only
+   * worked out in the band where it can matter, so big brushes stay quick.
    */
-  paintCircle(wx, wy, r, biome, opts = {}, dirty = new Set()) {
+  paintCapsule(x0, y0, x1, y1, r, biome, opts = {}, dirty = new Set()) {
     const rough = opts.rough ?? 0;
-    const reach = r * (1 + rough * 0.5);
-    const gx0 = Math.floor((wx - reach) / CELL), gx1 = Math.floor((wx + reach) / CELL);
-    const gy0 = Math.floor((wy - reach) / CELL), gy1 = Math.floor((wy + reach) / CELL);
+    const reach = r * (1 + rough * 0.5), sure = r * (1 - rough * 0.5); // fbm is in [0, 1]
+    const reach2 = reach * reach, sure2 = sure * sure;
     const scale = Math.max(r * 0.7, CELL * 3);
     const seed = opts.seed ?? 7;
-    for (let gy = gy0; gy <= gy1; gy++) {
-      const py = (gy + 0.5) * CELL;
-      for (let gx = gx0; gx <= gx1; gx++) {
-        const px = (gx + 0.5) * CELL;
-        const dx = px - wx, dy = py - wy;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        let limit = r;
-        if (rough > 0) limit = r * (1 + rough * (fbm(px / scale, py / scale, seed, 3) - 0.5));
-        if (d > limit) continue;
-        if (opts.mask) {
-          const cur = this.cell(gx, gy);
-          if (opts.mask === 'land' && isWater(cur)) continue;
-          if (opts.mask === 'water' && !isWater(cur)) continue;
+    const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
+    const gx0 = Math.floor((Math.min(x0, x1) - reach) / CELL), gx1 = Math.floor((Math.max(x0, x1) + reach) / CELL);
+    const gy0 = Math.floor((Math.min(y0, y1) - reach) / CELL), gy1 = Math.floor((Math.max(y0, y1) + reach) / CELL);
+    for (let cy = Math.floor(gy0 / CHUNK); cy <= Math.floor(gy1 / CHUNK); cy++) {
+      const ya = Math.max(gy0, cy * CHUNK), yb = Math.min(gy1, cy * CHUNK + CHUNK - 1);
+      for (let cx = Math.floor(gx0 / CHUNK); cx <= Math.floor(gx1 / CHUNK); cx++) {
+        const xa = Math.max(gx0, cx * CHUNK), xb = Math.min(gx1, cx * CHUNK + CHUNK - 1);
+        const k = chunkKey(cx, cy);
+        let arr = this.chunks.get(k) || null;
+        let writable = false;
+        for (let gy = ya; gy <= yb; gy++) {
+          const py = (gy + 0.5) * CELL;
+          for (let gx = xa; gx <= xb; gx++) {
+            // most of a drag's cells were painted by the previous move
+            const i = (gy - cy * CHUNK) * CHUNK + (gx - cx * CHUNK);
+            const cur = arr ? arr[i] : 0;
+            if (cur === biome) continue;
+            if (opts.mask === 'land' && isWater(cur)) continue;
+            if (opts.mask === 'water' && !isWater(cur)) continue;
+            const px = (gx + 0.5) * CELL;
+            // squared distance from the cell centre to the segment
+            let t = len2 ? ((px - x0) * dx + (py - y0) * dy) / len2 : 0;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            const ex = px - x0 - dx * t, ey = py - y0 - dy * t;
+            const d2 = ex * ex + ey * ey;
+            if (d2 > reach2) continue;
+            if (d2 > sure2) {
+              const limit = r * (1 + rough * (fbm(px / scale, py / scale, seed, 3) - 0.5));
+              if (d2 > limit * limit) continue;
+            }
+            if (!writable) { arr = this._writable(cx, cy); writable = true; dirty.add(k); }
+            arr[i] = biome;
+          }
         }
-        this.setCell(gx, gy, biome, dirty);
       }
     }
     return dirty;
@@ -220,20 +247,12 @@ export class Terrain {
 
   /** Paints along a segment, as a brush drag does. Returns dirty keys. */
   stroke(x0, y0, x1, y1, r, biome, opts = {}) {
-    const dirty = new Set();
-    const len = Math.hypot(x1 - x0, y1 - y0);
-    const step = Math.max(CELL * 0.75, r * 0.3);
-    const n = Math.max(1, Math.ceil(len / step));
-    for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      this.paintCircle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, biome, opts, dirty);
-    }
-    return this._commit(dirty);
+    return this._commit(this.paintCapsule(x0, y0, x1, y1, r, biome, opts));
   }
 
   /** One dab, committed. */
   paint(wx, wy, r, biome, opts = {}) {
-    return this._commit(this.paintCircle(wx, wy, r, biome, opts));
+    return this._commit(this.paintCapsule(wx, wy, wx, wy, r, biome, opts));
   }
 
   /**
