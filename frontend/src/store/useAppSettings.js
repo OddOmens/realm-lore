@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { syncThemeColor } from '../lib/nativeFeel';
+import { applyTheme } from '../lib/theme';
 
 const DEFAULTS = {
   // Sidebar nav visibility — keys match navItems paths in config/nav.js
@@ -18,7 +18,7 @@ const DEFAULTS = {
     '/trash':      true,
   },
   // Appearance
-  theme: 'dark',       // 'dark' | 'parchment' | 'scifi' | 'grimdark'
+  theme: 'system',     // 'system' | 'light' | 'dark' | 'parchment' | 'scifi' | 'grimdark' | 'purple' | 'green'
   fontSize: 'md',      // 'sm' | 'md' | 'lg'
   density: 'comfortable', // 'compact' | 'comfortable' | 'spacious'
   showAppTitle: true,  // Controls visibility of Realm Lore sidebar title
@@ -102,19 +102,10 @@ export const useAppSettings = create((set) => ({
 }));
 
 // Apply CSS custom properties to :root based on settings
-export function applyAppSettings({ theme = 'dark', fontSize = 'md', density = 'comfortable' }) {
+export function applyAppSettings({ theme = 'system', fontSize = 'md', density = 'comfortable' }) {
   const root = document.documentElement;
-  
-  // Apply Theme
-  root.classList.remove('theme-dark', 'theme-parchment', 'theme-scifi', 'theme-grimdark', 'theme-purple', 'theme-green', 'dark');
-  if (theme === 'dark') {
-    // legacy support + new theme system
-    root.classList.add('dark', 'theme-dark');
-  } else {
-    root.classList.add(`theme-${theme}`);
-  }
-  root.style.colorScheme = theme === 'parchment' ? 'light' : 'dark';
-  syncThemeColor();
+
+  applyTheme(theme);
 
   // Apply Fonts & Density
   const fontSizeMap = { sm: '13px', md: '15px', lg: '17px' };

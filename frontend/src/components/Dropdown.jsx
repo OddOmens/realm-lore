@@ -34,22 +34,22 @@ export default function Dropdown({ value, options, onChange, placeholder = 'Sele
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className="flex items-center justify-between w-full gap-2 bg-secondary text-secondary-foreground text-sm rounded-md px-3 py-1.5 hover:bg-secondary/80 transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+        className="flex items-center justify-between w-full h-8 gap-2 border border-input bg-background text-foreground text-sm rounded-md px-2.5 hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         <span className="truncate">{selected ? selected.label : placeholder}</span>
-        <ChevronDown size={14} className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`shrink-0 text-muted-foreground transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div style={{ ...dropdownStyle, zIndex: 9999 }} className="min-w-[160px] bg-popover border border-border rounded-lg shadow-xl py-1 overflow-y-auto max-h-72">
+        <div style={{ ...dropdownStyle, zIndex: 9999 }} className="min-w-[160px] bg-popover rounded-lg shadow-md ring-1 ring-foreground/10 p-1 overflow-y-auto max-h-72 animate-menu">
           {options.map(opt => (
             <button
               key={opt.value}
               onClick={() => { onChange(opt.value); setOpen(false); }}
-              className="flex items-center justify-between w-full px-3 py-2 text-sm text-left text-popover-foreground hover:bg-secondary transition-colors"
+              className="flex items-center justify-between w-full rounded-md px-2 py-1.5 text-sm text-left text-popover-foreground hover:bg-accent transition-colors"
             >
               <span>{opt.label}</span>
-              {opt.value === value && <Check size={13} className="text-primary shrink-0" />}
+              {opt.value === value && <Check size={15} className="shrink-0" />}
             </button>
           ))}
         </div>

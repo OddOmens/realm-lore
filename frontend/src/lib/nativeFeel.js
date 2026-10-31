@@ -186,6 +186,8 @@ export function keepWindowPinned() {
 export function syncThemeColor() {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
   if (!bg) return;
+  // index.html's per-appearance tints only cover the first paint.
+  document.querySelectorAll('meta[name="theme-color"][media]').forEach(m => m.remove());
   let meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement('meta');

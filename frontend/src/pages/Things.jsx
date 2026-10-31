@@ -12,7 +12,7 @@ const TYPE_COLORS = {
   Artifact:     'bg-amber-500/10 text-amber-400 border-amber-500/20',
   Organization: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   Faction:      'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  Spell:        'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  Spell:        'bg-brand/10 text-brand border-brand/20',
   Blessing:     'bg-sky-500/10 text-sky-400 border-sky-500/20',
   Curse:        'bg-rose-500/10 text-rose-400 border-rose-500/20',
 };
@@ -60,16 +60,16 @@ export default function Things() {
           <EntityCard key={thing.id} entity={thing} entityType="things" viewMode={viewMode}
             listContent={
               <div className="flex items-center gap-3 pr-8 min-w-0">
-                <span className="font-medium text-sm truncate flex-1">{thing.name}</span>
+                <span className="font-medium text-sm text-foreground truncate flex-1">{thing.name}</span>
                 {thing.rarity && thing.rarity !== 'N/A' && (
-                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${RARITY_STYLES[thing.rarity] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                    <span className="opacity-50 mr-1 uppercase">RARITY</span>
+                  <span className={`shrink-0 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${RARITY_STYLES[thing.rarity] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <span className="opacity-60 mr-1">Rarity</span>
                     {thing.rarity}
                   </span>
                 )}
                 {thing.type && (
-                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TYPE_COLORS[thing.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                    <span className="opacity-50 mr-1 uppercase">TYPE</span>
+                  <span className={`shrink-0 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${TYPE_COLORS[thing.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <span className="opacity-60 mr-1">Type</span>
                     {thing.type}
                   </span>
                 )}
@@ -77,22 +77,22 @@ export default function Things() {
             }
           >
             {thing.image && (
-              <div className="w-full h-32 rounded-lg overflow-hidden mb-3 -mt-1">
+              <div className="w-full h-32 rounded-md overflow-hidden mb-3">
                 <img src={assetUrl(thing.image)} alt={thing.name} className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
               </div>
             )}
-            <h4 className="font-semibold text-base leading-snug truncate pr-6 mb-1.5">{thing.name}</h4>
+            <h4 className="font-semibold text-[0.9375rem] leading-snug truncate pr-6 mb-1.5">{thing.name}</h4>
             {(thing.type || (thing.rarity && thing.rarity !== 'N/A')) && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {thing.type && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TYPE_COLORS[thing.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                    <span className="opacity-50 mr-1 uppercase">TYPE</span>
+                  <span className={`text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${TYPE_COLORS[thing.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <span className="opacity-60 mr-1">Type</span>
                     {thing.type}
                   </span>
                 )}
                 {thing.rarity && thing.rarity !== 'N/A' && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${RARITY_STYLES[thing.rarity] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                    <span className="opacity-50 mr-1 uppercase">RARITY</span>
+                  <span className={`text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${RARITY_STYLES[thing.rarity] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <span className="opacity-60 mr-1">Rarity</span>
                     {thing.rarity}
                   </span>
                 )}

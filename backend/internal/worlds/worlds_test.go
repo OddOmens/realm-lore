@@ -143,6 +143,49 @@ func TestDeleteRestorePurge(t *testing.T) {
 	}
 }
 
+func TestTrashCarriesMapSideFiles(t *testing.T) {
+	s := newStore(t)
+	files := map[string]string{
+		"Dungeon_Walker/maps/m1.md":        "---\nid: \"m1\"\n---\n",
+		"Dungeon_Walker/maps/m1.terrain":   `{"v":1}`,
+		"Dungeon_Walker/maps/m1.thumb.img": "data:image/jpeg;base64,AA==",
+		"Dungeon_Walker/maps/m10.terrain":  "other map",
+	}
+	for p, c := range files {
+		if err := s.Write(p, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []string{"Dungeon_Walker/maps/m1.md", "Dungeon_Walker/maps/m1.terrain", "Dungeon_Walker/maps/m1.thumb.img"} {
+		if err := s.Delete(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.TrashRestore("Dungeon_Walker/trash/maps/m1.md"); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"maps/m1.md", "maps/m1.terrain", "maps/m1.thumb.img", "maps/m10.terrain"} {
+		if _, err := os.Stat(filepath.Join(s.DataDir, "Worlds", "Dungeon_Walker", p)); err != nil {
+			t.Errorf("%s not restored: %v", p, err)
+		}
+	}
+
+	for _, p := range []string{"Dungeon_Walker/maps/m1.md", "Dungeon_Walker/maps/m1.terrain"} {
+		if err := s.Delete(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.TrashPurge("Dungeon_Walker/trash/maps/m1.md"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(s.DataDir, "Worlds", "Dungeon_Walker", "trash", "maps", "m1.terrain")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("purge left the terrain file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(s.DataDir, "Worlds", "Dungeon_Walker", "maps", "m10.terrain")); err != nil {
+		t.Errorf("purge touched another map: %v", err)
+	}
+}
+
 func TestZipRoundTripAndWrappedZip(t *testing.T) {
 	s := newStore(t)
 	s.Write("Dungeon_Walker/characters/c1.md", entry)

@@ -1,327 +1,230 @@
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 import {
-  ArrowLeft, Pin, Star, Trash2, X, ZoomIn, ZoomOut, Maximize,
-  Users, Map as MapIcon, Box, BookMarked, Flag, PawPrint, Search,
-  Pencil, Image as ImageIcon, Check, Hand, Eraser, Undo2, Redo2,
-  Stamp as StampIcon, Layers as LayersIcon, Eye, EyeOff, Upload, Plus,
-  Grid3x3, RotateCw, FlipHorizontal, FlipVertical, Palette,
-  Type,
-  Ruler, Download, Copy, Trash, AlignCenter,
-  Trees, TreePine, Mountain, MountainSnow, Castle, Home, Building2,
-  Tent, Skull, Sword, Flame, Waves, Anchor, Cross, Compass, Crown, Sparkles,
+  ArrowLeft, MousePointer2, Hand, Paintbrush, PaintBucket, Route, Castle, Type, Stamp as StampIcon, Pin,
+  Undo2, Redo2, Sparkles, Download, MoreHorizontal, Layers, Check, ZoomIn, ZoomOut, Maximize,
+  Trash2, Image as ImageIcon, Keyboard, X, Star, Dices, Link2, Upload, FlipHorizontal, ChevronUp,
+  Map as MapIcon, ExternalLink, Eye, Pencil, Search, Ruler,
 } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
-import { v4 as uuidv4 } from 'uuid';
+import { api, assetUrl } from '../lib/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
-import { api, assetUrl } from '../lib/api';
+import Menu, { MenuItem, MenuLabel, MenuSeparator } from '../components/Menu';
+import { Terrain, BIOMES, BIOME, CELL, isWater } from '../maps/terrain';
+import { applyWorldTransform, applyScreenTransform, screenToWorld, zoomAt, fitRect, visibleRect } from '../maps/view';
+import { createTerrainRenderer, PAPER } from '../maps/terrainRender';
+import {
+  PATH_KINDS, PLACE_KINDS, LABEL_STYLES, drawPaths, drawPlaces, drawLabels, drawSelection,
+  hitTest, pathBounds, simplifyPoints, smoothPath,
+} from '../maps/features';
+import { generateLand, GENERATOR_SHAPES, GENERATOR_CLIMATES } from '../maps/generator';
+import { createStampImages, drawStamps, hitStamp, sanitizeSvg } from '../maps/stamps';
+import { createFeatureTiles } from '../maps/featureTiles';
+import { drawDecor, decorSpace, MILES_PER_UNIT } from '../maps/decor';
+import { docFromMap, docToRecord, LAYERS } from '../maps/document';
+import { TYPE_META, PROTAGONIST_COLOR } from '../maps/entities';
+import EntityPicker from '../maps/EntityPicker';
+import CustomStampUploadModal from '../maps/CustomStampUploadModal';
 
-// ── Per-entity-type metadata for pin styling and the picker UI ─────────────────
-const TYPE_META = {
-  characters: { icon: Users,      color: '#60a5fa', label: 'Character' },
-  locations:  { icon: MapIcon,    color: '#34d399', label: 'Location'  },
-  things:     { icon: Box,        color: '#fbbf24', label: 'Thing'     },
-  lore:       { icon: BookMarked, color: '#a78bfa', label: 'Lore'      },
-  factions:   { icon: Flag,       color: '#818cf8', label: 'Faction'   },
-  creatures:  { icon: PawPrint,   color: '#fb923c', label: 'Creature'  },
+// ── Tools ─────────────────────────────────────────────────────────────────────
+
+const TOOLS = [
+  { id: 'select', label: 'Select & move', key: 'V', icon: MousePointer2 },
+  { id: 'hand',   label: 'Pan',           key: 'H', icon: Hand },
+  { id: 'paint',  label: 'Paint terrain', key: 'B', icon: Paintbrush },
+  { id: 'fill',   label: 'Fill area',     key: 'G', icon: PaintBucket },
+  { id: 'path',   label: 'Rivers & roads', key: 'R', icon: Route },
+  { id: 'place',  label: 'Places',        key: 'P', icon: Castle },
+  { id: 'label',  label: 'Labels',        key: 'T', icon: Type },
+  { id: 'stamp',  label: 'Stamps',        key: 'S', icon: StampIcon },
+  { id: 'pin',    label: 'Pins',          key: 'I', icon: Pin },
+];
+const TOOL_BY_KEY = Object.fromEntries(TOOLS.map(t => [t.key.toLowerCase(), t.id]));
+
+const BRUSH_MIN = 16, BRUSH_MAX = 2400;
+const DEFAULT_OPTS = {
+  biome: BIOME.GRASS,
+  brush: 180,
+  rough: 0.5,
+  mask: false,
+  pathKind: 'river',
+  pathPx: {},
+  inkColor: '#4a3b2a',
+  placeKind: 'town',
+  placeNameOnly: false,
+  labelStyle: 'region',
+  stamp: null,
+  stampSize: 64,
+  pinProtagonist: false,
 };
+const OPTS_KEY = 'mapBuilderTools';
 
-const PROTAGONIST_COLOR = '#facc15';
-
-const ZOOM_MIN = 0.1;
-const ZOOM_MAX = 8;
-
-// Default workspace sizes: blank maps get a large “endless” canvas; legacy populated maps without
-// `canvasSize` keep the historical extent so normalized pins/stamps don’t jump.
-const LARGE_CANVAS = { w: 32768, h: 32768 };
-const LEGACY_CANVAS = { w: 2000, h: 1500 };
-const GRID_CELL = 32;
-
-// ── Layers ────────────────────────────────────────────────────────────────────
-// Maps now have a stack of named layers. Pen strokes record `layerId`. Stamps
-// and pins are special "layers" that only carry visibility (their content
-// already lives on `map.stamps` / `map.pins`). We render bottom→top, so
-// `terrain` is the visual base and `pins` ride on top.
-const DEFAULT_LAYERS = [
-  { id: 'terrain',     name: 'Terrain',     kind: 'pen',    visible: true, color: '#1a1a1a', defaultSize: 4 },
-  { id: 'rivers',      name: 'Rivers',      kind: 'pen',    visible: true, color: '#2563eb', defaultSize: 3 },
-  { id: 'roads',       name: 'Roads',       kind: 'pen',    visible: true, color: '#7c2d12', defaultSize: 3 },
-  { id: 'annotations', name: 'Annotations', kind: 'pen',    visible: true, color: '#dc2626', defaultSize: 2 },
-  { id: 'stamps',      name: 'Stamps',      kind: 'stamps', visible: true },
-  { id: 'pins',        name: 'Pins',        kind: 'pins',   visible: true },
-];
-// Bottom → top render order for pen layers. Stamps & pins always render above
-// pen layers in this order: terrain, rivers, roads, annotations, stamps, pins.
-const PEN_LAYER_ORDER = ['terrain', 'rivers', 'roads', 'annotations'];
-
-function defaultLayers() { return DEFAULT_LAYERS.map(l => ({ ...l })); }
-
-// ── Stamp library ─────────────────────────────────────────────────────────────
-// Decorative map symbols. Stamps live as { id, kind, x, y, size, color } on the
-// map document. `kind` keys back into this library so we never serialize the
-// React component itself — only the small string key.
-const STAMP_LIBRARY = [
-  { kind: 'forest',     label: 'Forest',       icon: Trees,        color: '#16a34a', tags: ['nature', 'forest'] },
-  { kind: 'pines',      label: 'Pine forest',  icon: TreePine,     color: '#15803d', tags: ['nature', 'forest'] },
-  { kind: 'mountain',   label: 'Mountain',     icon: Mountain,     color: '#78716c', tags: ['nature', 'terrain'] },
-  { kind: 'snowypeak',  label: 'Snowy peak',   icon: MountainSnow, color: '#94a3b8', tags: ['nature', 'terrain'] },
-  { kind: 'volcano',    label: 'Volcano',      icon: Flame,        color: '#dc2626', tags: ['nature', 'danger'] },
-  { kind: 'sea',        label: 'Sea / Lake',   icon: Waves,        color: '#0369a1', tags: ['water'] },
-  { kind: 'port',       label: 'Port',         icon: Anchor,       color: '#0c4a6e', tags: ['water', 'settlement'] },
-  { kind: 'capital',    label: 'Capital',      icon: Crown,        color: '#d97706', tags: ['settlement'] },
-  { kind: 'city',       label: 'City',         icon: Building2,    color: '#9a3412', tags: ['settlement'] },
-  { kind: 'castle',     label: 'Castle',       icon: Castle,       color: '#7c2d12', tags: ['settlement', 'fortification'] },
-  { kind: 'village',    label: 'Village',      icon: Home,         color: '#a16207', tags: ['settlement'] },
-  { kind: 'camp',       label: 'Camp',         icon: Tent,         color: '#854d0e', tags: ['settlement'] },
-  { kind: 'dungeon',    label: 'Dungeon',      icon: Skull,        color: '#1c1917', tags: ['danger', 'mystical'] },
-  { kind: 'battle',     label: 'Battle',       icon: Sword,        color: '#991b1b', tags: ['danger'] },
-  { kind: 'shrine',     label: 'Shrine',       icon: Cross,        color: '#a855f7', tags: ['mystical'] },
-  { kind: 'magic',      label: 'Magic site',   icon: Sparkles,     color: '#7c3aed', tags: ['mystical'] },
-  { kind: 'compass',    label: 'Compass rose', icon: Compass,      color: '#1e293b', tags: ['marker'] },
-];
-
-const STAMP_BY_KIND = Object.fromEntries(STAMP_LIBRARY.map(s => [s.kind, s]));
-
-const STAMP_SIZES = [32, 48, 72]; // world units; default 48
-const DEFAULT_STAMP_SIZE = 48;
-
-// Returns a cached data URL for a library stamp image
-function stampSrc(rel) {
-  if (!rel) return '';
-  if (!stampSrc._cache) stampSrc._cache = new Map();
-  if (stampSrc._cache.has(rel)) return stampSrc._cache.get(rel);
-  api.stampsImage(rel).then(({ dataUrl }) => {
-    stampSrc._cache.set(rel, dataUrl);
-    window.dispatchEvent(new CustomEvent('stamp-cache-update'));
-  }).catch(() => {});
-  return '';
+function loadOpts() {
+  try { return { ...DEFAULT_OPTS, ...JSON.parse(localStorage.getItem(OPTS_KEY) || '{}') }; }
+  catch { return DEFAULT_OPTS; }
 }
 
-// 8-color palette + "custom" hex input
-const PEN_COLORS = ['#1a1a1a', '#dc2626', '#16a34a', '#2563eb', '#7c2d12', '#7c3aed', '#0891b2', '#f5f0e1'];
-const PEN_SIZES = [2, 4, 8, 16];
-const ERASER_SIZES = [12, 24, 48];
+const INK_COLORS = ['#4a3b2a', '#1f2328', '#b42318', '#2f6f3a', '#1d4e89', '#6b3fa0'];
 
-const UNDO_LIMIT = 80;
+// New lines and labels are sized for the zoom you draw them at: these are
+// their default on-screen sizes in CSS pixels.
+const PATH_PX = { river: 5, road: 3, trail: 3, border: 4, ink: 2.5 };
+const LABEL_PX = { realm: 28, region: 18, sea: 18, place: 13 };
+const pathPx = (o, kind) => o.pathPx?.[kind] ?? PATH_PX[kind] ?? 3;
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx*dx + dy*dy; }
+const PLACE_BY_KIND = Object.fromEntries(PLACE_KINDS.map(k => [k.kind, k]));
+const PATH_BY_KIND = Object.fromEntries(PATH_KINDS.map(k => [k.kind, k]));
+const LABEL_BY_STYLE = Object.fromEntries(LABEL_STYLES.map(s => [s.style, s]));
+const DEFAULT_LABEL_TEXT = { realm: 'Realm', region: 'Region', sea: 'Sea', place: 'Label' };
 
-// ── Island/Region Shape Generator ─────────────────────────────────────────────
-// Generates organic-looking landmass shapes using noise and smoothing
-function generateIslandShape(centerX, centerY, size, complexity = 'medium', type = 'island') {
-  const points = [];
-  const numPoints = complexity === 'simple' ? 12 : complexity === 'medium' ? 24 : 48;
-  const baseRadius = size / 2;
-  
-  // Generate points around a circle with random variation
-  for (let i = 0; i < numPoints; i++) {
-    const angle = (i / numPoints) * Math.PI * 2;
-    
-    // Add noise to radius for organic shape
-    let radiusVariation;
-    if (type === 'island') {
-      // Islands are more circular with moderate variation
-      radiusVariation = 0.7 + Math.random() * 0.5;
-    } else if (type === 'continent') {
-      // Continents have more dramatic variation
-      radiusVariation = 0.5 + Math.random() * 0.8;
-    } else if (type === 'archipelago') {
-      // Archipelago has extreme variation for fragmented look
-      radiusVariation = 0.3 + Math.random() * 1.0;
-    } else {
-      // Region/custom
-      radiusVariation = 0.6 + Math.random() * 0.6;
-    }
-    
-    const radius = baseRadius * radiusVariation;
-    const x = centerX + Math.cos(angle) * radius;
-    const y = centerY + Math.sin(angle) * radius;
-    points.push([x, y]);
-  }
-  
-  // Close the shape
-  points.push([...points[0]]);
-  
-  return points;
+// Which layer toggle hides each path kind.
+const PATH_LAYER = { river: 'rivers', road: 'roads', trail: 'roads', border: 'roads', ink: 'ink' };
+
+const isTyping = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+
+function biomeColor(id) {
+  return PAPER.biome?.[id] || '#d8cfa8';
 }
 
-function generateCoastline(centerX, centerY, size, detail = 'medium') {
-  const points = [];
-  const numPoints = detail === 'low' ? 32 : detail === 'medium' ? 64 : 128;
-  const baseRadius = size / 2;
-  
-  // Create a more detailed coastline with multiple frequency noise
-  for (let i = 0; i < numPoints; i++) {
-    const angle = (i / numPoints) * Math.PI * 2;
-    
-    // Layer multiple noise frequencies for realistic coastline
-    const noise1 = Math.sin(angle * 3 + Math.random() * 0.5) * 0.15;
-    const noise2 = Math.sin(angle * 7 + Math.random() * 0.3) * 0.08;
-    const noise3 = Math.sin(angle * 13 + Math.random() * 0.2) * 0.04;
-    
-    const radiusVariation = 0.8 + noise1 + noise2 + noise3;
-    const radius = baseRadius * radiusVariation;
-    
-    const x = centerX + Math.cos(angle) * radius;
-    const y = centerY + Math.sin(angle) * radius;
-    points.push([x, y]);
-  }
-  
-  points.push([...points[0]]);
-  return points;
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
 }
 
-// Color tint helpers for stamps
-function hexToHsl(hex) {
-  let r = 0, g = 0, b = 0;
-  if (hex.length === 4) {
-    r = parseInt(hex[1] + hex[1], 16);
-    g = parseInt(hex[2] + hex[2], 16);
-    b = parseInt(hex[3] + hex[3], 16);
-  } else if (hex.length === 7) {
-    r = parseInt(hex.slice(1, 3), 16);
-    g = parseInt(hex.slice(3, 5), 16);
-    b = parseInt(hex.slice(5, 7), 16);
-  }
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h, s, l = (max + min) / 2;
-  if (max === min) {
-    h = s = 0;
-  } else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-    }
-  }
-  return [h * 360, s * 100, l * 100];
+function pickFile(accept) {
+  return new Promise(resolve => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.display = 'none';
+    input.addEventListener('change', () => { resolve(input.files?.[0] || null); input.remove(); });
+    input.addEventListener('cancel', () => { resolve(null); input.remove(); });
+    document.body.append(input);
+    input.click();
+  });
 }
 
-function getOpLabel(op) {
-  if (op.type === 'add') return 'Draw stroke';
-  if (op.type === 'delete') return 'Erase stroke';
-  if (op.type === 'clear') return 'Clear all';
-  if (op.type === 'add-stamp') return 'Add stamp';
-  if (op.type === 'delete-stamp') return 'Remove stamp';
-  if (op.type === 'move-stamp') return 'Move stamp';
-  if (op.type === 'patch-stamp') return 'Edit stamp';
-  return op.type;
-}
+// Brush sizes are chosen on a log scale so both small details and whole
+// continents are easy to hit with one slider.
+const brushToSlider = (r) => Math.round(100 * Math.log(r / BRUSH_MIN) / Math.log(BRUSH_MAX / BRUSH_MIN));
+const sliderToBrush = (v) => Math.round(BRUSH_MIN * Math.pow(BRUSH_MAX / BRUSH_MIN, v / 100));
 
-function getHueRotation(hex) {
-  const [h] = hexToHsl(hex || '#ff0000');
-  return h - 30; // Base sepia shifts to ~30deg, so subtract to get target
-}
+// ── Small UI pieces ───────────────────────────────────────────────────────────
 
-function getSaturation(hex) {
-  const [, s] = hexToHsl(hex || '#ff0000');
-  return s;
-}
-
-// Build SVG path "d" attribute from a list of [x,y] points using quadratic
-// Bézier midpoint smoothing — a classic "natural ink" technique:
-//   • Start at the first point.
-//   • Draw a short line to the midpoint of P0 and P1.
-//   • For each interior point Pi, draw a quadratic curve from the previous
-//     midpoint to the next midpoint, using Pi as the control point. The curve
-//     therefore *passes through* midpoints (which average out cursor jitter)
-//     while bending naturally toward each sample.
-//   • End with a line to the final point so the stroke terminates exactly
-//     where the user lifted the pen.
-// This works for the live in-progress stroke and committed strokes alike,
-// so existing drawings look smoother retroactively with no migration.
-function pointsToPathD(points) {
-  if (!points || points.length === 0) return '';
-  const fmt = (n) => n.toFixed(1);
-  if (points.length === 1) {
-    const [x, y] = points[0];
-    return `M ${fmt(x)} ${fmt(y)}`;
-  }
-  if (points.length === 2) {
-    const [x0, y0] = points[0];
-    const [x1, y1] = points[1];
-    return `M ${fmt(x0)} ${fmt(y0)} L ${fmt(x1)} ${fmt(y1)}`;
-  }
-
-  const [sx, sy] = points[0];
-  // Start with a line into the first midpoint so the curve actually begins
-  // at the user's pen-down point and not somewhere drifted toward P1.
-  const [mx0, my0] = [(sx + points[1][0]) / 2, (sy + points[1][1]) / 2];
-  let d = `M ${fmt(sx)} ${fmt(sy)} L ${fmt(mx0)} ${fmt(my0)}`;
-
-  for (let i = 1; i < points.length - 1; i++) {
-    const [cx, cy] = points[i];
-    const [nx, ny] = points[i + 1];
-    const midX = (cx + nx) / 2;
-    const midY = (cy + ny) / 2;
-    d += ` Q ${fmt(cx)} ${fmt(cy)} ${fmt(midX)} ${fmt(midY)}`;
-  }
-
-  const [ex, ey] = points[points.length - 1];
-  d += ` L ${fmt(ex)} ${fmt(ey)}`;
-  return d;
-}
-
-// Returns true if any segment of `stroke` lies within `radius` of `(px,py)`.
-// Point-to-point distance is sufficient for typical stroke densities and
-// keeps the eraser feel snappy without expensive segment math.
-function strokeIntersectsPoint(stroke, px, py, radius) {
-  const r = radius + (stroke.size || 4) / 2;
-  const r2 = r * r;
-  for (const [x, y] of stroke.points) {
-    if (dist2(x, y, px, py) <= r2) return true;
-  }
-  return false;
-}
-
-// Defensive sanitization for user-uploaded SVGs. We render via <img src=
-// "data:image/svg+xml,...">, which already disables script execution, but
-// strip the obvious vectors anyway as belt-and-suspenders.
-function sanitizeSvg(input) {
-  if (typeof input !== 'string') return '';
-  let s = input;
-  // strip <script>...</script> entirely
-  s = s.replace(/<script[\s\S]*?<\/script>/gi, '');
-  // strip event handler attrs (on*)
-  s = s.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '');
-  s = s.replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
-  s = s.replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '');
-  // strip javascript: URLs in href / xlink:href / src
-  s = s.replace(/(href|xlink:href|src)\s*=\s*"javascript:[^"]*"/gi, '$1=""');
-  s = s.replace(/(href|xlink:href|src)\s*=\s*'javascript:[^']*'/gi, "$1=''");
-  // strip <foreignObject> (HTML embedding inside SVG, surface for XSS)
-  s = s.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '');
-  return s.trim();
-}
-
-// Build a data-URI from sanitized SVG markup. Memoizing per stamp avoids
-// re-encoding on every render.
-function svgToDataUri(svg) {
-  if (!svg) return '';
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-// ── Pin marker SVG ────────────────────────────────────────────────────────────
-function PinMarker({ color, Icon, isProtagonist }) {
-  const size = isProtagonist ? 36 : 28;
+function ToolButton({ tool, active, onClick }) {
+  const Icon = tool.icon;
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      style={{ display: 'block', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.45))' }}
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${tool.label} (${tool.key})`}
+      aria-label={tool.label}
+      aria-pressed={active}
+      className={`grid size-9 shrink-0 place-items-center rounded-md transition-colors ${
+        active ? 'bg-brand text-brand-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+      }`}
     >
-      <path
-        d="M16 1 C 8 1 3 7 3 14 C 3 22 16 31 16 31 C 16 31 29 22 29 14 C 29 7 24 1 16 1 Z"
-        fill={color}
-        stroke="white"
-        strokeWidth={1.5}
-      />
+      <Icon size={18} />
+    </button>
+  );
+}
+
+function Panel({ title, onClose, children, className = '' }) {
+  return (
+    <div className={`rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 ${className}`}>
+      {title && (
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
+          <p className="flex-1 truncate text-xs font-medium text-muted-foreground">{title}</p>
+          {onClose && (
+            <button type="button" onClick={onClose} aria-label="Close" className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
+      <div className="px-3 pb-3 pt-1">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, value, children }) {
+  return (
+    <div className="mt-3 first:mt-0">
+      <div className="mb-1.5 flex items-center justify-between text-xs">
+        <span className="font-medium text-muted-foreground">{label}</span>
+        {value !== undefined && <span className="tabular-nums text-muted-foreground">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// onStart/onEnd bracket one drag, so the editor can record it as a single undo step.
+function Slider({ value, min, max, step = 1, onChange, onStart, onEnd }) {
+  return (
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={e => onChange(Number(e.target.value))}
+      onPointerDown={onStart}
+      onPointerUp={onEnd}
+      onFocus={onStart}
+      onBlur={onEnd}
+      className="w-full accent-[hsl(var(--brand))]"
+    />
+  );
+}
+
+function Toggle({ checked, onChange, label }) {
+  return (
+    <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 text-sm">
+      <span>{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? 'bg-brand' : 'bg-input'}`}
+      >
+        <span className={`absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </button>
+    </label>
+  );
+}
+
+// Draws a place glyph into a small canvas for the picker.
+function PlaceGlyph({ kind, size = 32 }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    c.width = size * dpr;
+    c.height = size * dpr;
+    const ctx = c.getContext('2d');
+    const def = PLACE_BY_KIND[kind];
+    const zoom = (size * 0.8) / ((def?.size || 24) * 1.4);
+    const view = { x: -size / 2 / zoom, y: -size / 2 / zoom, zoom, dpr, width: size, height: size };
+    applyWorldTransform(ctx, view);
+    try { drawPlaces(ctx, [{ id: 'preview', kind, x: 0, y: 0, name: '' }], view, { preview: true }); } catch { /* glyph preview only */ }
+  }, [kind, size]);
+  return <canvas ref={ref} style={{ width: size, height: size }} aria-hidden />;
+}
+
+function PinMarker({ color, Icon, protagonist }) {
+  const size = protagonist ? 34 : 28;
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" style={{ display: 'block', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.35))' }}>
+      <path d="M16 1 C 8 1 3 7 3 14 C 3 22 16 31 16 31 C 16 31 29 22 29 14 C 29 7 24 1 16 1 Z" fill={color} stroke="white" strokeWidth={1.5} />
       <circle cx={16} cy={13} r={6.5} fill="white" />
       <foreignObject x={9} y={6} width={14} height={14}>
         <div style={{ width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -332,2534 +235,1860 @@ function PinMarker({ color, Icon, isProtagonist }) {
   );
 }
 
-// ── Entity picker (used for both adding pins and choosing protagonist) ───────
-function EntityPicker({ title, allowedTypes, onPick, onClose }) {
+// ── Generate land dialog ──────────────────────────────────────────────────────
+
+function GenerateModal({ onGenerate, onClose, firstTime }) {
+  const [shape, setShape] = useState('continent');
+  const [climate, setClimate] = useState('varied');
+  const [rivers, setRivers] = useState(true);
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e6));
+  const [busy, setBusy] = useState(false);
+
+  const run = () => {
+    setBusy(true);
+    // Let the button show its busy state before the generator blocks the thread.
+    setTimeout(() => onGenerate({ shape, climate, rivers, seed }), 30);
+  };
+
+  return (
+    <Modal title={firstTime ? 'Start with some land' : 'Generate land'} onClose={onClose} size="md">
+      <p className="text-sm text-muted-foreground">
+        Make a landmass in the middle of the view, then paint over it to make it yours. You can undo it.
+      </p>
+      <Field label="Shape">
+        <div className="tabs w-full">
+          {GENERATOR_SHAPES.map(s => (
+            <button key={s.value} type="button" onClick={() => setShape(s.value)} className={`tab flex-1 ${shape === s.value ? 'is-active' : ''}`}>{s.label}</button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Climate">
+        <div className="flex flex-wrap gap-1">
+          {GENERATOR_CLIMATES.map(c => (
+            <button key={c.value} type="button" onClick={() => setClimate(c.value)} className={`btn btn-sm ${climate === c.value ? 'btn-primary' : 'btn-outline'}`}>{c.label}</button>
+          ))}
+        </div>
+      </Field>
+      <Toggle checked={rivers} onChange={setRivers} label="Add rivers" />
+      <Field label="Seed">
+        <div className="flex gap-2">
+          <input className="input" inputMode="numeric" value={seed} onChange={e => setSeed(Number(e.target.value.replace(/\D/g, '')) || 0)} />
+          <button type="button" className="btn btn-outline btn-icon" title="Random seed" aria-label="Random seed" onClick={() => setSeed(Math.floor(Math.random() * 1e6))}>
+            <Dices />
+          </button>
+        </div>
+      </Field>
+      <div className="mt-6 flex justify-end gap-2">
+        <button type="button" className="btn btn-outline" onClick={onClose}>{firstTime ? 'Start blank' : 'Cancel'}</button>
+        <button type="button" className="btn btn-primary" onClick={run} disabled={busy}>
+          <Sparkles /> {busy ? 'Generating…' : 'Generate'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function ShortcutsModal({ onClose }) {
+  const rows = [
+    ...TOOLS.map(t => [t.key, t.label]),
+    ['E', 'Switch between View and Edit'],
+    ['M', 'Measure distance'],
+    ['/', 'Find a place (View mode)'],
+    ['Space + drag', 'Pan with any tool'],
+    ['Scroll / pinch', 'Zoom'],
+    ['[ and ]', 'Brush smaller / bigger'],
+    ['0', 'Fit the map'],
+    ['Delete', 'Remove the selection'],
+    ['Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'],
+    ['Esc', 'Deselect'],
+  ];
+  return (
+    <Modal title="Keyboard shortcuts" onClose={onClose} size="sm">
+      <div className="divide-y divide-border rounded-lg border border-border">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex items-center justify-between gap-4 px-3 py-2 text-sm">
+            <span>{v}</span>
+            <kbd className="kbd">{k}</kbd>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function MapDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const map = useWorldStore(s => s.maps.find(m => m.id === id));
+  const isLoading = useWorldStore(s => s.isLoading);
+
+  if (!map) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center p-12 text-center">
+        <MapIcon size={32} className="mb-3 text-muted-foreground/50" />
+        <p className="mb-4 text-sm text-muted-foreground">{isLoading ? 'Loading…' : 'Map not found.'}</p>
+        {!isLoading && <button onClick={() => navigate('/maps')} className="btn btn-outline">Back to maps</button>}
+      </div>
+    );
+  }
+  return <MapEditor key={map.id} map={map} />;
+}
+
+function MapEditor({ map }) {
+  const navigate = useNavigate();
+  const activeWorld       = useWorldStore(s => s.activeWorld);
+  const updateMapMeta     = useWorldStore(s => s.updateMapMeta);
+  const deleteMap         = useWorldStore(s => s.deleteMap);
+  const customStamps      = useWorldStore(s => s.customStamps);
+  const addCustomStamp    = useWorldStore(s => s.addCustomStamp);
+  const deleteCustomStamp = useWorldStore(s => s.deleteCustomStamp);
   const characters = useWorldStore(s => s.characters);
   const locations  = useWorldStore(s => s.locations);
   const things     = useWorldStore(s => s.things);
   const lore       = useWorldStore(s => s.lore);
   const factions   = useWorldStore(s => s.factions);
   const creatures  = useWorldStore(s => s.creatures);
-  const [query, setQuery] = useState('');
 
-  const all = useMemo(() => {
-    const out = [];
-    const add = (arr, type) => {
-      if (allowedTypes && !allowedTypes.includes(type)) return;
-      for (const e of arr) if (e.name) out.push({ ...e, _type: type });
-    };
-    add(characters, 'characters');
-    add(locations, 'locations');
-    add(things, 'things');
-    add(lore.filter(e => !e._isTimelineEvent), 'lore');
-    add(factions, 'factions');
-    add(creatures, 'creatures');
-    return out;
-  }, [characters, locations, things, lore, factions, creatures, allowedTypes]);
+  const lookupEntity = useCallback((type, entityId) => {
+    const arr = { characters, locations, things, lore, factions, creatures }[type] || [];
+    return arr.find(e => e.id === entityId) || null;
+  }, [characters, locations, things, lore, factions, creatures]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(e => e.name.toLowerCase().includes(q));
-  }, [all, query]);
+  // ── Document, terrain, renderer ─────────────────────────────────────────────
+  const [doc, setDocState] = useState(() => docFromMap(map));
+  const docRef = useRef(doc);
+  const terrainRef = useRef(null);
+  const rendererRef = useRef(null);
+  const [terrainReady, setTerrainReady] = useState(false);
+  const [terrainError, setTerrainError] = useState('');
 
-  return (
-    <Modal title={title} onClose={onClose} size="md">
-      <div className="space-y-3">
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            autoFocus
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search by name…"
-            className="w-full bg-secondary text-foreground text-sm rounded-md pl-9 pr-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-          />
-        </div>
-        <div className="max-h-80 overflow-y-auto rounded-md border border-border divide-y divide-border">
-          {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic p-6 text-center">No entities match.</p>
-          ) : (
-            filtered.map(e => {
-              const meta = TYPE_META[e._type];
-              const Icon = meta.icon;
-              return (
-                <button
-                  key={`${e._type}-${e.id}`}
-                  onClick={() => onPick(e)}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-secondary/60 transition-colors"
-                >
-                  <span
-                    className="shrink-0 w-7 h-7 rounded flex items-center justify-center"
-                    style={{ backgroundColor: `${meta.color}22`, border: `1px solid ${meta.color}55` }}
-                  >
-                    <Icon size={13} style={{ color: meta.color }} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{e.name}</p>
-                    <p className="text-xs text-muted-foreground">{meta.label}</p>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
-}
+  const [tool, setToolState] = useState('select');
+  const toolRef = useRef(tool);
+  const [opts, setOptsState] = useState(loadOpts);
+  const optsRef = useRef(opts);
+  const [selection, setSelectionState] = useState(null); // { type, id }
+  const selectionRef = useRef(null);
 
-// ── Custom stamp upload modal ─────────────────────────────────────────────────
-// Presented after the user picks an SVG file. We've already sanitized + read
-// the file; the modal collects a friendly name and tags, then commits.
-function CustomStampUploadModal({ initialName, svg, onSave, onClose }) {
-  const [name, setName] = useState(initialName || '');
-  const [tagsRaw, setTagsRaw] = useState('');
-  const [error, setError] = useState('');
+  const [saveState, setSaveState] = useState('saved');
+  // View mode is for reading the map: no tools, and everything over the
+  // terrain comes from cached tiles so panning is just copying bitmaps.
+  // Maps that already have content open in View mode.
+  const [mode, setModeState] = useState(() => (map.thumbAt && !map.autoGenerate ? 'view' : 'edit'));
+  const modeRef = useRef(mode);
+  const [viewCard, setViewCard] = useState(null); // { kind: 'place'|'pin'|'protagonist', id, sx, sy }
+  const viewCardRef = useRef(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const zoomLabelRef = useRef(null);
+  const [initialZoomText] = useState('');
+  // The inspector shows sizes in screen pixels, so it needs the zoom, but only
+  // while something is selected (it doesn't re-render while just panning).
+  const [inspectZoom, setInspectZoom] = useState(1);
+  const tilesRef = useRef(null);
+  const flyRef = useRef(0);
+  // Ruler: drag to measure; the line stays until the next measurement.
+  const [measuring, setMeasuringState] = useState(false);
+  const measuringRef = useRef(false);
+  const measureRef = useRef(null); // { a: [x, y], b: [x, y] } in world units
+  const [toast, setToast] = useState('');
+  const [optionsOpen, setOptionsOpen] = useState(true);
+  const [picker, setPicker] = useState(null); // { x, y, protagonist } | { linkPlace: id }
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(map.name || '');
+  const [pendingUpload, setPendingUpload] = useState(null);
+  const [stampLibrary, setStampLibrary] = useState([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [isPhone, setIsPhone] = useState(() => window.matchMedia('(max-width: 767px)').matches);
 
-  const tags = useMemo(
-    () => tagsRaw.split(',').map(t => t.trim()).filter(Boolean),
-    [tagsRaw]
-  );
+  const wrapRef = useRef(null);
+  const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
+  const viewRef = useRef({ x: -800, y: -500, zoom: 0.25, width: 800, height: 600, dpr: window.devicePixelRatio || 1 });
+  const frameRef = useRef(0);
+  const gestureRef = useRef(null);
+  const pointersRef = useRef(new Map());
+  const cursorRef = useRef(null); // world point under the mouse, for the brush outline
+  const previewRef = useRef(null); // path being drawn
+  const spaceRef = useRef(false);
+  const undoRef = useRef([]);
+  const redoRef = useRef([]);
+  const dirtyRef = useRef({ doc: false, terrain: false });
+  const saveTimerRef = useRef(null);
+  const savingRef = useRef(false);
+  const refImageRef = useRef(null);
+  const stampImagesRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const nameInputRef = useRef(null);
 
-  const handleSave = async () => {
-    const cleanName = name.trim();
-    if (!cleanName) { setError('Give your stamp a name.'); return; }
-    if (!svg) { setError('SVG content is empty.'); return; }
-    await onSave({ name: cleanName, tags, svg });
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 3200);
+  }, []);
+
+  // ── Drawing ─────────────────────────────────────────────────────────────────
+
+  // Frames always go through drawRef so a frame scheduled before the latest
+  // draw() exists still runs the current one.
+  // The ruler line with its distance, kept a fixed size on screen.
+  const drawMeasure = (ctx, view) => {
+    const m = measureRef.current;
+    if (!m) return;
+    const [ax, ay] = m.a, [bx, by] = m.b;
+    const miles = Math.hypot(bx - ax, by - ay) * MILES_PER_UNIT;
+    const z = view.zoom;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 5 / z;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.strokeStyle = '#3b5bdb';
+    ctx.lineWidth = 2 / z;
+    ctx.setLineDash([7 / z, 5 / z]);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#3b5bdb';
+    for (const [x, y] of [m.a, m.b]) { ctx.beginPath(); ctx.arc(x, y, 4 / z, 0, Math.PI * 2); ctx.fill(); }
+    // About 20 miles a day on foot, 40 on horseback, as most tabletop games reckon it.
+    const dist = miles >= 10 ? Math.round(miles).toLocaleString() : miles.toFixed(1);
+    const days = miles / 20;
+    const text = `${dist} mi · ${days < 1 ? `${Math.max(1, Math.round(days * 8))} h` : `${days.toFixed(days < 10 ? 1 : 0)} days`} on foot`;
+    const fs = 13 / z;
+    ctx.font = `600 ${fs}px Inter, system-ui, sans-serif`;
+    const tw = ctx.measureText(text).width;
+    const lx = bx + 10 / z, ly = by - 10 / z;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.roundRect(lx - 6 / z, ly - fs, tw + 12 / z, fs * 1.6, 5 / z);
+    ctx.fill();
+    ctx.fillStyle = '#1f2328';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, lx, ly - fs * 0.2);
+    ctx.restore();
   };
 
-  return (
-    <Modal title="Add custom stamp" onClose={onClose} size="md">
-      <div className="space-y-4">
-        <div className="flex items-center justify-center bg-secondary/40 border border-border rounded-md p-6 min-h-32">
-          <img
-            src={svgToDataUri(svg)}
-            alt="Stamp preview"
-            style={{ maxWidth: 96, maxHeight: 96, display: 'block' }}
-            draggable={false}
-          />
-        </div>
-        <div>
-          <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Name</label>
-          <input
-            autoFocus
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="e.g. Black tower"
-            className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-          />
-        </div>
-        <div>
-          <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Tags</label>
-          <input
-            value={tagsRaw}
-            onChange={e => setTagsRaw(e.target.value)}
-            placeholder="comma, separated, tags"
-            className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-          />
-          {tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {tags.map(t => (
-                <span key={t} className="text-[11px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">{t}</span>
+  // Pins are DOM elements; move their layer with the camera.
+  const moveOverlay = (view) => {
+    const overlay = overlayRef.current;
+    if (overlay) {
+      overlay.style.transform = `translate(${-view.x * view.zoom}px, ${-view.y * view.zoom}px)`;
+      overlay.style.setProperty('--z', String(view.zoom));
+    }
+  };
+
+  const drawRef = useRef(() => {});
+  const runFrame = useCallback(() => { frameRef.current = 0; drawRef.current(); }, []);
+  const draw = useCallback(() => {
+    frameRef.current = 0;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const view = viewRef.current;
+    const d = docRef.current;
+    const hidden = d.hidden || {};
+    const sel = selectionRef.current;
+
+    applyScreenTransform(ctx, view);
+    ctx.fillStyle = PAPER.sea;
+    ctx.fillRect(0, 0, view.width, view.height);
+    applyWorldTransform(ctx, view);
+
+    let done = true;
+    if (rendererRef.current && terrainReady) {
+      done = rendererRef.current.draw(ctx, view, { symbols: !hidden.symbols });
+    }
+
+    if (modeRef.current === 'view') {
+      // Everything over the terrain comes from cached tiles.
+      if (tilesRef.current) done = tilesRef.current.draw(ctx, view) && done;
+      drawMeasure(ctx, view);
+      moveOverlay(view);
+      if (!done) frameRef.current = requestAnimationFrame(runFrame);
+      return;
+    }
+
+    const ref = d.reference;
+    if (ref && !hidden.reference && refImageRef.current) {
+      ctx.save();
+      ctx.globalAlpha = ref.opacity ?? 0.6;
+      ctx.drawImage(refImageRef.current, ref.x, ref.y, ref.w, ref.h);
+      ctx.restore();
+    }
+
+    if (!hidden.grid) drawGrid(ctx, view);
+
+    const paths = d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']);
+    drawPaths(ctx, previewRef.current ? [...paths, previewRef.current] : paths, view, { selectedId: sel?.type === 'path' ? sel.id : null });
+    if (!hidden.stamps && stampImagesRef.current) drawStamps(ctx, d.stamps, stampImagesRef.current, view, { selectedId: sel?.type === 'stamp' ? sel.id : null });
+    if (!hidden.places) drawPlaces(ctx, d.places, view, { selectedId: sel?.type === 'place' ? sel.id : null });
+    if (!hidden.labels) drawLabels(ctx, d.labels, view, { selectedId: sel?.type === 'label' ? sel.id : null });
+
+    if (sel && (sel.type === 'place' || sel.type === 'label' || sel.type === 'path')) {
+      const item = (sel.type === 'place' ? d.places : sel.type === 'label' ? d.labels : d.paths).find(x => x.id === sel.id);
+      if (item) drawSelection(ctx, item, sel.type, view);
+    }
+
+    // Brush outline
+    const t = toolRef.current;
+    if ((t === 'paint') && cursorRef.current) {
+      const [cx, cy] = cursorRef.current;
+      ctx.save();
+      ctx.lineWidth = 1.5 / view.zoom;
+      ctx.strokeStyle = 'rgba(30,25,20,0.7)';
+      ctx.setLineDash([5 / view.zoom, 4 / view.zoom]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, optsRef.current.brush, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawMeasure(ctx, view);
+    moveOverlay(view);
+
+    if (!done) frameRef.current = requestAnimationFrame(runFrame);
+  }, [terrainReady, runFrame]);
+
+  useLayoutEffect(() => { drawRef.current = draw; }, [draw]);
+
+  const requestDraw = useCallback(() => {
+    if (!frameRef.current) frameRef.current = requestAnimationFrame(runFrame);
+  }, [runFrame]);
+
+  useEffect(() => { requestDraw(); }, [doc, selection, tool, mode, requestDraw]);
+  useEffect(() => () => { cancelAnimationFrame(frameRef.current); frameRef.current = 0; }, []);
+
+  // Called every frame while panning, so it touches no React state: the zoom
+  // readout is updated directly and an open place card simply closes.
+  const setView = useCallback((next) => {
+    viewRef.current = next;
+    if (zoomLabelRef.current) zoomLabelRef.current.textContent = `${Math.round(next.zoom * 100)}%`;
+    if (viewCardRef.current) { viewCardRef.current = null; setViewCard(null); }
+    if (selectionRef.current) setInspectZoom(z => (Math.abs(z - next.zoom) / z > 0.02 ? next.zoom : z));
+    requestDraw();
+  }, [requestDraw]);
+
+  const setMeasuring = useCallback((on) => {
+    measuringRef.current = on;
+    setMeasuringState(on);
+    if (!on) measureRef.current = null;
+    requestDraw();
+  }, [requestDraw]);
+
+  const showCard = useCallback((card) => {
+    viewCardRef.current = card;
+    setViewCard(card);
+  }, []);
+
+  // ── State helpers ───────────────────────────────────────────────────────────
+
+  const setTool = useCallback((t) => {
+    toolRef.current = t;
+    setToolState(t);
+    previewRef.current = null;
+    if (t !== 'select') { selectionRef.current = null; setSelectionState(null); }
+    setOptionsOpen(true);
+  }, []);
+
+  const setOpts = useCallback((patch) => {
+    setOptsState(prev => {
+      const next = { ...prev, ...patch };
+      optsRef.current = next;
+      try { localStorage.setItem(OPTS_KEY, JSON.stringify({ ...next, stamp: next.stamp })); } catch { /* per-device convenience only */ }
+      return next;
+    });
+    requestDraw();
+  }, [requestDraw]);
+
+  const setMode = useCallback((m) => {
+    if (m === modeRef.current) return;
+    modeRef.current = m;
+    setModeState(m);
+    gestureRef.current = null;
+    previewRef.current = null;
+    selectionRef.current = null;
+    setSelectionState(null);
+    viewCardRef.current = null;
+    setViewCard(null);
+    setFindOpen(false);
+    if (m === 'view') { toolRef.current = 'select'; setToolState('select'); tilesRef.current?.invalidate(); }
+    requestDraw();
+  }, [requestDraw]);
+
+  const select = useCallback((sel) => {
+    if (sel) setInspectZoom(viewRef.current.zoom);
+    selectionRef.current = sel;
+    setSelectionState(sel);
+  }, []);
+
+  const syncHistoryButtons = () => {
+    setCanUndo(undoRef.current.length > 0);
+    setCanRedo(redoRef.current.length > 0);
+  };
+
+  // ── Saving ──────────────────────────────────────────────────────────────────
+
+  const contentBounds = useCallback(({ withReference = false } = {}) => {
+    const d = docRef.current;
+    let r = terrainRef.current?.bounds() || null;
+    const grow = (minX, minY, maxX, maxY) => {
+      if (!r) r = { minX, minY, maxX, maxY };
+      else r = { minX: Math.min(r.minX, minX), minY: Math.min(r.minY, minY), maxX: Math.max(r.maxX, maxX), maxY: Math.max(r.maxY, maxY) };
+    };
+    for (const p of d.paths) { const b = pathBounds(p.points); grow(b.minX, b.minY, b.maxX, b.maxY); }
+    for (const p of [...d.places, ...d.labels, ...d.stamps, ...d.pins]) grow(p.x - 40, p.y - 40, p.x + 40, p.y + 40);
+    if (withReference && d.reference && !d.reference.legacy) grow(d.reference.x, d.reference.y, d.reference.x + d.reference.w, d.reference.y + d.reference.h);
+    return r;
+  }, []);
+
+  // Renders the finished map (no pins, grid or reference image) for export
+  // and the thumbnail on the Maps page.
+  // With decor (PNG export), the rect grows to fit a frame and title band and
+  // the frame, compass rose, scale bar and title are drawn over the map.
+  const renderComposite = useCallback((rectIn, scale, { decor = false, title = '' } = {}) => {
+    let rect = rectIn;
+    let space = null;
+    if (decor) {
+      space = decorSpace((rectIn.maxX - rectIn.minX) * scale, (rectIn.maxY - rectIn.minY) * scale, title);
+      const m = space.margin / scale;
+      rect = { minX: rectIn.minX - m, minY: rectIn.minY - m - space.titleBand / scale, maxX: rectIn.maxX + m, maxY: rectIn.maxY + m };
+    }
+    const canvas = rendererRef.current.renderRegion(rect, scale, { symbols: !docRef.current.hidden?.symbols });
+    const ctx = canvas.getContext('2d');
+    const d = docRef.current;
+    const hidden = d.hidden || {};
+    const view = { x: rect.minX, y: rect.minY, zoom: scale, dpr: 1, width: canvas.width, height: canvas.height };
+    applyWorldTransform(ctx, view);
+    // Icons, names and line weights have minimum on-screen sizes. A big export
+    // is viewed shrunk, so size those as if for a screen of proportional size.
+    const k = decor ? Math.max(1, Math.max(canvas.width, canvas.height) / 1800) : 1;
+    const fview = { ...view, zoom: scale / k };
+    drawPaths(ctx, d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']), fview, {});
+    if (!hidden.stamps && stampImagesRef.current) drawStamps(ctx, d.stamps, stampImagesRef.current, fview, {});
+    if (!hidden.places) drawPlaces(ctx, d.places, fview, {});
+    if (!hidden.labels) drawLabels(ctx, d.labels, fview, {});
+    if (decor) {
+      const terrain = terrainRef.current;
+      drawDecor(ctx, rect, scale, { title, margin: space.margin, titleBand: space.titleBand, landAt: (x, y) => !isWater(terrain.at(x, y)) });
+    }
+    return canvas;
+  }, []);
+
+  const saveRef = useRef(null);
+  // The thumbnail is rendered on the main thread, so it's refreshed at most
+  // every 20 s while editing, and always when leaving the map.
+  const thumbStaleRef = useRef(false);
+  const lastThumbRef = useRef(0);
+  const save = useCallback(async ({ final = false } = {}) => {
+    if (savingRef.current) { saveTimerRef.current = setTimeout(() => saveRef.current({ final }), 400); return; }
+    const dirty = dirtyRef.current;
+    if (dirty.doc || dirty.terrain) thumbStaleRef.current = true;
+    const wantThumb = thumbStaleRef.current && (final || Date.now() - lastThumbRef.current > 20000);
+    if (!dirty.doc && !dirty.terrain && !wantThumb) return;
+    savingRef.current = true;
+    dirtyRef.current = { doc: false, terrain: false };
+    setSaveState('saving');
+    try {
+      const base = `${activeWorld}/maps/${map.id}`;
+      if (dirty.terrain && terrainRef.current) {
+        await api.fsWrite(`${base}.terrain`, JSON.stringify(terrainRef.current.toJSON()));
+      }
+      const meta = { ...docToRecord(docRef.current), strokes: [] };
+      const b = contentBounds();
+      if (wantThumb && b && rendererRef.current) {
+        const pad = Math.max(b.maxX - b.minX, b.maxY - b.minY) * 0.06 + 40;
+        const rect = { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
+        const scale = 640 / Math.max(rect.maxX - rect.minX, rect.maxY - rect.minY);
+        const thumb = renderComposite(rect, scale).toDataURL('image/jpeg', 0.85);
+        await api.fsWrite(`${base}.thumb.img`, thumb);
+        meta.thumbAt = Date.now();
+        thumbStaleRef.current = false;
+        lastThumbRef.current = Date.now();
+      }
+      const v = viewRef.current;
+      meta.view = { x: v.x + v.width / v.zoom / 2, y: v.y + v.height / v.zoom / 2, zoom: v.zoom };
+      await updateMapMeta(map.id, meta);
+      setSaveState(dirtyRef.current.doc || dirtyRef.current.terrain ? 'unsaved' : 'saved');
+    } catch (err) {
+      dirtyRef.current = { doc: dirtyRef.current.doc || dirty.doc, terrain: dirtyRef.current.terrain || dirty.terrain };
+      setSaveState('error');
+      showToast(`Couldn't save: ${err.message}`);
+    } finally {
+      savingRef.current = false;
+    }
+  }, [activeWorld, map.id, updateMapMeta, contentBounds, renderComposite, showToast]);
+
+  const scheduleSave = useCallback((what) => {
+    dirtyRef.current = { ...dirtyRef.current, [what]: true };
+    setSaveState('unsaved');
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => save(), 1200);
+  }, [save]);
+
+  // Save anything pending when leaving the page.
+  useEffect(() => { saveRef.current = save; }, [save]);
+  // Leaving: save anything pending (with a fresh thumbnail), then stop the terrain workers.
+  useEffect(() => () => {
+    clearTimeout(saveTimerRef.current);
+    Promise.resolve(saveRef.current({ final: true })).finally(() => rendererRef.current?.dispose?.());
+  }, []);
+  useEffect(() => {
+    const onHide = () => saveRef.current({ final: true });
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
+  }, []);
+
+  // ── History ─────────────────────────────────────────────────────────────────
+
+  const setDoc = useCallback((next) => {
+    docRef.current = next;
+    setDocState(next);
+  }, []);
+
+  const pushHistory = useCallback((op) => {
+    undoRef.current.push(op);
+    if (undoRef.current.length > 100) undoRef.current.shift();
+    redoRef.current = [];
+    syncHistoryButtons();
+  }, []);
+
+  /** Replaces the document as one undoable step. */
+  const commitDoc = useCallback((next, before = docRef.current) => {
+    pushHistory({ doc: { before, after: next } });
+    setDoc(next);
+    scheduleSave('doc');
+  }, [pushHistory, setDoc, scheduleSave]);
+
+  const applyOp = useCallback((op, dir) => {
+    if (op.terrain) {
+      const dirty = terrainRef.current.applySnapshot(dir === 'undo' ? op.terrain.before : op.terrain.after);
+      rendererRef.current?.invalidate(dirty);
+      scheduleSave('terrain');
+    }
+    if (op.doc) {
+      setDoc(dir === 'undo' ? op.doc.before : op.doc.after);
+      scheduleSave('doc');
+    }
+    select(null);
+    requestDraw();
+  }, [setDoc, scheduleSave, select, requestDraw]);
+
+  const undo = useCallback(() => {
+    const op = undoRef.current.pop();
+    if (!op) return;
+    applyOp(op, 'undo');
+    redoRef.current.push(op);
+    syncHistoryButtons();
+  }, [applyOp]);
+
+  const redo = useCallback(() => {
+    const op = redoRef.current.pop();
+    if (!op) return;
+    applyOp(op, 'redo');
+    undoRef.current.push(op);
+    syncHistoryButtons();
+  }, [applyOp]);
+
+  // ── Loading ─────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let terrain = new Terrain();
+      try {
+        const res = await api.fsRead(`${activeWorld}/maps/${map.id}.terrain`);
+        if (res?.content) terrain = Terrain.fromJSON(JSON.parse(res.content));
+      } catch (err) {
+        if (err.status && err.status !== 404) {
+          if (!cancelled) setTerrainError("This map's terrain couldn't be loaded. Editing is off so nothing is overwritten.");
+          return;
+        }
+      }
+      if (cancelled) return;
+      terrainRef.current = terrain;
+      // Workers build the terrain; redraw whenever a piece arrives.
+      rendererRef.current = createTerrainRenderer(terrain, { onUpdate: () => requestDraw() });
+      setTerrainReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [activeWorld, map.id, requestDraw]);
+
+  // Reference image (also the background of maps made in the old editor).
+  const refImagePresent = !!doc.reference;
+  useEffect(() => {
+    if (!refImagePresent) { refImageRef.current = null; return; }
+    const img = new Image();
+    img.onload = () => {
+      refImageRef.current = img;
+      const r = docRef.current.reference;
+      if (r?.legacy && (!map.canvasSize?.w)) {
+        // Old image maps were sized by the image itself.
+        setDoc({ ...docRef.current, reference: { ...r, w: img.naturalWidth, h: img.naturalHeight, legacy: undefined } });
+      } else if (r?.legacy) {
+        setDoc({ ...docRef.current, reference: { ...r, legacy: undefined } });
+      }
+      requestDraw();
+    };
+    img.onerror = () => {
+      // Blank maps from the old editor point at an image that doesn't exist.
+      if (docRef.current.reference?.legacy) setDoc({ ...docRef.current, reference: null });
+    };
+    img.src = assetUrl(`asset://${activeWorld}/maps/${map.id}.img`);
+  }, [refImagePresent, activeWorld, map.id, map.canvasSize?.w, setDoc, requestDraw]);
+
+  // Stamp images
+  useEffect(() => {
+    stampImagesRef.current = createStampImages(() => { tilesRef.current?.invalidate(); requestDraw(); });
+  }, [requestDraw]);
+
+  // View-mode tiles draw the finished map (no selection, grid or reference image).
+  useEffect(() => {
+    tilesRef.current = createFeatureTiles((ctx, view) => {
+      const d = docRef.current;
+      const hidden = d.hidden || {};
+      drawPaths(ctx, d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']), view, {});
+      if (!hidden.stamps && stampImagesRef.current) drawStamps(ctx, d.stamps, stampImagesRef.current, view, {});
+      if (!hidden.places) drawPlaces(ctx, d.places, view, {});
+      if (!hidden.labels) drawLabels(ctx, d.labels, view, {});
+    });
+  }, []);
+  useEffect(() => { tilesRef.current?.invalidate(); }, [doc]);
+  useEffect(() => {
+    stampImagesRef.current?.setCustomStamps(customStamps);
+    requestDraw();
+  }, [customStamps, requestDraw]);
+  useEffect(() => {
+    api.stampsList().then(r => setStampLibrary(r?.stamps || [])).catch(() => setStampLibrary([]));
+  }, []);
+
+  // Canvas size
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    let first = true;
+    const ro = new ResizeObserver(() => {
+      const r = wrap.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(r.width * dpr));
+      canvas.height = Math.max(1, Math.round(r.height * dpr));
+      canvas.style.width = `${r.width}px`;
+      canvas.style.height = `${r.height}px`;
+      let v = { ...viewRef.current, width: r.width, height: r.height, dpr };
+      if (first) {
+        first = false;
+        const saved = map.view;
+        if (saved?.zoom) {
+          v = { ...v, zoom: saved.zoom, x: saved.x - r.width / saved.zoom / 2, y: saved.y - r.height / saved.zoom / 2 };
+        } else {
+          v = { ...v, zoom: 0.12, x: -r.width / 0.12 / 2, y: -r.height / 0.12 / 2 };
+        }
+      }
+      setView(v);
+    });
+    ro.observe(wrap);
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onMq = () => setIsPhone(mq.matches);
+    mq.addEventListener('change', onMq);
+    return () => { ro.disconnect(); mq.removeEventListener('change', onMq); };
+  }, [map.view, setView]);
+
+  // First open: fit legacy content, or offer to generate land on a new map.
+  const fittedRef = useRef(false);
+  useEffect(() => {
+    if (!terrainReady || fittedRef.current) return;
+    fittedRef.current = true;
+    if (!map.view) {
+      const b = contentBounds({ withReference: true });
+      /* eslint-disable react-hooks/set-state-in-effect -- one-time fit or prompt once the terrain loads */
+      if (b) setView(fitRect(viewRef.current, b));
+      else if (map.autoGenerate) setShowGenerate({ firstTime: true });
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+    requestDraw();
+  }, [terrainReady, map.view, map.autoGenerate, contentBounds, setView, requestDraw]);
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+
+  const centerWorld = () => {
+    const v = viewRef.current;
+    return [v.x + v.width / v.zoom / 2, v.y + v.height / v.zoom / 2];
+  };
+
+  const fitMap = useCallback(() => {
+    const b = contentBounds({ withReference: true });
+    if (b) setView(fitRect(viewRef.current, b));
+  }, [contentBounds, setView]);
+
+  const zoomBy = useCallback((f) => {
+    const v = viewRef.current;
+    setView(zoomAt(v, v.width / 2, v.height / 2, f));
+  }, [setView]);
+
+  const runGenerate = ({ shape, climate, rivers, seed }) => {
+    const terrain = terrainRef.current;
+    const [cx, cy] = centerWorld();
+    const before = docRef.current;
+    terrain.beginEdit();
+    let res;
+    try {
+      res = generateLand(terrain, cx, cy, { shape, climate, rivers, seed });
+    } finally {
+      const edit = terrain.endEdit();
+      const after = res?.paths?.length ? { ...before, paths: [...before.paths, ...res.paths], places: [...before.places, ...(res.places || [])] } : before;
+      if (edit || after !== before) {
+        pushHistory({ terrain: edit || undefined, doc: after !== before ? { before, after } : undefined });
+        if (edit) { rendererRef.current.invalidate(edit.after.keys()); scheduleSave('terrain'); }
+        if (after !== before) { setDoc(after); scheduleSave('doc'); }
+      }
+    }
+    setShowGenerate(false);
+    if (map.autoGenerate) updateMapMeta(map.id, { autoGenerate: false });
+    fitMap();
+  };
+
+  const deleteSelection = useCallback(() => {
+    const sel = selectionRef.current;
+    if (!sel) return;
+    const d = docRef.current;
+    let next;
+    if (sel.type === 'protagonist') next = { ...d, protagonist: null };
+    else {
+      const key = { place: 'places', label: 'labels', path: 'paths', stamp: 'stamps', pin: 'pins' }[sel.type];
+      next = { ...d, [key]: d[key].filter(x => x.id !== sel.id) };
+    }
+    select(null);
+    commitDoc(next, d);
+  }, [commitDoc, select]);
+
+  const updateSelected = useCallback((patch, { history = true } = {}) => {
+    const sel = selectionRef.current;
+    if (!sel) return;
+    const d = docRef.current;
+    const key = { place: 'places', label: 'labels', path: 'paths', stamp: 'stamps', pin: 'pins' }[sel.type];
+    if (!key) return;
+    const next = { ...d, [key]: d[key].map(x => x.id === sel.id ? { ...x, ...patch } : x) };
+    if (history) commitDoc(next, d);
+    else { setDoc(next); scheduleSave('doc'); }
+  }, [commitDoc, setDoc, scheduleSave]);
+
+  // Fills the inside of a drawn outline with grassland (old sketch maps were
+  // outlines; this turns one into real land in one step).
+  const outlineToLand = useCallback((path) => {
+    const pts = path.points;
+    if (!pts || pts.length < 3) return;
+    const terrain = terrainRef.current;
+    const b = pathBounds(pts);
+    // Test against the smoothed curve the user sees, not its control points.
+    const curve = smoothPath(pts);
+    const probe = document.createElement('canvas').getContext('2d');
+    const inside = (x, y) => probe.isPointInPath(curve, x, y);
+    terrain.beginEdit();
+    const dirty = terrain.fillRect(
+      Math.floor(b.minX / CELL), Math.floor(b.minY / CELL), Math.floor(b.maxX / CELL), Math.floor(b.maxY / CELL),
+      (gx, gy) => (isWater(terrain.cell(gx, gy)) && inside((gx + 0.5) * CELL, (gy + 0.5) * CELL) ? BIOME.GRASS : -1),
+    );
+    const edit = terrain.endEdit();
+    if (!edit) { showToast('That outline has no inside to fill.'); return; }
+    rendererRef.current.invalidate(dirty);
+    pushHistory({ terrain: edit });
+    scheduleSave('terrain');
+    requestDraw();
+  }, [pushHistory, scheduleSave, requestDraw, showToast]);
+
+  // Enter or Escape in a name/text field finishes editing it.
+  const finishTextField = (e) => {
+    if (e.key !== 'Enter' && e.key !== 'Escape') return;
+    e.preventDefault();
+    e.currentTarget.blur();
+    select(null);
+  };
+
+  // Text fields edit live and land in history as one step when they blur.
+  const editStartRef = useRef(null);
+  const beginTextEdit = () => { if (!editStartRef.current) editStartRef.current = docRef.current; };
+  const endTextEdit = () => {
+    const before = editStartRef.current;
+    editStartRef.current = null;
+    if (before && before !== docRef.current) pushHistory({ doc: { before, after: docRef.current } });
+  };
+
+  const setHidden = (key, hide) => {
+    const d = docRef.current;
+    setDoc({ ...d, hidden: { ...(d.hidden || {}), [key]: hide } });
+    scheduleSave('doc');
+  };
+
+  const exportPng = async () => {
+    const b = contentBounds();
+    if (!b) { showToast('Paint some land first.'); return; }
+    const pad = Math.max(b.maxX - b.minX, b.maxY - b.minY) * 0.05 + 60;
+    const rect = { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
+    const scale = Math.min(1.5, 4096 / Math.max(rect.maxX - rect.minX, rect.maxY - rect.minY));
+    showToast('Preparing image…');
+    await new Promise(r => setTimeout(r, 30));
+    const canvas = renderComposite(rect, scale, { decor: true, title: map.name || '' });
+    canvas.toBlob(blob => {
+      if (!blob) { showToast("Couldn't make the image."); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${map.name || 'map'}.png`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setToast('');
+    }, 'image/png');
+  };
+
+  const addReferenceImage = async () => {
+    const file = await pickFile('image/*');
+    if (!file) return;
+    if (file.size > 12 * 1024 * 1024) { showToast('That image is over 12 MB.'); return; }
+    const dataUrl = await readFileAsDataURL(file);
+    const img = new Image();
+    img.onload = async () => {
+      await api.fsWrite(`${activeWorld}/maps/${map.id}.img`, dataUrl);
+      const v = viewRef.current;
+      const w = v.width / v.zoom * 0.8;
+      const h = w * img.naturalHeight / img.naturalWidth;
+      const [cx, cy] = centerWorld();
+      refImageRef.current = img;
+      commitDoc({ ...docRef.current, reference: { x: cx - w / 2, y: cy - h / 2, w, h, opacity: 0.6 } });
+    };
+    img.src = dataUrl;
+  };
+
+  const saveName = async () => {
+    const name = draftName.trim();
+    setRenaming(false);
+    if (name && name !== map.name) await updateMapMeta(map.id, { name });
+  };
+
+  // ── Pointer input ───────────────────────────────────────────────────────────
+
+  const toWorld = (e) => {
+    const r = wrapRef.current.getBoundingClientRect();
+    const sx = e.clientX - r.left, sy = e.clientY - r.top;
+    return { sx, sy, w: screenToWorld(viewRef.current, sx, sy) };
+  };
+
+  const finishGesture = useCallback((cancel = false) => {
+    const g = gestureRef.current;
+    gestureRef.current = null;
+    if (!g) return;
+    if (g.kind === 'paint') {
+      const edit = terrainRef.current.endEdit();
+      if (edit) { pushHistory({ terrain: edit }); scheduleSave('terrain'); }
+    } else if (g.kind === 'path') {
+      const pts = previewRef.current?.points || [];
+      previewRef.current = null;
+      const b = pts.length > 1 ? pathBounds(pts) : null;
+      const big = b && Math.max(b.maxX - b.minX, b.maxY - b.minY) * viewRef.current.zoom > 6;
+      if (!cancel && big) {
+        const o = optsRef.current;
+        const path = {
+          id: uuidv4(),
+          kind: o.pathKind,
+          points: simplifyPoints(pts, 1.2 / viewRef.current.zoom),
+          width: pathPx(o, o.pathKind) / viewRef.current.zoom,
+        };
+        if (o.pathKind === 'ink') path.color = o.inkColor;
+        commitDoc({ ...docRef.current, paths: [...docRef.current.paths, path] });
+      }
+      requestDraw();
+    } else if (g.kind === 'move') {
+      if (g.moved && !cancel) {
+        pushHistory({ doc: { before: g.startDoc, after: docRef.current } });
+        scheduleSave('doc');
+      } else if (cancel) setDoc(g.startDoc);
+      if (!g.moved && g.type === 'pin') select({ type: 'pin', id: g.id });
+      if (!g.moved && g.type === 'protagonist') select({ type: 'protagonist', id: 'protagonist' });
+    }
+  }, [pushHistory, scheduleSave, commitDoc, requestDraw, setDoc, select]);
+
+  const startMove = useCallback((type, itemId, w, sx, sy) => {
+    gestureRef.current = { kind: 'move', type, id: itemId, last: w, startDoc: docRef.current, sx, sy, moved: false };
+  }, []);
+
+  const onPointerDown = (e) => {
+    if (e.button === 2 || !terrainReady || terrainError) return;
+    const wrap = wrapRef.current;
+    wrap.setPointerCapture?.(e.pointerId);
+    const { sx, sy, w } = toWorld(e);
+    pointersRef.current.set(e.pointerId, { sx, sy });
+
+    if (pointersRef.current.size === 2) {
+      // Second finger: switch to pinch-zoom, keeping what the first did.
+      finishGesture(gestureRef.current?.kind === 'path');
+      const [a, b] = [...pointersRef.current.values()];
+      gestureRef.current = {
+        kind: 'pinch', startView: viewRef.current,
+        dist: Math.hypot(a.sx - b.sx, a.sy - b.sy) || 1,
+        mid: [(a.sx + b.sx) / 2, (a.sy + b.sy) / 2],
+      };
+      return;
+    }
+    if (pointersRef.current.size > 2) return;
+
+    if (measuringRef.current && e.button === 0 && !spaceRef.current) {
+      measureRef.current = { a: w, b: w };
+      gestureRef.current = { kind: 'measure' };
+      requestDraw();
+      return;
+    }
+
+    if (modeRef.current === 'view') {
+      // View mode: drag pans; a click without movement opens what's under it.
+      gestureRef.current = { kind: 'pan', startView: viewRef.current, sx, sy, click: true };
+      return;
+    }
+
+    const t = toolRef.current;
+    const o = optsRef.current;
+    if (e.button === 1 || spaceRef.current || t === 'hand') {
+      gestureRef.current = { kind: 'pan', startView: viewRef.current, sx, sy };
+      return;
+    }
+
+    const d = docRef.current;
+    const view = viewRef.current;
+    // On a phone the options sheet covers the map; tuck it away once drawing starts.
+    if (isPhone && (t === 'paint' || t === 'path')) setOptionsOpen(false);
+    switch (t) {
+      case 'select': {
+        const hidden = d.hidden || {};
+        const hit = hitTest({
+          paths: d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']),
+          places: hidden.places ? [] : d.places,
+          labels: hidden.labels ? [] : d.labels,
+        }, w[0], w[1], view);
+        const stamp = !hit && !hidden.stamps ? hitStamp(d.stamps, w[0], w[1]) : null;
+        const found = hit || (stamp ? { type: 'stamp', id: stamp.id } : null);
+        if (found) {
+          select(found);
+          startMove(found.type, found.id, w, sx, sy);
+        } else {
+          select(null);
+          gestureRef.current = { kind: 'pan', startView: view, sx, sy };
+        }
+        break;
+      }
+      case 'paint': {
+        terrainRef.current.beginEdit();
+        const dirty = terrainRef.current.paint(w[0], w[1], o.brush, o.biome, { rough: o.rough, mask: o.mask && !isWater(o.biome) ? 'land' : null });
+        rendererRef.current.invalidate(dirty);
+        gestureRef.current = { kind: 'paint', last: w };
+        requestDraw();
+        break;
+      }
+      case 'fill': {
+        const terrain = terrainRef.current;
+        terrain.beginEdit();
+        const res = terrain.fill(w[0], w[1], o.biome);
+        const edit = terrain.endEdit();
+        if (res?.tooBig) showToast('That area is open sea. Paint a coastline around it first, then fill.');
+        else if (edit) {
+          rendererRef.current.invalidate(res);
+          pushHistory({ terrain: edit });
+          scheduleSave('terrain');
+          requestDraw();
+        }
+        break;
+      }
+      case 'path': {
+        previewRef.current = {
+          id: 'preview', kind: o.pathKind, points: [w],
+          width: pathPx(o, o.pathKind) / view.zoom,
+          color: o.pathKind === 'ink' ? o.inkColor : undefined,
+        };
+        gestureRef.current = { kind: 'path' };
+        break;
+      }
+      case 'place': {
+        const place = { id: uuidv4(), kind: o.placeKind, x: w[0], y: w[1], name: '', ...(o.placeNameOnly ? { nameOnly: true } : {}) };
+        commitDoc({ ...d, places: [...d.places, place] });
+        setToolState('select'); toolRef.current = 'select';
+        select({ type: 'place', id: place.id });
+        setTimeout(() => nameInputRef.current?.focus(), 50);
+        break;
+      }
+      case 'label': {
+        const style = LABEL_BY_STYLE[o.labelStyle] || LABEL_STYLES[0];
+        const label = { id: uuidv4(), x: w[0], y: w[1], text: DEFAULT_LABEL_TEXT[style.style] || 'Label', style: style.style, size: (LABEL_PX[style.style] || 18) / view.zoom, angle: 0 };
+        commitDoc({ ...d, labels: [...d.labels, label] });
+        setToolState('select'); toolRef.current = 'select';
+        select({ type: 'label', id: label.id });
+        setTimeout(() => { nameInputRef.current?.focus(); nameInputRef.current?.select(); }, 50);
+        break;
+      }
+      case 'stamp': {
+        if (!o.stamp) { showToast('Choose a stamp first.'); break; }
+        const stamp = { id: uuidv4(), src: o.stamp.src, ref: o.stamp.ref, x: w[0], y: w[1], size: o.stampSize, rotation: 0, flipX: false, flipY: false };
+        commitDoc({ ...d, stamps: [...d.stamps, stamp] });
+        break;
+      }
+      case 'pin':
+        setPicker({ x: w[0], y: w[1], protagonist: o.pinProtagonist });
+        break;
+      default:
+    }
+  };
+
+  const onPointerMove = (e) => {
+    if (!wrapRef.current) return;
+    const { sx, sy, w } = toWorld(e);
+    if (e.pointerType !== 'touch') {
+      cursorRef.current = w;
+      if (toolRef.current === 'paint') requestDraw();
+    }
+    if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, { sx, sy });
+    const g = gestureRef.current;
+    if (!g && modeRef.current === 'view' && e.pointerType === 'mouse' && !measuringRef.current) {
+      wrapRef.current.style.cursor = hitPlace(w) ? 'pointer' : 'grab';
+    }
+    if (!g) return;
+    const o = optsRef.current;
+    switch (g.kind) {
+      case 'measure': {
+        if (measureRef.current) { measureRef.current = { ...measureRef.current, b: w }; requestDraw(); }
+        break;
+      }
+      case 'pan': {
+        if (Math.hypot(sx - g.sx, sy - g.sy) > 4) g.moved = true;
+        if (g.click && !g.moved) break;
+        const v = g.startView;
+        setView({ ...viewRef.current, x: v.x - (sx - g.sx) / v.zoom, y: v.y - (sy - g.sy) / v.zoom });
+        break;
+      }
+      case 'pinch': {
+        const pts = [...pointersRef.current.values()];
+        if (pts.length < 2) break;
+        const [a, b] = pts;
+        const dist = Math.hypot(a.sx - b.sx, a.sy - b.sy) || 1;
+        const mid = [(a.sx + b.sx) / 2, (a.sy + b.sy) / 2];
+        const v0 = g.startView;
+        const [wx, wy] = screenToWorld(v0, g.mid[0], g.mid[1]);
+        const zoomed = zoomAt({ ...v0, zoom: v0.zoom }, g.mid[0], g.mid[1], dist / g.dist);
+        setView({ ...viewRef.current, zoom: zoomed.zoom, x: wx - mid[0] / zoomed.zoom, y: wy - mid[1] / zoomed.zoom });
+        break;
+      }
+      case 'paint': {
+        const dirty = terrainRef.current.stroke(g.last[0], g.last[1], w[0], w[1], o.brush, o.biome, { rough: o.rough, mask: o.mask && !isWater(o.biome) ? 'land' : null });
+        g.last = w;
+        if (dirty.size) { rendererRef.current.invalidate(dirty); requestDraw(); }
+        break;
+      }
+      case 'path': {
+        const pts = previewRef.current?.points;
+        if (!pts) break;
+        const last = pts[pts.length - 1];
+        if (Math.hypot(w[0] - last[0], w[1] - last[1]) * viewRef.current.zoom > 3) {
+          // A new array each time: features.js caches curves by array identity.
+          previewRef.current = { ...previewRef.current, points: [...pts, w] };
+          requestDraw();
+        }
+        break;
+      }
+      case 'move': {
+        if (!g.moved && Math.hypot(sx - g.sx, sy - g.sy) < 4) break;
+        g.moved = true;
+        const dx = w[0] - g.last[0], dy = w[1] - g.last[1];
+        g.last = w;
+        const d = docRef.current;
+        let next;
+        if (g.type === 'path') next = { ...d, paths: d.paths.map(p => p.id === g.id ? { ...p, points: p.points.map(([x, y]) => [x + dx, y + dy]) } : p) };
+        else if (g.type === 'protagonist') next = { ...d, protagonist: d.protagonist ? { ...d.protagonist, x: d.protagonist.x + dx, y: d.protagonist.y + dy } : null };
+        else {
+          const key = { place: 'places', label: 'labels', stamp: 'stamps', pin: 'pins' }[g.type];
+          next = { ...d, [key]: d[key].map(x => x.id === g.id ? { ...x, x: x.x + dx, y: x.y + dy } : x) };
+        }
+        setDoc(next);
+        break;
+      }
+      default:
+    }
+  };
+
+  const onPointerUp = (e) => {
+    pointersRef.current.delete(e.pointerId);
+    const g = gestureRef.current;
+    if (g?.kind === 'pinch') {
+      if (pointersRef.current.size === 0) gestureRef.current = null;
+      return;
+    }
+    if (g?.kind === 'pan' && g.click && !g.moved && pointersRef.current.size === 0 && e.type !== 'pointercancel') {
+      const hit = hitPlace(screenToWorld(viewRef.current, g.sx, g.sy));
+      showCard(hit ? { kind: 'place', id: hit.id, sx: g.sx, sy: g.sy } : null);
+    }
+    if (pointersRef.current.size === 0) finishGesture(e.type === 'pointercancel');
+  };
+
+  // The place under a world point in View mode, if any.
+  const hitPlace = (w) => {
+    const d = docRef.current;
+    if (d.hidden?.places) return null;
+    const hit = hitTest({ paths: [], places: d.places, labels: [] }, w[0], w[1], viewRef.current);
+    return hit?.type === 'place' ? hit : null;
+  };
+
+  // Smoothly moves the camera to centre (x, y) at `zoom`.
+  const flyTo = useCallback((x, y, zoom, then) => {
+    cancelAnimationFrame(flyRef.current);
+    const v0 = viewRef.current;
+    const c0 = [v0.x + v0.width / v0.zoom / 2, v0.y + v0.height / v0.zoom / 2];
+    const z0 = Math.log(v0.zoom), z1 = Math.log(zoom);
+    const t0 = performance.now(), dur = 450;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - t0) / dur);
+      const e = 1 - Math.pow(1 - t, 3);
+      const z = Math.exp(z0 + (z1 - z0) * e);
+      const cx = c0[0] + (x - c0[0]) * e, cy = c0[1] + (y - c0[1]) * e;
+      const v = viewRef.current;
+      setView({ ...v, zoom: z, x: cx - v.width / z / 2, y: cy - v.height / z / 2 });
+      if (t < 1) flyRef.current = requestAnimationFrame(step);
+      else then?.();
+    };
+    flyRef.current = requestAnimationFrame(step);
+  }, [setView]);
+  useEffect(() => () => cancelAnimationFrame(flyRef.current), []);
+
+  const onPointerLeave = () => { cursorRef.current = null; if (toolRef.current === 'paint') requestDraw(); };
+
+  // Wheel / trackpad zoom (non-passive so the page doesn't scroll).
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      const r = wrap.getBoundingClientRect();
+      const unit = e.deltaMode === 1 ? 16 : 1;
+      const factor = Math.exp(-e.deltaY * unit * (e.ctrlKey ? 0.01 : 0.0015));
+      setView(zoomAt(viewRef.current, e.clientX - r.left, e.clientY - r.top, factor));
+    };
+    wrap.addEventListener('wheel', onWheel, { passive: false });
+    return () => wrap.removeEventListener('wheel', onWheel);
+  }, [setView]);
+
+  // Keyboard
+  useEffect(() => {
+    const onKey = (e) => {
+      if (isTyping(document.activeElement) || document.querySelector('[role="dialog"]')) return;
+      const k = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && k === 'z' && modeRef.current === 'edit') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+      if ((e.metaKey || e.ctrlKey) && k === 'y') { e.preventDefault(); redo(); return; }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (k === 'e') { setMode(modeRef.current === 'view' ? 'edit' : 'view'); return; }
+      if (k === 'm') { setMeasuring(!measuringRef.current); return; }
+      if (modeRef.current === 'view') {
+        if (k === '/' || k === 'f') { e.preventDefault(); setFindOpen(true); return; }
+        if (k === 'escape') { showCard(null); setFindOpen(false); return; }
+        if (k === '0') { fitMap(); return; }
+        if (k === '=' || k === '+') { zoomBy(1.25); return; }
+        if (k === '-') { zoomBy(0.8); return; }
+        return;
+      }
+      if (k === ' ') { spaceRef.current = true; e.preventDefault(); return; }
+      if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSelection(); return; }
+      if (k === 'escape') { select(null); if (toolRef.current !== 'select') setTool('select'); return; }
+      if (k === '[') { setOpts({ brush: Math.max(BRUSH_MIN, Math.round(optsRef.current.brush / 1.25)) }); return; }
+      if (k === ']') { setOpts({ brush: Math.min(BRUSH_MAX, Math.round(optsRef.current.brush * 1.25)) }); return; }
+      if (k === '0') { fitMap(); return; }
+      if (k === '=' || k === '+') { zoomBy(1.25); return; }
+      if (k === '-') { zoomBy(0.8); return; }
+      if (TOOL_BY_KEY[k]) setTool(TOOL_BY_KEY[k]);
+    };
+    const onKeyUp = (e) => { if (e.key === ' ') spaceRef.current = false; };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); };
+  }, [undo, redo, deleteSelection, select, setTool, setOpts, fitMap, zoomBy, setMode, showCard, setMeasuring]);
+
+  // ── Pins (DOM, so they can link to entities) ────────────────────────────────
+
+  const onPickEntity = (entity) => {
+    const p = picker;
+    setPicker(null);
+    if (!p) return;
+    const d = docRef.current;
+    if (p.linkPlace) {
+      const next = { ...d, places: d.places.map(pl => pl.id === p.linkPlace ? { ...pl, entityId: entity.id, entityType: entity._type, name: pl.name || entity.name } : pl) };
+      commitDoc(next, d);
+      return;
+    }
+    if (p.protagonist) commitDoc({ ...d, protagonist: { entityId: entity.id, x: p.x, y: p.y } }, d);
+    else commitDoc({ ...d, pins: [...d.pins, { id: uuidv4(), entityId: entity.id, entityType: entity._type, x: p.x, y: p.y }] }, d);
+  };
+
+  const pinDown = (e, type, pinId) => {
+    if (modeRef.current === 'view') {
+      e.stopPropagation();
+      const r = wrapRef.current.getBoundingClientRect();
+      showCard({ kind: type === 'protagonist' ? 'protagonist' : 'pin', id: pinId, sx: e.clientX - r.left, sy: e.clientY - r.top });
+      return;
+    }
+    if (toolRef.current !== 'select' && toolRef.current !== 'pin') return;
+    e.stopPropagation();
+    wrapRef.current.setPointerCapture?.(e.pointerId);
+    const { sx, sy, w } = toWorld(e);
+    pointersRef.current.set(e.pointerId, { sx, sy });
+    startMove(type, pinId, w, sx, sy);
+  };
+
+  const pinsHidden = doc.hidden?.pins;
+
+  // ── Selection details ───────────────────────────────────────────────────────
+
+  const selected = useMemo(() => {
+    if (!selection) return null;
+    if (selection.type === 'protagonist') return doc.protagonist ? { ...doc.protagonist, id: 'protagonist' } : null;
+    const key = { place: 'places', label: 'labels', path: 'paths', stamp: 'stamps', pin: 'pins' }[selection.type];
+    return doc[key]?.find(x => x.id === selection.id) || null;
+  }, [selection, doc]);
+
+  // ── View mode: card and search ──────────────────────────────────────────────
+
+  const cardInfo = useMemo(() => {
+    if (!viewCard) return null;
+    if (viewCard.kind === 'place') {
+      const p = doc.places.find(x => x.id === viewCard.id);
+      if (!p) return null;
+      const type = p.entityType || 'locations';
+      const entity = p.entityId ? lookupEntity(type, p.entityId) : null;
+      return { kind: 'place', name: p.name || PLACE_BY_KIND[p.kind]?.label || 'Place', sub: PLACE_BY_KIND[p.kind]?.label || 'Place', entity, entityType: type };
+    }
+    const pin = viewCard.kind === 'protagonist' ? doc.protagonist : doc.pins.find(x => x.id === viewCard.id);
+    if (!pin) return null;
+    const type = viewCard.kind === 'protagonist' ? 'characters' : pin.entityType;
+    const entity = lookupEntity(type, pin.entityId);
+    if (!entity) return null;
+    return { kind: 'pin', name: entity.name, sub: viewCard.kind === 'protagonist' ? 'Protagonist' : (TYPE_META[type]?.label || 'Pin'), entity, entityType: type };
+  }, [viewCard, doc, lookupEntity]);
+
+  const findResults = useMemo(() => {
+    if (!findOpen) return [];
+    const q = findQuery.trim().toLowerCase();
+    const out = [];
+    for (const p of doc.places) if (p.name) out.push({ kind: 'place', id: p.id, name: p.name, sub: PLACE_BY_KIND[p.kind]?.label || 'Place', x: p.x, y: p.y });
+    for (const l of doc.labels) if (l.text) out.push({ kind: 'label', id: l.id, name: l.text, sub: LABEL_BY_STYLE[l.style]?.label || 'Label', x: l.x, y: l.y });
+    for (const pin of doc.pins) {
+      const e = lookupEntity(pin.entityType, pin.entityId);
+      if (e) out.push({ kind: 'pin', id: pin.id, name: e.name, sub: TYPE_META[pin.entityType]?.label || 'Pin', x: pin.x, y: pin.y });
+    }
+    const hits = q ? out.filter(r => r.name.toLowerCase().includes(q)) : out;
+    return hits.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 40);
+  }, [findOpen, findQuery, doc, lookupEntity]);
+
+  const goToResult = (r) => {
+    setFindOpen(false);
+    setFindQuery('');
+    const v = viewRef.current;
+    const zoom = r.kind === 'label' ? Math.max(v.zoom, 0.12) : Math.max(v.zoom, 0.6);
+    flyTo(r.x, r.y, zoom, () => {
+      if (r.kind === 'label') return;
+      const v2 = viewRef.current;
+      showCard({ kind: r.kind, id: r.id, sx: v2.width / 2, sy: v2.height / 2 });
+    });
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  const toolDef = TOOLS.find(t => t.id === tool);
+  const cursor = measuring ? 'crosshair' : mode === 'view' || tool === 'hand' ? 'grab' : tool === 'select' ? 'default' : tool === 'paint' ? 'none' : 'crosshair';
+  const saveLabel = { saved: 'Saved', saving: 'Saving…', unsaved: 'Unsaved', error: 'Not saved' }[saveState];
+  const hasOptions = ['paint', 'fill', 'path', 'place', 'label', 'stamp', 'pin'].includes(tool);
+
+  const optionsPanel = hasOptions && (
+    <Panel
+      title={toolDef?.label}
+      onClose={isPhone ? () => setOptionsOpen(false) : undefined}
+      className={isPhone ? '' : 'w-64'}
+    >
+      {(tool === 'paint' || tool === 'fill') && (
+        <>
+          <div className="grid grid-cols-4 gap-1.5">
+            {BIOMES.map(b => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => setOpts({ biome: b.id })}
+                title={b.id === BIOME.OCEAN ? 'Ocean (erases land)' : b.label}
+                className={`flex flex-col items-center gap-1 rounded-md p-1 text-[0.65rem] leading-tight transition-colors ${opts.biome === b.id ? 'bg-accent ring-2 ring-brand' : 'hover:bg-accent'}`}
+              >
+                <span className="h-6 w-full rounded border border-foreground/10" style={{ background: biomeColor(b.id) }} />
+                <span className="w-full truncate text-center">{b.label}</span>
+              </button>
+            ))}
+          </div>
+          {tool === 'paint' && (
+            <>
+              <Field label="Brush size" value={opts.brush >= 1000 ? `${(opts.brush / 1000).toFixed(1)}k` : opts.brush}>
+                <Slider value={brushToSlider(opts.brush)} min={0} max={100} onChange={v => setOpts({ brush: sliderToBrush(v) })} />
+              </Field>
+              <Field label="Natural edges" value={`${Math.round(opts.rough * 100)}%`}>
+                <Slider value={Math.round(opts.rough * 100)} min={0} max={100} onChange={v => setOpts({ rough: v / 100 })} />
+              </Field>
+              {!isWater(opts.biome) && opts.biome !== BIOME.GRASS && (
+                <Toggle checked={opts.mask} onChange={v => setOpts({ mask: v })} label="Only paint over land" />
+              )}
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                {opts.biome === BIOME.CITY || opts.biome === BIOME.TOWN
+                  ? <>Paint the city's footprint; cities get streets and a wall. Name it with the Places tool set to "Name only".</>
+                  : <>Paint Grassland to make land, Ocean to erase it. <kbd className="kbd">[</kbd> <kbd className="kbd">]</kbd> change the size.</>}
+              </p>
+            </>
+          )}
+          {tool === 'fill' && (
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Click an area to fill everything connected to it with the chosen terrain.</p>
+          )}
+        </>
+      )}
+
+      {tool === 'path' && (
+        <>
+          <div className="flex flex-wrap gap-1">
+            {PATH_KINDS.map(k => (
+              <button key={k.kind} type="button" onClick={() => setOpts({ pathKind: k.kind })} className={`btn btn-sm ${opts.pathKind === k.kind ? 'btn-primary' : 'btn-outline'}`}>{k.label}</button>
+            ))}
+          </div>
+          <Field label="Width on screen" value={`${pathPx(opts, opts.pathKind)} px`}>
+            <Slider
+              value={pathPx(opts, opts.pathKind)}
+              min={1} max={24} step={0.5}
+              onChange={v => setOpts({ pathPx: { ...opts.pathPx, [opts.pathKind]: v } })}
+            />
+          </Field>
+          {opts.pathKind === 'ink' && (
+            <Field label="Colour">
+              <div className="flex gap-1.5">
+                {INK_COLORS.map(c => (
+                  <button key={c} type="button" onClick={() => setOpts({ inkColor: c })} aria-label={c} className={`size-6 rounded-full border border-foreground/15 ${opts.inkColor === c ? 'ring-2 ring-brand ring-offset-1 ring-offset-popover' : ''}`} style={{ background: c }} />
+                ))}
+              </div>
+            </Field>
+          )}
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Drag to draw. Rivers widen toward the end you finish at, so start at the source.</p>
+        </>
+      )}
+
+      {tool === 'place' && (
+        <>
+          <div className="grid grid-cols-4 gap-1">
+            {PLACE_KINDS.map(k => (
+              <button key={k.kind} type="button" onClick={() => setOpts({ placeKind: k.kind })} className={`flex flex-col items-center gap-0.5 rounded-md p-1 text-[0.65rem] transition-colors ${opts.placeKind === k.kind ? 'bg-accent ring-2 ring-brand' : 'hover:bg-accent'}`}>
+                <span className="grid size-8 place-items-center rounded bg-[#efe4c8]"><PlaceGlyph kind={k.kind} size={30} /></span>
+                <span className="w-full truncate text-center">{k.label}</span>
+              </button>
+            ))}
+          </div>
+          <Toggle checked={opts.placeNameOnly} onChange={v => setOpts({ placeNameOnly: v })} label="Name only, no icon" />
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            Click the map to add one, then name it. Use name only for cities and towns you've painted as terrain.
+          </p>
+        </>
+      )}
+
+      {tool === 'label' && (
+        <>
+          <div className="flex flex-col gap-1">
+            {LABEL_STYLES.map(s => (
+              <button key={s.style} type="button" onClick={() => setOpts({ labelStyle: s.style })} className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors ${opts.labelStyle === s.style ? 'bg-accent' : 'hover:bg-accent'}`}>
+                <span style={{ fontFamily: s.font }}>{s.label}</span>
+                {opts.labelStyle === s.style && <Check size={14} />}
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Click the map to add a label, then type its text.</p>
+        </>
+      )}
+
+      {tool === 'stamp' && (
+        <>
+          <div className="grid max-h-56 grid-cols-4 gap-1 overflow-y-auto">
+            {stampLibrary.map(s => (
+              <button key={s.rel} type="button" title={s.label} onClick={() => setOpts({ stamp: { src: 'png', ref: s.rel, name: s.label } })} className={`grid aspect-square place-items-center rounded-md border border-border p-1 text-[0.6rem] ${opts.stamp?.ref === s.rel ? 'ring-2 ring-brand' : 'hover:bg-accent'}`}>
+                <span className="truncate">{s.label}</span>
+              </button>
+            ))}
+            {(customStamps || []).map(s => (
+              <div key={s.id} className="group relative">
+                <button type="button" title={s.name} onClick={() => setOpts({ stamp: { src: 'svg', ref: s.id, name: s.name } })} className={`grid aspect-square w-full place-items-center rounded-md border border-border p-1 ${opts.stamp?.ref === s.id ? 'ring-2 ring-brand' : 'hover:bg-accent'}`}>
+                  <img src={`data:image/svg+xml;utf8,${encodeURIComponent(sanitizeSvg(s.svg))}`} alt={s.name} className="max-h-full max-w-full" draggable={false} />
+                </button>
+                <button type="button" aria-label={`Delete ${s.name}`} onClick={() => deleteCustomStamp(s.id)} className="absolute -right-1 -top-1 hidden size-5 place-items-center rounded-full bg-popover text-muted-foreground shadow ring-1 ring-foreground/10 hover:text-destructive group-hover:grid">
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+          {stampLibrary.length === 0 && (customStamps || []).length === 0 && (
+            <p className="text-xs leading-relaxed text-muted-foreground">No stamps yet. Upload an SVG, or put PNG files in the server's customStamps folder.</p>
+          )}
+          <button
+            type="button"
+            className="btn btn-outline btn-sm mt-2 w-full"
+            onClick={async () => {
+              const file = await pickFile('.svg,image/svg+xml');
+              if (!file) return;
+              const svg = sanitizeSvg(await file.text());
+              if (!svg.toLowerCase().includes('<svg')) { showToast("That file isn't an SVG."); return; }
+              setPendingUpload({ initialName: file.name.replace(/\.svg$/i, ''), svg });
+            }}
+          >
+            <Upload /> Upload SVG stamp
+          </button>
+          <Field label="Size" value={opts.stampSize}>
+            <Slider value={opts.stampSize} min={16} max={400} onChange={v => setOpts({ stampSize: v })} />
+          </Field>
+        </>
+      )}
+
+      {tool === 'pin' && (
+        <>
+          <Toggle checked={opts.pinProtagonist} onChange={v => setOpts({ pinProtagonist: v })} label="Protagonist marker" />
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            Click the map, then choose a character, location or other entry to pin there. {opts.pinProtagonist ? 'The protagonist marker shows where your main character is; there is one per map.' : ''}
+          </p>
+        </>
+      )}
+    </Panel>
+  );
+
+  const inspector = selected && (
+    <Panel
+      title={
+        selection.type === 'place' ? (PLACE_BY_KIND[selected.kind]?.label || 'Place') :
+        selection.type === 'label' ? 'Label' :
+        selection.type === 'path' ? (PATH_BY_KIND[selected.kind]?.label || 'Line') :
+        selection.type === 'stamp' ? 'Stamp' :
+        selection.type === 'protagonist' ? 'Protagonist' : 'Pin'
+      }
+      onClose={() => select(null)}
+      className={isPhone ? '' : 'w-64'}
+    >
+      {selection.type === 'place' && (
+        <>
+          <Field label="Name">
+            <input ref={nameInputRef} className="input" value={selected.name || ''} placeholder="Unnamed" onFocus={beginTextEdit} onBlur={endTextEdit} onKeyDown={finishTextField} onChange={e => updateSelected({ name: e.target.value }, { history: false })} />
+          </Field>
+          <Field label="Kind">
+            <div className="grid grid-cols-6 gap-1">
+              {PLACE_KINDS.map(k => (
+                <button key={k.kind} type="button" title={k.label} onClick={() => updateSelected({ kind: k.kind })} className={`grid aspect-square place-items-center rounded bg-[#efe4c8] ${selected.kind === k.kind ? 'ring-2 ring-brand' : 'opacity-80 hover:opacity-100'}`}>
+                  <PlaceGlyph kind={k.kind} size={26} />
+                </button>
               ))}
             </div>
-          )}
-          <p className="text-[11px] text-muted-foreground mt-1.5">Tags help filter the stamp picker. Try things like “fortification”, “ruin”, “forest”.</p>
-        </div>
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm rounded-md border border-border text-foreground hover:bg-secondary transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            Save stamp
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ── Tool palette (left edge) ──────────────────────────────────────────────────
-function ToolButton({ active, onClick, title, children, danger }) {
-  const base = 'w-9 h-9 flex items-center justify-center rounded-md transition-colors border';
-  const classes = active
-    ? 'bg-primary text-primary-foreground border-primary'
-    : danger
-      ? 'border-transparent text-muted-foreground hover:text-red-400 hover:bg-red-500/10'
-      : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary';
-  return (
-    <button onClick={onClick} title={title} className={`${base} ${classes}`}>
-      {children}
-    </button>
-  );
-}
-
-// ── Layer panel row ───────────────────────────────────────────────────────────
-function LayerRow({ layer, active, onClickActivate, onToggleVisibility, onDelete, onRename, onMoveUp, onMoveDown, canDelete, canMoveUp, canMoveDown, editing, editingName, onStartEdit, onCancelEdit, onSaveEdit }) {
-  const isPen = layer.kind === 'pen';
-  
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1 px-2 py-1.5">
-        <input
-          autoFocus
-          value={editingName}
-          onChange={(e) => onSaveEdit(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' ? onSaveEdit(editingName) : e.key === 'Escape' ? onCancelEdit() : null}
-          onBlur={() => onSaveEdit(editingName)}
-          className="flex-1 bg-secondary text-foreground text-xs rounded px-1 py-0.5 border border-border focus:outline-none"
-        />
-      </div>
-    );
-  }
-  
-  return (
-    <div
-      onClick={isPen ? onClickActivate : undefined}
-      className={`group flex items-center gap-1 px-2 py-1.5 rounded transition-colors ${
-        isPen ? 'cursor-pointer' : 'cursor-default'
-      } ${active ? 'bg-primary/15 border border-primary/40' : 'border border-transparent hover:bg-secondary/60'}`}
-    >
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
-        className="text-muted-foreground hover:text-foreground transition-colors"
-        title={layer.visible === false ? 'Show layer' : 'Hide layer'}
-      >
-        {layer.visible === false ? <EyeOff size={13} /> : <Eye size={13} />}
-      </button>
-      {isPen ? (
-        <span
-          className="w-3 h-3 rounded-sm border border-black/20 shrink-0"
-          style={{ backgroundColor: layer.color }}
-        />
-      ) : layer.kind === 'stamps' ? (
-        <StampIcon size={12} className="text-muted-foreground" />
-      ) : (
-        <Pin size={12} className="text-muted-foreground" />
+          </Field>
+          <Toggle checked={!!selected.nameOnly} onChange={v => updateSelected({ nameOnly: v || undefined })} label="Name only, no icon" />
+          <Field label="Linked entry">
+            {selected.entityId && lookupEntity(selected.entityType || 'locations', selected.entityId) ? (
+              <div className="flex gap-1.5">
+                <button type="button" className="btn btn-outline btn-sm min-w-0 flex-1 justify-start" onClick={() => navigate(`/${selected.entityType || 'locations'}/${selected.entityId}`)}>
+                  <ExternalLink /> <span className="truncate">{lookupEntity(selected.entityType || 'locations', selected.entityId).name}</span>
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label="Unlink" onClick={() => updateSelected({ entityId: null, entityType: null })}><X /></button>
+              </div>
+            ) : (
+              <button type="button" className="btn btn-outline btn-sm w-full" onClick={() => setPicker({ linkPlace: selected.id })}>
+                <Link2 /> Link to a location…
+              </button>
+            )}
+          </Field>
+        </>
       )}
-      <span className={`text-xs flex-1 truncate ${active ? 'text-foreground font-semibold' : 'text-foreground/85'}`}>
-        {layer.name}
-      </span>
-      {active && <span className="text-[10px] text-primary uppercase tracking-wider font-semibold">Active</span>}
-      {isPen && (
-        <div className="hidden group-hover:flex items-center gap-0.5">
-          <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} disabled={!canMoveUp} className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" title="Move up">
-            <span className="text-[10px]">↑</span>
+
+      {selection.type === 'label' && (
+        <>
+          <Field label="Text">
+            <input ref={nameInputRef} className="input" value={selected.text || ''} onFocus={beginTextEdit} onBlur={endTextEdit} onKeyDown={finishTextField} onChange={e => updateSelected({ text: e.target.value }, { history: false })} />
+          </Field>
+          <Field label="Style">
+            <div className="tabs w-full">
+              {LABEL_STYLES.map(s => (
+                <button key={s.style} type="button" onClick={() => updateSelected({ style: s.style })} className={`tab flex-1 px-1 ${selected.style === s.style ? 'is-active' : ''}`}>{s.label}</button>
+              ))}
+            </div>
+          </Field>
+          <Field label="Size" value={`${Math.round((selected.size || LABEL_BY_STYLE[selected.style]?.defaultSize || 24) * inspectZoom)} px`}>
+            <Slider value={brushToSlider(Math.max(BRUSH_MIN, (selected.size || LABEL_BY_STYLE[selected.style]?.defaultSize || 24) * 2))} min={0} max={100} onStart={beginTextEdit} onEnd={endTextEdit} onChange={v => updateSelected({ size: sliderToBrush(v) / 2 }, { history: false })} />
+          </Field>
+          <Field label="Angle" value={`${Math.round((selected.angle || 0) * 180 / Math.PI)}°`}>
+            <Slider value={Math.round((selected.angle || 0) * 180 / Math.PI)} min={-90} max={90} onStart={beginTextEdit} onEnd={endTextEdit} onChange={v => updateSelected({ angle: v * Math.PI / 180 }, { history: false })} />
+          </Field>
+        </>
+      )}
+
+      {selection.type === 'path' && (
+        <>
+          <Field label="Kind">
+            <div className="flex flex-wrap gap-1">
+              {PATH_KINDS.map(k => (
+                <button key={k.kind} type="button" onClick={() => updateSelected({ kind: k.kind })} className={`btn btn-sm ${selected.kind === k.kind ? 'btn-primary' : 'btn-outline'}`}>{k.label}</button>
+              ))}
+            </div>
+          </Field>
+          <Field label="Width" value={`${Math.round((selected.width || 6) * inspectZoom * 10) / 10} px`}>
+            <Slider value={brushToSlider(Math.max(BRUSH_MIN, (selected.width || 6) * 4))} min={0} max={100} onStart={beginTextEdit} onEnd={endTextEdit} onChange={v => updateSelected({ width: sliderToBrush(v) / 4 }, { history: false })} />
+          </Field>
+          {selected.kind === 'ink' && (
+            <Field label="Colour">
+              <div className="flex gap-1.5">
+                {INK_COLORS.map(c => (
+                  <button key={c} type="button" onClick={() => updateSelected({ color: c })} aria-label={c} className={`size-6 rounded-full border border-foreground/15 ${selected.color === c ? 'ring-2 ring-brand ring-offset-1 ring-offset-popover' : ''}`} style={{ background: c }} />
+                ))}
+              </div>
+            </Field>
+          )}
+        </>
+      )}
+
+      {selection.type === 'path' && (selected.kind === 'ink' || selected.kind === 'border') && selected.points?.length > 2 && (
+        <button type="button" className="btn btn-outline btn-sm mt-3 w-full" onClick={() => outlineToLand(selected)}>
+          <PaintBucket /> Turn into land
+        </button>
+      )}
+
+      {selection.type === 'stamp' && (
+        <>
+          <Field label="Size" value={selected.size}>
+            <Slider value={selected.size || 48} min={16} max={600} onStart={beginTextEdit} onEnd={endTextEdit} onChange={v => updateSelected({ size: v }, { history: false })} />
+          </Field>
+          <Field label="Rotation" value={`${selected.rotation || 0}°`}>
+            <Slider value={selected.rotation || 0} min={-180} max={180} onStart={beginTextEdit} onEnd={endTextEdit} onChange={v => updateSelected({ rotation: v }, { history: false })} />
+          </Field>
+          <button type="button" className="btn btn-outline btn-sm mt-3" onClick={() => updateSelected({ flipX: !selected.flipX })}><FlipHorizontal /> Flip</button>
+        </>
+      )}
+
+      {(selection.type === 'pin' || selection.type === 'protagonist') && (() => {
+        const type = selection.type === 'protagonist' ? 'characters' : selected.entityType;
+        const ent = lookupEntity(type, selected.entityId);
+        return ent ? (
+          <button type="button" className="btn btn-outline btn-sm w-full justify-start" onClick={() => navigate(`/${type}/${ent.id}`)}>
+            <ExternalLink /> <span className="truncate">Open {ent.name}</span>
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} disabled={!canMoveDown} className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30" title="Move down">
-            <span className="text-[10px]">↓</span>
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }} className="p-0.5 text-muted-foreground hover:text-foreground" title="Rename">
-            <span className="text-[10px]">✎</span>
-          </button>
-          {canDelete && (
-            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-0.5 text-muted-foreground hover:text-red-400" title="Delete layer">
-              <X size={10} />
+        ) : <p className="text-sm text-muted-foreground">This entry no longer exists.</p>;
+      })()}
+
+      <button type="button" className="btn btn-destructive btn-sm mt-4 w-full" onClick={deleteSelection}>
+        <Trash2 /> Remove
+      </button>
+    </Panel>
+  );
+
+  const layersMenu = (
+    <Menu
+      align="end"
+      className="w-56"
+      trigger={(props) => (
+        <button {...props} type="button" className="btn btn-ghost btn-icon" title="Layers" aria-label="Layers"><Layers /></button>
+      )}
+    >
+      <MenuLabel>Show on map</MenuLabel>
+      {LAYERS.filter(l => l.key !== 'reference' || doc.reference).map(l => (
+        <MenuItem key={l.key} checked={!doc.hidden?.[l.key]} onSelect={() => setHidden(l.key, !doc.hidden?.[l.key])}>{l.label}</MenuItem>
+      ))}
+    </Menu>
+  );
+
+  const moreMenu = (
+    <Menu
+      align="end"
+      className="w-60"
+      trigger={(props) => (
+        <button {...props} type="button" className="btn btn-ghost btn-icon" title="More" aria-label="More"><MoreHorizontal /></button>
+      )}
+    >
+      {isPhone && <MenuItem icon={Sparkles} onSelect={() => setShowGenerate({ firstTime: false })}>Generate land…</MenuItem>}
+      {isPhone && <MenuItem icon={Download} onSelect={exportPng}>Export as PNG</MenuItem>}
+      <MenuItem icon={ImageIcon} onSelect={addReferenceImage}>{doc.reference ? 'Replace reference image…' : 'Add reference image to trace…'}</MenuItem>
+      {doc.reference && (
+        <>
+          <div className="px-2 py-1.5">
+            <p className="mb-1 text-xs text-muted-foreground">Reference opacity</p>
+            <Slider value={Math.round((doc.reference.opacity ?? 0.6) * 100)} min={5} max={100} onChange={v => { setDoc({ ...docRef.current, reference: { ...docRef.current.reference, opacity: v / 100 } }); scheduleSave('doc'); }} />
+          </div>
+          <MenuItem icon={X} onSelect={() => commitDoc({ ...docRef.current, reference: null })}>Remove reference image</MenuItem>
+        </>
+      )}
+      <MenuSeparator />
+      {!isPhone && <MenuItem icon={Keyboard} onSelect={() => setShowShortcuts(true)}>Keyboard shortcuts</MenuItem>}
+      <MenuItem icon={Trash2} danger onSelect={() => setConfirmDelete(true)}>Delete map</MenuItem>
+    </Menu>
+  );
+
+  const protagonistEntity = doc.protagonist ? lookupEntity('characters', doc.protagonist.entityId) : null;
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Header */}
+      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border bg-background px-2 sm:px-3">
+        <button type="button" onClick={() => navigate('/maps')} className="btn btn-ghost btn-icon" aria-label="Back to maps"><ArrowLeft /></button>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {renaming ? (
+            <input
+              autoFocus
+              className="input h-8 max-w-xs"
+              value={draftName}
+              onChange={e => setDraftName(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setDraftName(map.name || ''); setRenaming(false); } }}
+            />
+          ) : (
+            <button type="button" onClick={() => { setDraftName(map.name || ''); setRenaming(true); }} className="min-w-0 truncate rounded-md px-1.5 py-1 text-sm font-semibold hover:bg-accent" title="Rename">
+              {map.name || 'Untitled map'}
             </button>
           )}
+          <span className={`hidden shrink-0 text-xs sm:inline ${saveState === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{saveLabel}</span>
         </div>
+        {mode === 'edit' && (
+          <>
+            <button type="button" className="btn btn-ghost btn-icon" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 /></button>
+            <button type="button" className="btn btn-ghost btn-icon" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo2 /></button>
+          </>
+        )}
+        {mode === 'view' && (
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => setFindOpen(o => !o)} title="Find a place (/)" aria-label="Find a place"><Search /></button>
+        )}
+        <div className="tabs mx-1" role="tablist" aria-label="Mode">
+          <button type="button" role="tab" aria-selected={mode === 'view'} onClick={() => setMode('view')} className="tab inline-flex items-center gap-1.5" title="View (E)">
+            <Eye size={14} /> <span className="max-sm:hidden">View</span>
+          </button>
+          <button type="button" role="tab" aria-selected={mode === 'edit'} onClick={() => setMode('edit')} className="tab inline-flex items-center gap-1.5" title="Edit (E)">
+            <Pencil size={14} /> <span className="max-sm:hidden">Edit</span>
+          </button>
+        </div>
+        {!isPhone && (
+          <>
+            {mode === 'edit' && (
+              <button type="button" className="btn btn-outline" onClick={() => setShowGenerate({ firstTime: false })} disabled={!terrainReady}><Sparkles /> Generate land</button>
+            )}
+            <button type="button" className="btn btn-ghost btn-icon" onClick={exportPng} title="Export as PNG" aria-label="Export as PNG"><Download /></button>
+          </>
+        )}
+        {layersMenu}
+        {moreMenu}
+      </header>
+
+      {/* Canvas */}
+      <div
+        ref={wrapRef}
+        className="relative min-h-0 flex-1 select-none overflow-hidden"
+        style={{ touchAction: 'none', cursor, background: PAPER.sea }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        onContextMenu={e => e.preventDefault()}
+      >
+        <canvas ref={canvasRef} className="absolute inset-0 block" />
+
+        {/* Pins */}
+        {!pinsHidden && (
+          <div ref={overlayRef} className="pointer-events-none absolute left-0 top-0" style={{ transformOrigin: '0 0' }}>
+            {doc.pins.map(pin => {
+              const ent = lookupEntity(pin.entityType, pin.entityId);
+              if (!ent) return null;
+              const meta = TYPE_META[pin.entityType] || TYPE_META.things;
+              const isSel = selection?.type === 'pin' && selection.id === pin.id;
+              return (
+                <div
+                  key={pin.id}
+                  title={ent.name}
+                  onPointerDown={e => pinDown(e, 'pin', pin.id)}
+                  className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-full ${isSel ? 'drop-shadow-[0_0_0_2px_#3b5bdb]' : ''}`}
+                  style={{ left: `calc(${pin.x}px * var(--z, 1))`, top: `calc(${pin.y}px * var(--z, 1))`, cursor: mode === 'view' ? 'pointer' : tool === 'select' ? 'grab' : undefined }}
+                >
+                  <PinMarker color={meta.color} Icon={meta.icon} />
+                  <span className={`absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-[#f4ecd6]/90 px-1 text-[11px] font-medium text-[#3a2e20] ${isSel ? 'ring-1 ring-brand' : ''}`}>{ent.name}</span>
+                </div>
+              );
+            })}
+            {doc.protagonist && protagonistEntity && (
+              <div
+                title={`${protagonistEntity.name} (protagonist)`}
+                onPointerDown={e => pinDown(e, 'protagonist', 'protagonist')}
+                className="pointer-events-auto absolute -translate-x-1/2 -translate-y-full"
+                style={{ left: `calc(${doc.protagonist.x}px * var(--z, 1))`, top: `calc(${doc.protagonist.y}px * var(--z, 1))`, cursor: mode === 'view' ? 'pointer' : tool === 'select' ? 'grab' : undefined }}
+              >
+                <PinMarker color={PROTAGONIST_COLOR} Icon={Star} protagonist />
+                <span className="absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-[#f4ecd6]/90 px-1 text-[11px] font-semibold text-[#3a2e20]">{protagonistEntity.name}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!terrainReady && !terrainError && (
+          <div className="absolute inset-0 grid place-items-center text-sm text-[#5b4a3a]">Loading map…</div>
+        )}
+        {terrainError && (
+          <div className="absolute inset-x-4 top-4 rounded-lg bg-popover p-3 text-sm text-destructive shadow-md ring-1 ring-foreground/10">{terrainError}</div>
+        )}
+
+        {/* Tools */}
+        {mode === 'edit' && <div
+          className={`absolute z-10 flex gap-0.5 rounded-lg bg-popover p-1 shadow-md ring-1 ring-foreground/10 ${
+            isPhone ? 'bottom-2 left-2 right-2 overflow-x-auto scrollbar-none' : 'left-3 top-3 flex-col'
+          }`}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          {TOOLS.map(t => (
+            <ToolButton key={t.id} tool={t} active={tool === t.id} onClick={() => { if (tool === t.id && isPhone) setOptionsOpen(o => !o); else setTool(t.id); }} />
+          ))}
+        </div>}
+
+        {/* Options & inspector */}
+        {mode === 'edit' && <div
+          className={`absolute z-10 flex flex-col gap-2 ${isPhone ? 'bottom-[3.75rem] left-2 right-2 max-h-[45%] overflow-y-auto' : 'left-[3.75rem] top-3 max-h-[calc(100%-1.5rem)] overflow-y-auto'}`}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          {inspector || (optionsOpen && optionsPanel)}
+          {isPhone && !inspector && hasOptions && !optionsOpen && (
+            <button type="button" className="btn btn-outline btn-sm self-start bg-popover" onClick={() => setOptionsOpen(true)}><ChevronUp /> {toolDef?.label} options</button>
+          )}
+        </div>}
+
+        {/* View mode: find a place */}
+        {mode === 'view' && findOpen && (
+          <div className="absolute left-3 right-3 top-3 z-10 sm:right-auto sm:w-80" onPointerDown={e => e.stopPropagation()}>
+            <Panel>
+              <div className="relative pt-2">
+                <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 mt-1 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  autoFocus
+                  className="input pl-8"
+                  placeholder="Find a place…"
+                  value={findQuery}
+                  onChange={e => setFindQuery(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') setFindOpen(false);
+                    if (e.key === 'Enter' && findResults[0]) goToResult(findResults[0]);
+                  }}
+                />
+              </div>
+              {findResults.length > 0 ? (
+                <div className="mt-2 max-h-72 divide-y divide-border overflow-y-auto rounded-md border border-border">
+                  {findResults.map(r => (
+                    <button key={`${r.kind}-${r.id}`} type="button" onClick={() => goToResult(r)} className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm hover:bg-accent">
+                      <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{r.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 px-1 text-xs text-muted-foreground">{findQuery ? 'Nothing by that name.' : 'Named places, labels and pins.'}</p>
+              )}
+            </Panel>
+          </div>
+        )}
+
+        {/* View mode: what was clicked */}
+        {mode === 'view' && viewCard && cardInfo && (
+          <div
+            className="absolute z-10 w-64 animate-menu"
+            style={{ left: `max(8px, min(${viewCard.sx + 12}px, calc(100% - 264px)))`, top: Math.max(8, viewCard.sy - 20) }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <Panel title={cardInfo.sub} onClose={() => showCard(null)}>
+              <p className="text-base font-semibold leading-snug">{cardInfo.name}</p>
+              {cardInfo.entity ? (
+                <button type="button" className="btn btn-outline btn-sm mt-3 w-full justify-start" onClick={() => navigate(`/${cardInfo.entityType}/${cardInfo.entity.id}`)}>
+                  <ExternalLink /> <span className="truncate">Open {cardInfo.entity.name}</span>
+                </button>
+              ) : cardInfo.kind === 'place' && (
+                <p className="mt-1.5 text-xs text-muted-foreground">Not linked to an entry. Link one in Edit mode.</p>
+              )}
+            </Panel>
+          </div>
+        )}
+
+        {/* Zoom */}
+        <div
+          className={`absolute z-10 flex items-center gap-0.5 rounded-lg bg-popover p-1 shadow-md ring-1 ring-foreground/10 ${isPhone ? 'right-2 top-2 flex-col' : 'bottom-3 right-3'}`}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => zoomBy(0.8)} aria-label="Zoom out"><ZoomOut /></button>
+          {!isPhone && <span ref={zoomLabelRef} className="w-12 text-center text-xs tabular-nums text-muted-foreground">{initialZoomText}</span>}
+          <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => zoomBy(1.25)} aria-label="Zoom in"><ZoomIn /></button>
+          <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={fitMap} title="Fit the map (0)" aria-label="Fit the map"><Maximize /></button>
+          <button
+            type="button"
+            className={`btn btn-icon btn-sm ${measuring ? 'btn-brand' : 'btn-ghost'}`}
+            onClick={() => setMeasuring(!measuring)}
+            title="Measure distance (M)"
+            aria-label="Measure distance"
+            aria-pressed={measuring}
+          >
+            <Ruler />
+          </button>
+        </div>
+
+        {toast && (
+          <div className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-sm shadow-md ring-1 ring-foreground/10 animate-menu ${isPhone ? 'top-3' : 'bottom-4'}`}>{toast}</div>
+        )}
+      </div>
+
+      {showGenerate && (
+        <GenerateModal firstTime={showGenerate.firstTime} onGenerate={runGenerate} onClose={() => { setShowGenerate(false); if (map.autoGenerate) updateMapMeta(map.id, { autoGenerate: false }); }} />
+      )}
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {picker && (
+        <EntityPicker
+          title={picker.linkPlace ? 'Link a location' : picker.protagonist ? 'Choose the protagonist' : 'Pin an entry'}
+          allowedTypes={picker.linkPlace ? ['locations'] : picker.protagonist ? ['characters'] : null}
+          onPick={onPickEntity}
+          onClose={() => setPicker(null)}
+        />
+      )}
+      {pendingUpload && (
+        <CustomStampUploadModal
+          initialName={pendingUpload.initialName}
+          svg={pendingUpload.svg}
+          onClose={() => setPendingUpload(null)}
+          onSave={async ({ name, tags, svg }) => {
+            const saved = await addCustomStamp({ name, tags, svg });
+            setPendingUpload(null);
+            if (saved?.id) setOpts({ stamp: { src: 'svg', ref: saved.id, name } });
+          }}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete map"
+          message={`Delete "${map.name || 'this map'}"? It moves to the trash.`}
+          onConfirm={async () => {
+            clearTimeout(saveTimerRef.current);
+            dirtyRef.current = { doc: false, terrain: false };
+            await deleteMap(map.id);
+            navigate('/maps');
+          }}
+          onClose={() => setConfirmDelete(false)}
+        />
       )}
     </div>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-export default function MapDetail() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-
-  const map = useWorldStore(s => s.maps.find(m => m.id === id));
-  const updateMapMeta = useWorldStore(s => s.updateMapMeta);
-  const saveMap = useWorldStore(s => s.saveMap);
-  const deleteMap = useWorldStore(s => s.deleteMap);
-  const customStamps = useWorldStore(s => s.customStamps);
-  const addCustomStamp = useWorldStore(s => s.addCustomStamp);
-  const deleteCustomStamp = useWorldStore(s => s.deleteCustomStamp);
-
-  // ── Layer model (computed from map; falls back to defaults) ────────────────
-  const mapLayers = map?.layers;
-  const layers = useMemo(
-    () => (Array.isArray(mapLayers) && mapLayers.length > 0) ? mapLayers : defaultLayers(),
-    [mapLayers]
-  );
-  const layerById = useMemo(() => Object.fromEntries(layers.map(l => [l.id, l])), [layers]);
-  const isLayerVisible = useCallback(
-    (id) => { const l = layerById[id]; return l ? l.visible !== false : true; },
-    [layerById]
-  );
-
-  // Active pen layer (UI state, not persisted). Constrained to existing pen layers.
-  const [activeLayerId, setActiveLayerId] = useState('terrain');
-  // If the active layer disappears (rare; future custom layers), drop back to terrain.
-  /* eslint-disable react-hooks/set-state-in-effect -- constrain UI selection when layer list changes */
-  useEffect(() => {
-    if (!layerById[activeLayerId] || layerById[activeLayerId].kind !== 'pen') {
-      setActiveLayerId('terrain');
-    }
-  }, [layerById, activeLayerId]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // ── View transform (pan + zoom). Local-only; never persisted. ──────────────
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-
-  // ── Tool & drawing state ───────────────────────────────────────────────────
-  // 'view' | 'pen' | 'eraser' | 'stamp' | 'addPin' | 'setProtagonist'
-  const [tool, setTool] = useState('view');
-  const [penColor, setPenColor] = useState(PEN_COLORS[0]);
-  const [penSize, setPenSize] = useState(PEN_SIZES[1]);
-  const [eraserSize, setEraserSize] = useState(ERASER_SIZES[0]);
-
-  // Stamp selection: a custom PNG/image file. source is always 'library'.
-  const [selectedStamp, setSelectedStamp] = useState({ source: 'library', key: '', name: '' });
-  const [selectedStampSize, setSelectedStampSize] = useState(DEFAULT_STAMP_SIZE);
-  const [hoveredStampId, setHoveredStampId] = useState(null);
-
-  // Stamp transform state (rotation, flip)
-  const [stampRotation, setStampRotation] = useState(0);
-  const [stampFlipX, setStampFlipX] = useState(false);
-  const [stampFlipY, setStampFlipY] = useState(false);
-  const [customSizeInput, setCustomSizeInput] = useState('');
-
-  // Stamp picker filters
-  const [stampQuery, setStampQuery] = useState('');
-  const [stampTagFilter, setStampTagFilter] = useState('');
-
-  // Custom PNG stamps loaded from filesystem (flat list from customStamps/)
-  const [customPngStamps, setCustomPngStamps] = useState([]);
-  const [stampsLoading, setStampsLoading] = useState(false);
-
-  // Custom-stamp upload state (SVG upload kept for backward compat but hidden)
-  const customStampFileRef = useRef(null);
-  const [pendingCustomUpload, setPendingCustomUpload] = useState(null); // { initialName, svg }
-  const [customStampToDelete, setCustomStampToDelete] = useState(null);
-
-  // In-progress pen stroke. We mutate a ref for performance and update an
-  // imperative SVG path's d-attribute on every move; React state only tracks
-  // "are we drawing?" so the live path mounts/unmounts correctly.
-  const drawingRef = useRef(null);  // { points: [[x,y]...] } | null
-  const livePathRef = useRef(null); // <path> DOM node for in-progress stroke
-  const [isDrawing, setIsDrawing] = useState(false);
-
-  // Strokes we're about to delete on the current eraser swipe; rendered as
-  // hidden so the user gets immediate visual feedback. Committed on pointerup.
-  const [pendingErase, setPendingErase] = useState(() => new Set());
-  const erasingRef = useRef(null); // { activeIds: Set }
-
-  // ── Undo / redo ────────────────────────────────────────────────────────────
-  // Stack of operations. Each op carries the data needed to invert it.
-  const [undoStack, setUndoStack] = useState([]);
-  const [redoStack, setRedoStack] = useState([]);
-
-  const pushOp = (op) => {
-    setUndoStack(s => {
-      const next = [...s, op];
-      if (next.length > UNDO_LIMIT) next.shift();
-      return next;
-    });
-    setRedoStack([]);
-  };
-
-  // ── Modes & UI state (pinning) ─────────────────────────────────────────────
-  const [pendingPos, setPendingPos] = useState(null);
-  const [pickerForProto, setPickerForProto] = useState(false);
-  const [hoveredPin, setHoveredPin] = useState(null);
-  const [deletingMap, setDeletingMap] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [draftName, setDraftName] = useState('');
-  const [confirmClear, setConfirmClear] = useState(false);
-  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-
-  // ── Refs for DOM interaction ───────────────────────────────────────────────
-  const viewportRef = useRef(null);
-  const imgRef = useRef(null);
-  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
-  const [imgLoaded, setImgLoaded] = useState(false);
-
-  const panStateRef = useRef(null);
-  const pinDragRef  = useRef(null);
-  const [pinGhost, setPinGhost] = useState(null);
-
-  /** While drawing / stamping / placing pins, overlays must not steal pointer events from the viewport. */
-  const mapToolsNeedViewportHits =
-    tool === 'pen' || tool === 'eraser' || tool === 'stamp' || tool === 'addPin' || tool === 'setProtagonist';
-
-  const [showGrid, setShowGrid] = useState(true);
-  const [snapToGrid, setSnapToGrid] = useState(false);
-
-  // Snap to grid helper
-  const snapToGridIfEnabled = (x, y) => {
-    if (!snapToGrid) return { x, y };
-    const cellSize = GRID_CELL;
-    return {
-      x: Math.round(x / cellSize) * cellSize,
-      y: Math.round(y / cellSize) * cellSize,
-    };
-  };
-
-  // Layer management
-  const [addingLayer, setAddingLayer] = useState(false);
-  const [newLayerName, setNewLayerName] = useState('');
-  const [editingLayerId, setEditingLayerId] = useState(null);
-  const [editingLayerName, setEditingLayerName] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
-  const [showMinimap, setShowMinimap] = useState(false);
-
-  const addNewLayer = () => {
-    const name = newLayerName.trim();
-    if (!name) return;
-    const id = name.toLowerCase().replace(/\s+/g, '-');
-    const newLayer = { id, name, kind: 'pen', visible: true, color: PEN_COLORS[0], defaultSize: PEN_SIZES[1] };
-    const newLayers = [...layers, newLayer];
-    updateMapMeta(map.id, { layers: newLayers });
-    setNewLayerName('');
-    setAddingLayer(false);
-  };
-
-  const deleteLayer = (layerId) => {
-    if (layerId === 'terrain' || layerId === 'pins' || layerId === 'stamps') return; // Can't delete reserved layers
-    const newLayers = layers.filter(l => l.id !== layerId);
-    updateMapMeta(map.id, { layers: newLayers });
-    if (activeLayerId === layerId) setActiveLayerId('terrain');
-  };
-
-  const renameLayer = (layerId, newName) => {
-    const name = newName.trim();
-    if (!name) { setEditingLayerId(null); return; }
-    const newLayers = layers.map(l => l.id === layerId ? { ...l, name } : l);
-    updateMapMeta(map.id, { layers: newLayers });
-    setEditingLayerId(null);
-  };
-
-  const moveLayer = (layerId, direction) => {
-    const idx = layers.findIndex(l => l.id === layerId);
-    if (idx === -1) return;
-    const newLayers = [...layers];
-    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (newIdx < 0 || newIdx >= newLayers.length) return;
-    [newLayers[idx], newLayers[newIdx]] = [newLayers[newIdx], newLayers[idx]];
-    updateMapMeta(map.id, { layers: newLayers });
-  };
-
-  // Resolve effective canvas dimensions for rendering and coordinate math.
-  const mapImage = map?.image;
-  const mapCanvasSize = map?.canvasSize;
-  const effectiveSize = useMemo(() => {
-    if (mapImage && imgSize.w > 0) return imgSize;
-    if (mapCanvasSize?.w && mapCanvasSize?.h) return mapCanvasSize;
-    const hasSpatial =
-      (map?.strokes?.length > 0) ||
-      (map?.pins?.length > 0) ||
-      (map?.stamps?.length > 0) ||
-      !!map?.protagonist;
-    return hasSpatial ? LEGACY_CANVAS : LARGE_CANVAS;
-  }, [
-    mapImage,
-    mapCanvasSize,
-    imgSize,
-    map?.strokes?.length,
-    map?.pins?.length,
-    map?.stamps?.length,
-    map?.protagonist,
-  ]);
-
-  // Reset + fit when the map changes or image (re)loads
-  const fitToView = useCallback(() => {
-    if (!viewportRef.current || !effectiveSize.w || !effectiveSize.h) return;
-    const r = viewportRef.current.getBoundingClientRect();
-    const scale = Math.min(r.width / effectiveSize.w, r.height / effectiveSize.h, 1);
-    setZoom(scale);
-    setPan({
-      x: (r.width  - effectiveSize.w * scale) / 2,
-      y: (r.height - effectiveSize.h * scale) / 2,
-    });
-  }, [effectiveSize]);
-
-  // Export map as PNG
-  const exportMapAsPng = useCallback(async () => {
-    const svgElement = document.querySelector('.map-svg-export');
-    if (!svgElement) return;
-    
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const w = effectiveSize.w;
-    const h = effectiveSize.h;
-    
-    canvas.width = w;
-    canvas.height = h;
-    
-    // Draw background
-    ctx.fillStyle = '#0b1020';
-    ctx.fillRect(0, 0, w, h);
-    
-    const data = new XMLSerializer().serializeToString(svgElement);
-    const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    
-    const img = new Image();
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      
-      // Download
-      const link = document.createElement('a');
-      link.download = `${map?.name || 'map'}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    };
-    img.src = url;
-  }, [map, effectiveSize]);
-
-  // Zoom to fit all content
-  const zoomToFit = useCallback(() => {
-    if (!viewportRef.current) return;
-    const stamps = map?.stamps || [];
-    const pins = map?.pins || [];
-    const strokes = map?.strokes || [];
-    
-    if (stamps.length === 0 && pins.length === 0 && strokes.length === 0) {
-      fitToView();
-      return;
-    }
-    
-    // Calculate bounding box
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    
-    // Include stamp positions
-    for (const s of stamps) {
-      const sx = s.x * effectiveSize.w;
-      const sy = s.y * effectiveSize.h;
-      const size = s.size || DEFAULT_STAMP_SIZE;
-      minX = Math.min(minX, sx - size/2);
-      minY = Math.min(minY, sy - size/2);
-      maxX = Math.max(maxX, sx + size/2);
-      maxY = Math.max(maxY, sy + size/2);
-    }
-    
-    // Include pin positions
-    for (const p of pins) {
-      minX = Math.min(minX, p.x * effectiveSize.w);
-      minY = Math.min(minY, p.y * effectiveSize.h);
-      maxX = Math.max(maxX, p.x * effectiveSize.w);
-      maxY = Math.max(maxY, p.y * effectiveSize.h);
-    }
-    
-    // Include stroke points
-    for (const stroke of strokes) {
-      for (const [px, py] of stroke.points) {
-        minX = Math.min(minX, px);
-        minY = Math.min(minY, py);
-        maxX = Math.max(maxX, px);
-        maxY = Math.max(maxY, py);
-      }
-    }
-    
-    // Add padding
-    const padding = 100;
-    minX -= padding; minY -= padding;
-    maxX += padding; maxY += padding;
-    
-    const contentW = maxX - minX;
-    const contentH = maxY - minY;
-    
-    if (contentW <= 0 || contentH <= 0) {
-      fitToView();
-      return;
-    }
-    
-    const r = viewportRef.current.getBoundingClientRect();
-    const scale = Math.min(r.width / contentW, r.height / contentH, 2);
-    
-    setZoom(scale);
-    setPan({
-      x: (r.width - contentW * scale) / 2 - minX * scale,
-      y: (r.height - contentH * scale) / 2 - minY * scale,
-    });
-  }, [map, effectiveSize, fitToView]);
-
-  useLayoutEffect(() => {
-    if (map && (!map.image || imgLoaded)) fitToView();
-  }, [imgLoaded, fitToView, id, map]);
-
-  useEffect(() => {
-    const onResize = () => fitToView();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [fitToView]);
-
-  // ── Coordinate helpers ─────────────────────────────────────────────────────
-  const eventToWorld = (e) => {
-    if (!viewportRef.current) return null;
-    const r = viewportRef.current.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
-    return { x: (px - pan.x) / zoom, y: (py - pan.y) / zoom };
-  };
-
-  const eventToNorm = (e) => {
-    const w = eventToWorld(e);
-    if (!w || !effectiveSize.w || !effectiveSize.h) return null;
-    return {
-      x: clamp(w.x / effectiveSize.w, 0, 1),
-      y: clamp(w.y / effectiveSize.h, 0, 1),
-    };
-  };
-
-  // ── Drawing ops ────────────────────────────────────────────────────────────
-  const beginPenStroke = (e) => {
-    // Refuse to draw on a hidden layer — would be invisible / surprising.
-    if (!isLayerVisible(activeLayerId)) return;
-    const w = eventToWorld(e);
-    if (!w) return;
-    drawingRef.current = { points: [[w.x, w.y]] };
-    setIsDrawing(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-    // Live <path> mounts after paint — sync initial point so tiny strokes still render.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const live = livePathRef.current;
-        const cur = drawingRef.current;
-        if (live && cur?.points?.length) live.setAttribute('d', pointsToPathD(cur.points));
-      });
-    });
-  };
-
-  const extendPenStroke = (e) => {
-    const d = drawingRef.current;
-    if (!d) return;
-    const w = eventToWorld(e);
-    if (!w) return;
-    const last = d.points[d.points.length - 1];
-    const dx = w.x - last[0], dy = w.y - last[1];
-    // Lenient threshold so strokes register even at high zoom / slow pointers.
-    if (dx * dx + dy * dy < 0.04) return;
-    d.points.push([w.x, w.y]);
-    if (livePathRef.current) {
-      livePathRef.current.setAttribute('d', pointsToPathD(d.points));
-    }
-  };
-
-  const endPenStroke = () => {
-    const d = drawingRef.current;
-    drawingRef.current = null;
-    setIsDrawing(false);
-    if (!d || d.points.length < 1) return;
-    let points = d.points;
-    if (points.length === 1) {
-      const [x, y] = points[0];
-      points = [[x, y], [x + 0.5, y + 0.5]];
-    }
-    const stroke = {
-      id: uuidv4(),
-      tool: 'pen',
-      layerId: activeLayerId,
-      color: penColor,
-      size: penSize,
-      points,
-    };
-    const newStrokes = [...(map.strokes || []), stroke];
-    updateMapMeta(map.id, { strokes: newStrokes });
-    pushOp({ type: 'add', strokeId: stroke.id, stroke });
-  };
-
-  const beginEraseSwipe = (e) => {
-    if (!isLayerVisible(activeLayerId)) return;
-    erasingRef.current = { activeIds: new Set() };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const extendEraseSwipe = (e) => {
-    const swipe = erasingRef.current;
-    if (!swipe) return;
-    const w = eventToWorld(e);
-    if (!w) return;
-    const radius = eraserSize / 2;
-    let changed = false;
-    // Eraser respects the active layer — only strokes on that layer can be hit.
-    for (const s of map.strokes || []) {
-      const sLayer = s.layerId || 'terrain';
-      if (sLayer !== activeLayerId) continue;
-      if (swipe.activeIds.has(s.id)) continue;
-      if (strokeIntersectsPoint(s, w.x, w.y, radius)) {
-        swipe.activeIds.add(s.id);
-        changed = true;
-      }
-    }
-    if (changed) setPendingErase(new Set(swipe.activeIds));
-  };
-
-  const endEraseSwipe = () => {
-    const swipe = erasingRef.current;
-    erasingRef.current = null;
-    if (!swipe || swipe.activeIds.size === 0) {
-      setPendingErase(new Set());
-      return;
-    }
-    const removed = (map.strokes || []).filter(s => swipe.activeIds.has(s.id));
-    const remaining = (map.strokes || []).filter(s => !swipe.activeIds.has(s.id));
-    updateMapMeta(map.id, { strokes: remaining });
-    pushOp({ type: 'delete', strokes: removed });
-    setPendingErase(new Set());
-  };
-
-  // ── Stamp ops ──────────────────────────────────────────────────────────────
-  const placeStamp = (norm) => {
-    if (!norm) return;
-    if (!isLayerVisible('stamps')) return; // can't place on hidden layer
-    
-    // Apply snap to grid if enabled
-    let { x, y } = norm;
-    if (snapToGrid) {
-      const cellW = GRID_CELL / effectiveSize.w;
-      const cellH = GRID_CELL / effectiveSize.h;
-      x = Math.round(x / cellW) * cellW;
-      y = Math.round(y / cellH) * cellH;
-    }
-    
-    let stampData;
-    if (selectedStamp.source === 'library' && selectedStamp.key) {
-      stampData = { libraryPath: selectedStamp.key };
-    } else if (selectedStamp.source === 'builtin') {
-      stampData = { kind: selectedStamp.key };
-    } else {
-      stampData = { customId: selectedStamp.key };
-    }
-    const stamp = {
-      id: uuidv4(),
-      x,
-      y,
-      size: selectedStampSize,
-      rotation: stampRotation,
-      flipX: stampFlipX,
-      flipY: stampFlipY,
-      ...stampData,
-    };
-    const newStamps = [...(map.stamps || []), stamp];
-    updateMapMeta(map.id, { stamps: newStamps });
-    pushOp({ type: 'add-stamp', stamp });
-  };
-
-  // Generic patch helper reserved for stamp rotation / flip (wired when UI lands).
-
-  const removeStamp = (stampId) => {
-    const removed = (map.stamps || []).find(s => s.id === stampId);
-    if (!removed) return;
-    const remaining = (map.stamps || []).filter(s => s.id !== stampId);
-    updateMapMeta(map.id, { stamps: remaining });
-    pushOp({ type: 'delete-stamp', stamp: removed });
-  };
-
-  // ── Undo / Redo ────────────────────────────────────────────────────────────
-  const doUndo = () => {
-    setUndoStack(stack => {
-      if (!stack.length || !map) return stack;
-      const op = stack[stack.length - 1];
-      const newStack = stack.slice(0, -1);
-      if (op.type === 'add') {
-        const remaining = (map.strokes || []).filter(s => s.id !== op.strokeId);
-        updateMapMeta(map.id, { strokes: remaining });
-      } else if (op.type === 'delete') {
-        const restored = [...(map.strokes || []), ...op.strokes];
-        updateMapMeta(map.id, { strokes: restored });
-      } else if (op.type === 'clear') {
-        updateMapMeta(map.id, { strokes: op.strokes });
-      } else if (op.type === 'add-stamp') {
-        const remaining = (map.stamps || []).filter(s => s.id !== op.stamp.id);
-        updateMapMeta(map.id, { stamps: remaining });
-      } else if (op.type === 'delete-stamp') {
-        const restored = [...(map.stamps || []), op.stamp];
-        updateMapMeta(map.id, { stamps: restored });
-      } else if (op.type === 'move-stamp') {
-        const newStamps = (map.stamps || []).map(s =>
-          s.id === op.stampId ? { ...s, x: op.from.x, y: op.from.y } : s
-        );
-        updateMapMeta(map.id, { stamps: newStamps });
-      } else if (op.type === 'patch-stamp') {
-        const newStamps = (map.stamps || []).map(s =>
-          s.id === op.stampId ? { ...s, ...op.from } : s
-        );
-        updateMapMeta(map.id, { stamps: newStamps });
-      }
-      setRedoStack(r => [...r, op]);
-      return newStack;
-    });
-  };
-
-  const doRedo = () => {
-    setRedoStack(stack => {
-      if (!stack.length || !map) return stack;
-      const op = stack[stack.length - 1];
-      const newStack = stack.slice(0, -1);
-      if (op.type === 'add') {
-        const restored = [...(map.strokes || []), op.stroke];
-        updateMapMeta(map.id, { strokes: restored });
-      } else if (op.type === 'delete') {
-        const ids = new Set(op.strokes.map(s => s.id));
-        const remaining = (map.strokes || []).filter(s => !ids.has(s.id));
-        updateMapMeta(map.id, { strokes: remaining });
-      } else if (op.type === 'clear') {
-        updateMapMeta(map.id, { strokes: [] });
-      } else if (op.type === 'add-stamp') {
-        const restored = [...(map.stamps || []), op.stamp];
-        updateMapMeta(map.id, { stamps: restored });
-      } else if (op.type === 'delete-stamp') {
-        const remaining = (map.stamps || []).filter(s => s.id !== op.stamp.id);
-        updateMapMeta(map.id, { stamps: remaining });
-      } else if (op.type === 'move-stamp') {
-        const newStamps = (map.stamps || []).map(s =>
-          s.id === op.stampId ? { ...s, x: op.to.x, y: op.to.y } : s
-        );
-        updateMapMeta(map.id, { stamps: newStamps });
-      } else if (op.type === 'patch-stamp') {
-        const newStamps = (map.stamps || []).map(s =>
-          s.id === op.stampId ? { ...s, ...op.to } : s
-        );
-        updateMapMeta(map.id, { stamps: newStamps });
-      }
-      setUndoStack(u => [...u, op]);
-      return newStack;
-    });
-  };
-
-  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const onKey = (e) => {
-      const tag = (e.target?.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
-
-      const meta = e.metaKey || e.ctrlKey;
-      
-      // Undo/Redo
-      if (meta && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) doRedo(); else doUndo();
-        return;
-      }
-      
-      // Tool shortcuts
-      if (e.key === 'v' || e.key === 'V') { e.preventDefault(); setTool('view'); }
-      if (e.key === 'p' || e.key === 'P') { e.preventDefault(); setTool('pen'); }
-      if (e.key === 'e' || e.key === 'E') { e.preventDefault(); setTool('eraser'); }
-      if (e.key === 's' || e.key === 'S') { e.preventDefault(); setTool('stamp'); }
-      if (e.key === 'Escape') setTool('view');
-      if (e.key === '?' || e.key === '/') { e.preventDefault(); setShowKeyboardHelp(true); }
-      
-      // Grid shortcuts
-      if (e.key === 'g' || e.key === 'G') { e.preventDefault(); setShowGrid(!showGrid); }
-      if (e.key === 'n' || e.key === 'N') { e.preventDefault(); setSnapToGrid(!snapToGrid); }
-      
-      // Zoom shortcuts
-      if (e.key === '=' || e.key === '+') { e.preventDefault(); setZoom(z => clamp(z * 1.2, ZOOM_MIN, ZOOM_MAX)); }
-      if (e.key === '-' || e.key === '_') { e.preventDefault(); setZoom(z => clamp(z / 1.2, ZOOM_MIN, ZOOM_MAX)); }
-      if (e.key === '0') { e.preventDefault(); setZoom(1); setPan({ x: 0, y: 0 }); }
-      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); zoomToFit(); }
-      
-      // Layer shortcuts (1-4 for quick layer switching)
-      if (e.key >= '1' && e.key <= '4') {
-        e.preventDefault();
-        const layerIndex = parseInt(e.key) - 1;
-        const penLayers = layers.filter(l => l.kind === 'pen');
-        if (penLayers[layerIndex]) {
-          selectActivePenLayer(penLayers[layerIndex].id);
-        }
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [undoStack, redoStack, map, showGrid, snapToGrid, layers]);
-
-  // ── Layer actions ──────────────────────────────────────────────────────────
-  // Persisting a layer change uses updateMapMeta. If the map has no layers
-  // array yet (legacy maps), we materialize the defaults plus our delta.
-  const persistLayers = (next) => updateMapMeta(map.id, { layers: next });
-
-  const toggleLayerVisibility = (layerId) => {
-    const next = layers.map(l =>
-      l.id === layerId ? { ...l, visible: l.visible === false ? true : false } : l
-    );
-    persistLayers(next);
-  };
-
-  function selectActivePenLayer(layerId) {
-    setActiveLayerId(layerId);
-    const layer = layers.find(l => l.id === layerId);
-    if (layer && layer.kind === 'pen') {
-      setPenColor(layer.color);
-      setPenSize(layer.defaultSize);
-      if (tool === 'view' || tool === 'eraser') setTool('pen');
-    }
-  }
-
-  // ── Pan / pin / etc. interactions ──────────────────────────────────────────
-  const onPointerDownBackground = (e) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-
-    if (tool === 'pen') {
-      beginPenStroke(e);
-      return;
-    }
-    if (tool === 'eraser') {
-      beginEraseSwipe(e);
-      extendEraseSwipe(e);
-      return;
-    }
-    if (tool === 'addPin') {
-      const norm = eventToNorm(e);
-      if (norm) setPendingPos(norm);
-      return;
-    }
-    if (tool === 'setProtagonist') {
-      const norm = eventToNorm(e);
-      if (norm) { setPendingPos(norm); setPickerForProto(true); }
-      return;
-    }
-    if (tool === 'stamp') {
-      const norm = eventToNorm(e);
-      if (norm) placeStamp(norm);
-      return;
-    }
-    panStateRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startPan: { ...pan },
-      pointerId: e.pointerId,
-    };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMoveBackground = (e) => {
-    if (drawingRef.current)  { extendPenStroke(e);   return; }
-    if (erasingRef.current)  { extendEraseSwipe(e);  return; }
-
-    if (panStateRef.current) {
-      const s = panStateRef.current;
-      setPan({
-        x: s.startPan.x + (e.clientX - s.startX),
-        y: s.startPan.y + (e.clientY - s.startY),
-      });
-    }
-    if (pinDragRef.current) {
-      const norm = eventToNorm(e);
-      if (norm) {
-        pinDragRef.current.ghost = norm;
-        setPinGhost({ ...norm, kind: pinDragRef.current.kind, id: pinDragRef.current.id });
-      }
-    }
-  };
-
-  const onPointerUpBackground = (e) => {
-    if (drawingRef.current) { endPenStroke();   return; }
-    if (erasingRef.current) { endEraseSwipe();  return; }
-    
-    if (panStateRef.current) {
-      try { e.currentTarget.releasePointerCapture(panStateRef.current.pointerId); } catch { /* capture may already be released */ }
-      panStateRef.current = null;
-    }
-    if (pinDragRef.current) {
-      const drag = pinDragRef.current;
-      pinDragRef.current = null;
-      setPinGhost(null);
-      if (!drag.ghost) return;
-      if (drag.kind === 'pin') {
-        const newPins = (map.pins || []).map(p => p.id === drag.id ? { ...p, x: drag.ghost.x, y: drag.ghost.y } : p);
-        updateMapMeta(map.id, { pins: newPins });
-      } else if (drag.kind === 'protagonist' && map.protagonist) {
-        updateMapMeta(map.id, { protagonist: { ...map.protagonist, x: drag.ghost.x, y: drag.ghost.y } });
-      } else if (drag.kind === 'stamp') {
-        const target = (map.stamps || []).find(s => s.id === drag.id);
-        if (target) {
-          const newStamps = (map.stamps || []).map(s =>
-            s.id === drag.id ? { ...s, x: drag.ghost.x, y: drag.ghost.y } : s
-          );
-          updateMapMeta(map.id, { stamps: newStamps });
-          if (drag.from && (drag.from.x !== drag.ghost.x || drag.from.y !== drag.ghost.y)) {
-            pushOp({
-              type: 'move-stamp',
-              stampId: drag.id,
-              from: drag.from,
-              to: { x: drag.ghost.x, y: drag.ghost.y },
-            });
-          }
-        }
-      }
-    }
-  };
-
-  const onWheel = (e) => {
-    if (!viewportRef.current) return;
-    e.preventDefault();
-    const r = viewportRef.current.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    const newZoom = clamp(zoom * factor, ZOOM_MIN, ZOOM_MAX);
-    const ratio = newZoom / zoom;
-    setPan({ x: px - (px - pan.x) * ratio, y: py - (py - pan.y) * ratio });
-    setZoom(newZoom);
-  };
-
-  // ── Pin interactions ───────────────────────────────────────────────────────
-  const beginPinDrag = (e, kind, pinId = null) => {
-    e.stopPropagation();
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    let from = null;
-    if (kind === 'stamp') {
-      const s = (map.stamps || []).find(x => x.id === pinId);
-      if (s) from = { x: s.x, y: s.y };
-    }
-    pinDragRef.current = { kind, id: pinId, ghost: null, from };
-  };
-
-  const handlePinClick = (pin) => {
-    if (pinGhost) return;
-    navigate(`/${pin.entityType}/${pin.entityId}`);
-  };
-
-  const removePin = (pinId) => {
-    const newPins = (map.pins || []).filter(p => p.id !== pinId);
-    updateMapMeta(map.id, { pins: newPins });
-  };
-
-  const removeProtagonist = () => updateMapMeta(map.id, { protagonist: null });
-
-  // ── Entity picker callbacks ────────────────────────────────────────────────
-  const onPickForPin = (entity) => {
-    if (!pendingPos) return;
-    const newPin = {
-      id: uuidv4(),
-      entityId: entity.id,
-      entityType: entity._type,
-      x: pendingPos.x,
-      y: pendingPos.y,
-    };
-    updateMapMeta(map.id, { pins: [...(map.pins || []), newPin] });
-    setPendingPos(null);
-    setTool('view');
-  };
-
-  const onPickForProtagonist = (entity) => {
-    if (!pendingPos) return;
-    updateMapMeta(map.id, {
-      protagonist: { entityId: entity.id, x: pendingPos.x, y: pendingPos.y },
-    });
-    setPendingPos(null);
-    setPickerForProto(false);
-    setTool('view');
-  };
-
-  // ── Entity lookup for rendering pin labels & icons ─────────────────────────
-  const charactersAll = useWorldStore(s => s.characters);
-  const locationsAll  = useWorldStore(s => s.locations);
-  const thingsAll     = useWorldStore(s => s.things);
-  const loreAll       = useWorldStore(s => s.lore);
-  const factionsAll   = useWorldStore(s => s.factions);
-  const creaturesAll  = useWorldStore(s => s.creatures);
-
-  const lookupEntity = (entityType, entityId) => {
-    const arr =
-      entityType === 'characters' ? charactersAll :
-      entityType === 'locations'  ? locationsAll  :
-      entityType === 'things'     ? thingsAll     :
-      entityType === 'lore'       ? loreAll       :
-      entityType === 'factions'   ? factionsAll   :
-      entityType === 'creatures'  ? creaturesAll  : [];
-    return arr.find(e => e.id === entityId) || null;
-  };
-
-  const protagonistEntity = map?.protagonist ? lookupEntity('characters', map.protagonist.entityId) : null;
-
-  // ── Custom stamp lookup ────────────────────────────────────────────────────
-  const customStampById = useMemo(
-    () => Object.fromEntries((customStamps || []).map(s => [s.id, s])),
-    [customStamps]
-  );
-
-  // ── Stamp picker (filtered list) ───────────────────────────────────────────
-  // Build a unified list of choosable stamps, pre-filtered by the search query
-  // and selected tag chip. Each entry has a uniform shape so the picker doesn't
-  // need to branch in the JSX.
-  const allStampTags = useMemo(() => {
-    const set = new Set();
-    for (const s of STAMP_LIBRARY) (s.tags || []).forEach(t => set.add(t));
-    for (const s of (customStamps || [])) (s.tags || []).forEach(t => set.add(t));
-    return Array.from(set).sort();
-  }, [customStamps]);
-
-  const filteredBuiltins = useMemo(() => {
-    const q = stampQuery.trim().toLowerCase();
-    return STAMP_LIBRARY.filter(s => {
-      if (stampTagFilter && !(s.tags || []).includes(stampTagFilter)) return false;
-      if (!q) return true;
-      const hay = `${s.label} ${(s.tags || []).join(' ')}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [stampQuery, stampTagFilter]);
-
-  const filteredCustom = useMemo(() => {
-    const q = stampQuery.trim().toLowerCase();
-    return (customStamps || []).filter(s => {
-      if (stampTagFilter && !(s.tags || []).includes(stampTagFilter)) return false;
-      if (!q) return true;
-      const hay = `${s.name} ${(s.tags || []).join(' ')}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [customStamps, stampQuery, stampTagFilter]);
-
-  // Derived "current stamp" for the size-preview thumbnails and the hint banner.
-  const currentStampMeta = useMemo(() => {
-    if (selectedStamp.source === 'library' && selectedStamp.key) {
-      return { kind: 'library', label: selectedStamp.name || 'Stamp', path: selectedStamp.key };
-    }
-    if (selectedStamp.source === 'builtin') {
-      const def = STAMP_BY_KIND[selectedStamp.key];
-      return def ? { kind: 'builtin', label: def.label, icon: def.icon, color: def.color } : null;
-    }
-    const def = customStampById[selectedStamp.key];
-    return def ? { kind: 'custom', label: def.name, svg: def.svg } : null;
-  }, [selectedStamp, customStampById]);
-
-  // Filtered PNG stamp list for the picker
-  const filteredPngStamps = useMemo(() => {
-    const q = stampQuery.trim().toLowerCase();
-    if (!q) return customPngStamps;
-    return customPngStamps.filter(s => s.label.toLowerCase().includes(q));
-  }, [customPngStamps, stampQuery]);
-
-  // ── Strokes grouped by layer ───────────────────────────────────────────────
-  const strokesByLayerId = useMemo(() => {
-    const out = {};
-    for (const s of (map?.strokes || [])) {
-      const lid = s.layerId || 'terrain';
-      if (!out[lid]) out[lid] = [];
-      out[lid].push(s);
-    }
-    return out;
-  }, [map?.strokes]);
-
-  // ── Image replace ──────────────────────────────────────────────────────────
-  const fileRef = useRef(null);
-  const handleReplaceImage = async (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      await saveMap({ ...map, image: ev.target.result });
-      setImgLoaded(false);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleClearAll = () => {
-    if (!map?.strokes?.length) return;
-    pushOp({ type: 'clear', strokes: map.strokes });
-    updateMapMeta(map.id, { strokes: [] });
-    setConfirmClear(false);
-  };
-
-  const handleGenerateShape = (shapeType, size, complexity) => {
-    // Generate shape in the center of the current view
-    const centerX = effectiveSize.w / 2;
-    const centerY = effectiveSize.h / 2;
-    
-    let points;
-    if (shapeType === 'coastline') {
-      points = generateCoastline(centerX, centerY, size, complexity);
-    } else {
-      points = generateIslandShape(centerX, centerY, size, complexity, shapeType);
-    }
-    
-    // Create a stroke from the generated points
-    const stroke = {
-      id: uuidv4(),
-      tool: 'pen',
-      layerId: 'terrain',
-      color: '#1a1a1a',
-      size: 4,
-      points,
-    };
-    
-    const newStrokes = [...(map.strokes || []), stroke];
-    updateMapMeta(map.id, { strokes: newStrokes });
-    pushOp({ type: 'add', strokeId: stroke.id, stroke });
-    setShowGenerateModal(false);
-    
-    // Zoom to fit the new shape
-    setTimeout(() => zoomToFit(), 100);
-  };
-
-  // ── Custom-stamp upload flow ───────────────────────────────────────────────
-  const handlePickCustomStampFile = async (file) => {
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.svg') && file.type !== 'image/svg+xml') {
-      alert('Please select an SVG file.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const raw = String(ev.target?.result || '');
-      const clean = sanitizeSvg(raw);
-      if (!clean.toLowerCase().includes('<svg')) {
-        alert("That file doesn't look like a valid SVG.");
-        return;
-      }
-      const initialName = file.name.replace(/\.svg$/i, '');
-      setPendingCustomUpload({ initialName, svg: clean });
-    };
-    reader.readAsText(file);
-  };
-
-  const handleSaveCustomStamp = async ({ name, tags, svg }) => {
-    const saved = await addCustomStamp({ name, tags, svg });
-    setPendingCustomUpload(null);
-    if (saved?.id) setSelectedStamp({ source: 'custom', key: saved.id });
-  };
-
-  const handleConfirmDeleteCustomStamp = async () => {
-    if (!customStampToDelete) return;
-    await deleteCustomStamp(customStampToDelete.id);
-    if (selectedStamp.source === 'custom' && selectedStamp.key === customStampToDelete.id) {
-      setSelectedStamp({ source: 'builtin', key: STAMP_LIBRARY[0].kind });
-    }
-    setCustomStampToDelete(null);
-  };
-
-  // ── PNG stamp library loading (flat list from customStamps/) ────────────────
-  const loadCustomPngStamps = useCallback(async () => {
-    setStampsLoading(true);
-    try {
-      const data = await api.stampsList();
-      setCustomPngStamps(data.stamps || []);
-      // Auto-select the first stamp if nothing is selected yet
-      if (data.stamps?.length > 0 && !selectedStamp.key) {
-        const first = data.stamps[0];
-        setSelectedStamp({ source: 'library', key: first.rel, name: first.label });
-      }
-    } catch (err) {
-      console.error('Failed to load PNG stamps:', err);
-      setCustomPngStamps([]);
-    } finally {
-      setStampsLoading(false);
-    }
-  }, [selectedStamp.key]);
-
-  // Load on mount — setState is inside the async useCallback, not the effect body directly
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadCustomPngStamps();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleSelectPngStamp = (stamp) => {
-    setSelectedStamp({ source: 'library', key: stamp.rel, name: stamp.label });
-  };
-
-  // ── Early-return for missing map (after all hooks) ─────────────────────────
-  if (!map) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-        <MapIcon size={36} className="text-muted-foreground/40 mb-3" />
-        <p className="text-sm text-muted-foreground mb-4">Map not found.</p>
-        <button onClick={() => navigate('/maps')} className="text-sm text-primary hover:underline">
-          Back to maps
-        </button>
-      </div>
-    );
-  }
-
-  // ── Rendering ──────────────────────────────────────────────────────────────
-  const cursorClass =
-    tool === 'pen'            ? 'cursor-crosshair' :
-    tool === 'eraser'         ? 'cursor-cell'      :
-    showHistory              ? 'cursor-default'   :
-    tool === 'addPin'         ? 'cursor-crosshair' :
-    tool === 'setProtagonist' ? 'cursor-crosshair' :
-                                'cursor-grab';
-
-  const drawingActive = tool === 'pen' || tool === 'eraser';
-  const stampActive = tool === 'stamp';
-  const subPanelActive = drawingActive || stampActive;
-
-  // Background paper color
-  const paperColor = map.paperColor || (map.image ? null : '#0b1020');
-
-  const stampsVisible = isLayerVisible('stamps');
-  const pinsVisible = isLayerVisible('pins');
-
-  return (
-    <>
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Top toolbar */}
-        <header className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card shrink-0">
-          <button
-            onClick={() => navigate('/maps')}
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Back to maps"
-          >
-            <ArrowLeft size={16} />
-          </button>
-
-          {renaming ? (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const next = draftName.trim();
-                if (next && next !== map.name) await updateMapMeta(map.id, { name: next });
-                setRenaming(false);
-              }}
-              className="flex items-center gap-1"
-            >
-              <input
-                autoFocus
-                value={draftName}
-                onChange={e => setDraftName(e.target.value)}
-                onBlur={async () => {
-                  const next = draftName.trim();
-                  if (next && next !== map.name) await updateMapMeta(map.id, { name: next });
-                  setRenaming(false);
-                }}
-                className="bg-secondary text-foreground text-base font-semibold rounded px-2 py-1 border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <button type="submit" className="p-1 rounded text-muted-foreground hover:text-foreground"><Check size={14} /></button>
-            </form>
-          ) : (
-            <button
-              onClick={() => { setDraftName(map.name || ''); setRenaming(true); }}
-              className="text-base font-semibold text-foreground hover:text-primary transition-colors px-1.5 py-0.5 rounded flex items-center gap-1.5 group"
-              title="Rename map"
-            >
-              {map.name || 'Untitled map'}
-              <Pencil size={11} className="text-muted-foreground/50 group-hover:text-muted-foreground" />
-            </button>
-          )}
-
-          <div className="flex-1" />
-
-          {/* Undo / Redo — prominently in the top toolbar so they're always one click away */}
-          <button
-            onClick={doUndo}
-            disabled={undoStack.length === 0}
-            className="h-8 px-2.5 flex items-center gap-1.5 rounded-md text-xs font-medium border border-border text-foreground hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            title="Undo (⌘Z)"
-          >
-            <Undo2 size={13} /> Undo
-          </button>
-          <button
-            onClick={doRedo}
-            disabled={redoStack.length === 0}
-            className="h-8 px-2.5 flex items-center gap-1.5 rounded-md text-xs font-medium border border-border text-foreground hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            title="Redo (⌘⇧Z)"
-          >
-            <Redo2 size={13} /> Redo
-          </button>
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className={`h-8 px-2.5 flex items-center gap-1.5 rounded-md text-xs font-medium border transition-colors ${showHistory ? 'bg-secondary border-primary' : 'border-border text-foreground hover:bg-secondary'}`}
-            title="History"
-          >
-            <span className="text-[10px]">{undoStack.length + redoStack.length}</span>
-          </button>
-
-          <span className="mx-2 h-6 w-px bg-border" />
-
-          {/* Zoom controls */}
-          <button
-            onClick={() => {
-              const r = viewportRef.current?.getBoundingClientRect();
-              if (!r) return;
-              const cx = r.width / 2, cy = r.height / 2;
-              const newZoom = clamp(zoom / 1.25, ZOOM_MIN, ZOOM_MAX);
-              const ratio = newZoom / zoom;
-              setPan({ x: cx - (cx - pan.x) * ratio, y: cy - (cy - pan.y) * ratio });
-              setZoom(newZoom);
-            }}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Zoom out"
-          >
-            <ZoomOut size={14} />
-          </button>
-          <span className="text-xs text-muted-foreground tabular-nums w-10 text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            onClick={() => {
-              const r = viewportRef.current?.getBoundingClientRect();
-              if (!r) return;
-              const cx = r.width / 2, cy = r.height / 2;
-              const newZoom = clamp(zoom * 1.25, ZOOM_MIN, ZOOM_MAX);
-              const ratio = newZoom / zoom;
-              setPan({ x: cx - (cx - pan.x) * ratio, y: cy - (cy - pan.y) * ratio });
-              setZoom(newZoom);
-            }}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Zoom in"
-          >
-            <ZoomIn size={14} />
-          </button>
-          <button
-            onClick={fitToView}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Fit to view"
-          >
-            <Maximize size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowGrid(g => !g)}
-            className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors ${
-              showGrid ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-            }`}
-            title={showGrid ? 'Hide alignment grid' : 'Show alignment grid'}
-          >
-            <Grid3x3 size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setSnapToGrid(g => !g)}
-            className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors ${
-              snapToGrid ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-            }`}
-            title={snapToGrid ? 'Disable snap to grid' : 'Enable snap to grid'}
-          >
-            <AlignCenter size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={zoomToFit}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Zoom to fit all content"
-          >
-            <Maximize size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowMinimap(!showMinimap)}
-            className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors ${showMinimap ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
-            title="Toggle minimap"
-          >
-            <Ruler size={14} />
-          </button>
-
-          <span className="mx-2 h-6 w-px bg-border" />
-
-          <button
-            onClick={() => setShowKeyboardHelp(true)}
-            className="h-8 px-2 flex items-center gap-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors text-xs"
-            title="Keyboard shortcuts (press ?)"
-          >
-            <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-secondary border border-border">?</span>
-            Shortcuts
-          </button>
-
-          <span className="mx-2 h-6 w-px bg-border" />
-
-          <button
-            onClick={() => setShowGenerateModal(true)}
-            className="h-8 px-2.5 flex items-center gap-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors text-xs font-medium"
-            title="Generate island or region shape"
-          >
-            <Sparkles size={13} /> Generate
-          </button>
-          <button
-            onClick={exportMapAsPng}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            title="Export as PNG"
-          >
-            <Download size={14} />
-          </button>
-          <button
-            onClick={() => setDeletingMap(true)}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
-            title="Delete map"
-          >
-            <Trash2 size={14} />
-          </button>
-        </header>
-
-        {/* Mode hint banner */}
-        {(tool === 'addPin' || tool === 'setProtagonist' || tool === 'stamp') && (
-          <div className="px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs text-primary flex items-center gap-2">
-            {tool === 'addPin' && <Pin size={12} />}
-            {tool === 'setProtagonist' && <Star size={12} />}
-            {tool === 'stamp' && <StampIcon size={12} />}
-            {tool === 'addPin' && 'Click anywhere on the map to drop a pin, then choose an entity.'}
-            {tool === 'setProtagonist' && 'Click anywhere on the map to place the protagonist marker, then choose a character.'}
-            {tool === 'stamp' && (currentStampMeta
-              ? `Click anywhere on the map to drop a ${currentStampMeta.label.toLowerCase()}. Pick a different one from the panel.`
-              : 'Click anywhere on the map to drop a stamp.')}
-            <button onClick={() => { setTool('view'); setPendingPos(null); }} className="ml-auto text-primary/70 hover:text-primary">
-              Done
-            </button>
-          </div>
-        )}
-
-        {/* Viewport (with floating left palette + right layer panel) */}
-        <div className="relative flex-1 overflow-hidden">
-          {/* Left tool palette */}
-          <div className="absolute top-3 left-3 z-10 bg-card/95 backdrop-blur-sm border border-border rounded-lg shadow-lg p-1.5 flex flex-col gap-1">
-            <ToolButton active={tool === 'view'}    onClick={() => setTool('view')}    title="Hand / Pan (V)">
-              <Hand size={15} />
-            </ToolButton>
-            <div className="h-px bg-border my-0.5" />
-            <ToolButton active={tool === 'pen'}     onClick={() => setTool('pen')}     title="Pen (P)">
-              <Pencil size={15} />
-            </ToolButton>
-            <ToolButton active={tool === 'eraser'}  onClick={() => setTool('eraser')}  title="Eraser (E)">
-              <Eraser size={15} />
-            </ToolButton>
-            <ToolButton active={tool === 'stamp'}   onClick={() => setTool('stamp')}   title="Stamps (S)">
-              <StampIcon size={15} />
-            </ToolButton>
-            <div className="h-px bg-border my-0.5" />
-            <ToolButton active={tool === 'addPin'}  onClick={() => setTool(tool === 'addPin' ? 'view' : 'addPin')} title="Add Pin">
-              <Pin size={15} />
-            </ToolButton>
-            <ToolButton
-              active={tool === 'setProtagonist'}
-              onClick={() => setTool(tool === 'setProtagonist' ? 'view' : 'setProtagonist')}
-              title={map.protagonist ? 'Move protagonist marker' : 'Set protagonist marker'}
-            >
-              <Star size={15} />
-            </ToolButton>
-            {map.protagonist && (
-              <ToolButton onClick={removeProtagonist} title="Clear protagonist marker" danger>
-                <X size={14} />
-              </ToolButton>
-            )}
-            {(map.strokes?.length || 0) > 0 && (
-              <>
-                <div className="h-px bg-border my-0.5" />
-                <ToolButton onClick={() => setConfirmClear(true)} title="Clear all strokes" danger>
-                  <Trash2 size={15} />
-                </ToolButton>
-              </>
-            )}
-          </div>
-
-          {/* Pen / eraser / stamp sub-controls appear when relevant */}
-          {subPanelActive && (
-            <div className={`absolute top-3 left-[68px] z-10 bg-card/95 backdrop-blur-sm border border-border rounded-lg shadow-lg p-2 flex flex-col gap-2 ${stampActive ? 'w-72' : 'w-44'}`}>
-              {tool === 'pen' && (
-                <>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <span>Drawing on</span>
-                    <span className="text-foreground normal-case font-medium">{layerById[activeLayerId]?.name || 'Terrain'}</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Color</p>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {PEN_COLORS.map(c => (
-                        <button
-                          key={c}
-                          onClick={() => setPenColor(c)}
-                          className={`w-7 h-7 rounded-md border-2 transition-transform hover:scale-110 ${penColor === c ? 'border-primary' : 'border-border'}`}
-                          style={{ backgroundColor: c }}
-                          title={c}
-                        />
-                      ))}
-                    </div>
-                    <input
-                      type="color"
-                      value={penColor}
-                      onChange={e => setPenColor(e.target.value)}
-                      className="mt-2 w-full h-7 rounded cursor-pointer bg-transparent border border-border"
-                      title="Custom color"
-                    />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Size</p>
-                    <div className="flex items-center gap-1">
-                      {PEN_SIZES.map(s => (
-                        <button
-                          key={s}
-                          onClick={() => setPenSize(s)}
-                          className={`flex-1 h-8 rounded border flex items-center justify-center transition-colors ${penSize === s ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary'}`}
-                          title={`${s}px`}
-                        >
-                          <span
-                            className="rounded-full"
-                            style={{ width: Math.min(s, 16), height: Math.min(s, 16), backgroundColor: penColor }}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-              {tool === 'eraser' && (
-                <>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <span>Erasing on</span>
-                    <span className="text-foreground normal-case font-medium">{layerById[activeLayerId]?.name || 'Terrain'}</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Eraser size</p>
-                    <div className="flex items-center gap-1">
-                      {ERASER_SIZES.map(s => (
-                        <button
-                          key={s}
-                          onClick={() => setEraserSize(s)}
-                          className={`flex-1 h-8 rounded border flex items-center justify-center transition-colors ${eraserSize === s ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary'}`}
-                          title={`${s}px`}
-                        >
-                          <span className="rounded-full bg-muted-foreground" style={{ width: s / 2, height: s / 2 }} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-              {tool === 'stamp' && (
-                <>
-                  {/* Search */}
-                  <div className="relative">
-                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      value={stampQuery}
-                      onChange={e => setStampQuery(e.target.value)}
-                      placeholder="Search stamps…"
-                      className="w-full bg-secondary text-foreground text-xs rounded-md pl-7 pr-2 py-1.5 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-                    />
-                  </div>
-
-                  {/* Stamp grid */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                        Images ({filteredPngStamps.length})
-                      </p>
-                      <button
-                        onClick={loadCustomPngStamps}
-                        title="Refresh stamp list"
-                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        ↺
-                      </button>
-                    </div>
-
-                    {stampsLoading ? (
-                      <p className="text-[11px] text-muted-foreground p-3 text-center">Loading…</p>
-                    ) : filteredPngStamps.length === 0 ? (
-                      <div className="text-center py-4 space-y-1.5">
-                        <p className="text-[11px] text-muted-foreground/70">
-                          {customPngStamps.length === 0
-                            ? 'Drop PNG files into customStamps/ to get started'
-                            : 'No stamps match your search'}
-                        </p>
-                        {customPngStamps.length === 0 && (
-                          <p className="text-[10px] text-muted-foreground/50">
-                            Supports PNG, JPG, SVG, WEBP
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-4 gap-1 max-h-52 overflow-y-auto pr-0.5">
-                        {filteredPngStamps.map(s => {
-                          const active = selectedStamp.source === 'library' && selectedStamp.key === s.rel;
-                          return (
-                            <button
-                              key={s.rel}
-                              onClick={() => handleSelectPngStamp(s)}
-                              title={s.label}
-                              className={`aspect-square rounded border flex flex-col items-center justify-center gap-0.5 transition-colors p-1 ${
-                                active ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary'
-                              }`}
-                            >
-                              <img
-                                src={stampSrc(s.rel)}
-                                alt={s.label}
-                                draggable={false}
-                                style={{ maxWidth: '100%', maxHeight: 36, display: 'block', objectFit: 'contain' }}
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Selected name */}
-                  {currentStampMeta && (
-                    <p className="text-[10px] text-muted-foreground text-center capitalize border-t border-border pt-1.5">
-                      {currentStampMeta.label}
-                    </p>
-                  )}
-
-                  {/* Size */}
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Size</p>
-                    <div className="flex items-center gap-1">
-                      {STAMP_SIZES.map(sz => {
-                        const active = selectedStampSize === sz;
-                        const previewSize = Math.min(sz / 2.5, 18);
-                        return (
-                          <button
-                            key={sz}
-                            onClick={() => setSelectedStampSize(sz)}
-                            className={`flex-1 h-8 rounded border flex items-center justify-center transition-colors ${active ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary'}`}
-                            title={`${sz}px`}
-                          >
-                            {currentStampMeta?.kind === 'library' && currentStampMeta.path ? (
-                              <img
-                                src={stampSrc(currentStampMeta.path)}
-                                alt=""
-                                draggable={false}
-                                style={{ maxWidth: previewSize, maxHeight: previewSize, display: 'block', objectFit: 'contain' }}
-                              />
-                            ) : (
-                              <StampIcon size={previewSize} className="text-muted-foreground" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Custom size input */}
-                    <div className="mt-1.5 flex items-center gap-1">
-                      <input
-                        type="number"
-                        value={customSizeInput}
-                        onChange={(e) => setCustomSizeInput(e.target.value)}
-                        onBlur={() => {
-                          const val = parseInt(customSizeInput, 10);
-                          if (val > 0 && val <= 500) setSelectedStampSize(val);
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-                        placeholder="Custom"
-                        className="w-14 bg-secondary text-foreground text-xs rounded-md px-2 py-1 border border-border focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                      <span className="text-[10px] text-muted-foreground">px</span>
-                    </div>
-                  </div>
-
-                  {/* Transform controls */}
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-semibold">Transform</p>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setStampRotation((stampRotation + 90) % 360)}
-                        className="flex-1 h-8 rounded border border-border hover:bg-secondary flex items-center justify-center transition-colors"
-                        title="Rotate 90°"
-                      >
-                        <RotateCw size={14} className="text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={() => setStampFlipX(!stampFlipX)}
-                        className={`flex-1 h-8 rounded border flex items-center justify-center transition-colors ${stampFlipX ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary'}`}
-                        title="Flip horizontal"
-                      >
-                        <FlipHorizontal size={14} className="text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={() => setStampFlipY(!stampFlipY)}
-                        className={`flex-1 h-8 rounded border flex items-center justify-center transition-colors ${stampFlipY ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary'}`}
-                        title="Flip vertical"
-                      >
-                        <FlipVertical size={14} className="text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={() => { setStampRotation(0); setStampFlipX(false); setStampFlipY(false); }}
-                        className="flex-1 h-8 rounded border border-border hover:bg-secondary flex items-center justify-center transition-colors text-[10px]"
-                        title="Reset transform"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* History panel */}
-          {showHistory && (
-            <aside className="absolute top-3 right-3 z-20 bg-card/95 backdrop-blur-sm border border-border rounded-lg shadow-lg w-64 max-h-80 overflow-hidden flex flex-col">
-              <header className="flex items-center justify-between px-2.5 py-1.5 border-b border-border">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">History</span>
-                <button onClick={() => setShowHistory(false)} className="text-muted-foreground hover:text-foreground">
-                  <X size={12} />
-                </button>
-              </header>
-              <div className="flex-1 overflow-y-auto p-1">
-                {[...undoStack].reverse().map((op, idx) => (
-                  <div
-                    key={`undo-${idx}`}
-                    onClick={() => {
-                      // Step back to this state
-                      while (undoStack.length > idx + 1) doUndo();
-                    }}
-                    className="text-xs px-2 py-1 rounded hover:bg-secondary cursor-pointer flex items-center gap-1"
-                  >
-                    <Undo2 size={10} className="text-muted-foreground" />
-                    <span className="text-muted-foreground">{getOpLabel(op)}</span>
-                  </div>
-                ))}
-                {redoStack.length > 0 && <div className="border-t border-border my-1" />}
-                {redoStack.map((op, idx) => (
-                  <div
-                    key={`redo-${idx}`}
-                    onClick={() => {
-                      // Redo up to this point
-                      while (redoStack.length > idx + 1) doRedo();
-                    }}
-                    className="text-xs px-2 py-1 rounded hover:bg-secondary cursor-pointer flex items-center gap-1"
-                  >
-                    <Redo2 size={10} className="text-muted-foreground" />
-                    <span>{getOpLabel(op)}</span>
-                  </div>
-                ))}
-                {undoStack.length === 0 && redoStack.length === 0 && (
-                  <p className="text-xs text-muted-foreground p-2 text-center">No history yet</p>
-                )}
-              </div>
-            </aside>
-          )}
-
-          {/* Right Layers panel */}
-          {!showHistory && (
-          <aside className="absolute top-3 right-3 z-10 bg-card/95 backdrop-blur-sm border border-border rounded-lg shadow-lg w-52">
-            <header className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-border">
-              <LayersIcon size={12} className="text-muted-foreground" />
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Layers</span>
-            </header>
-            <div className="p-1 flex flex-col gap-0.5">
-              {layers
-                .filter(l => l.kind === 'pen')
-                .map((layer, idx, arr) => (
-                  <LayerRow
-                    key={layer.id}
-                    layer={layer}
-                    active={activeLayerId === layer.id}
-                    onClickActivate={() => selectActivePenLayer(layer.id)}
-                    onToggleVisibility={() => toggleLayerVisibility(layer.id)}
-                    onDelete={() => deleteLayer(layer.id)}
-                    onRename={(name) => renameLayer(layer.id, name)}
-                    onMoveUp={() => moveLayer(layer.id, 'up')}
-                    onMoveDown={() => moveLayer(layer.id, 'down')}
-                    canDelete={layer.id !== 'terrain' && layer.id !== 'rivers' && layer.id !== 'roads' && layer.id !== 'annotations'}
-                    canMoveUp={idx > 0}
-                    canMoveDown={idx < arr.length - 1}
-                    editing={editingLayerId === layer.id}
-                    editingName={editingLayerName}
-                    onStartEdit={() => { setEditingLayerId(layer.id); setEditingLayerName(layer.name); }}
-                    onCancelEdit={() => setEditingLayerId(null)}
-                    onSaveEdit={(name) => { renameLayer(layer.id, name); setEditingLayerId(null); }}
-                  />
-                ))}
-              <div className="flex items-center gap-2 px-2 py-1.5 border-t border-border mt-1">
-                <span className="text-[10px] text-muted-foreground flex-1">Special layers</span>
-              </div>
-              {layerById['stamps'] && (
-                <div className="group flex items-center gap-2 px-2 py-1.5 rounded hover:bg-secondary/60">
-                  <button onClick={() => toggleLayerVisibility('stamps')} className="text-muted-foreground hover:text-foreground">
-                    {layerById['stamps'].visible === false ? <EyeOff size={13} /> : <Eye size={13} />}
-                  </button>
-                  <StampIcon size={12} className="text-muted-foreground" />
-                  <span className="text-xs text-foreground/85">Stamps</span>
-                  <span className="text-[10px] text-muted-foreground ml-auto">{map?.stamps?.length || 0}</span>
-                </div>
-              )}
-              {layerById['pins'] && (
-                <div className="group flex items-center gap-2 px-2 py-1.5 rounded hover:bg-secondary/60">
-                  <button onClick={() => toggleLayerVisibility('pins')} className="text-muted-foreground hover:text-foreground">
-                    {layerById['pins'].visible === false ? <EyeOff size={13} /> : <Eye size={13} />}
-                  </button>
-                  <Pin size={12} className="text-muted-foreground" />
-                  <span className="text-xs text-foreground/85">Pins</span>
-                  <span className="text-[10px] text-muted-foreground ml-auto">{map?.pins?.length || 0}</span>
-                </div>
-              )}
-
-              {addingLayer ? (
-                <div className="flex items-center gap-1 px-2 py-1">
-                  <input
-                    autoFocus
-                    value={newLayerName}
-                    onChange={(e) => setNewLayerName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' ? addNewLayer() : e.key === 'Escape' ? setAddingLayer(false) : null}
-                    placeholder="Layer name"
-                    className="flex-1 bg-secondary text-foreground text-xs rounded px-2 py-1 border border-border focus:outline-none"
-                  />
-                  <button onClick={addNewLayer} className="text-primary hover:text-primary/80"><Check size={12} /></button>
-                  <button onClick={() => setAddingLayer(false)} className="text-muted-foreground hover:text-foreground"><X size={12} /></button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setAddingLayer(true)}
-                  className="flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded transition-colors"
-                >
-                  <Plus size={10} /> Add layer
-                </button>
-              )}
-            </div>
-            <p className="px-2.5 pb-2 pt-1 text-[10px] text-muted-foreground/70 leading-relaxed border-t border-border">
-              Click a pen layer to draw on it. Eye toggles visibility. Use the toolbar grid icon for alignment lines. New blank maps open on an 8192×8192 workspace; maps that already have pins or strokes stay on the classic 2000×1500 canvas so markers stay put.
-            </p>
-          </aside>
-          )}
-
-          {/* Drawing/viewport surface */}
-          <div
-            ref={viewportRef}
-            className={`relative w-full h-full overflow-hidden ${cursorClass}`}
-            style={{
-              backgroundColor: '#0a0a0a',
-              touchAction: 'none',
-            }}
-            onPointerDown={onPointerDownBackground}
-            onPointerMove={onPointerMoveBackground}
-            onPointerUp={onPointerUpBackground}
-            onPointerCancel={onPointerUpBackground}
-            onWheel={onWheel}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                transformOrigin: '0 0',
-                userSelect: 'none',
-                willChange: 'transform',
-              }}
-            >
-              {/* Paper background — only when there is no image or image failed to load */}
-              {(!map.image || !imgLoaded) && paperColor && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    width: effectiveSize.w,
-                    height: effectiveSize.h,
-                    backgroundColor: paperColor,
-                    boxShadow: '0 0 0 1px rgba(0,0,0,0.25), 0 16px 48px rgba(0,0,0,0.5)',
-                  }}
-                />
-              )}
-
-              {map.image && (
-                <img
-                  ref={imgRef}
-                  src={assetUrl(map.image.startsWith('__local__') ? `asset://${activeWorld}/maps/${map.image.replace('__local__', '')}.img` : map.image)}
-                  alt={map.name || 'Map'}
-                  draggable={false}
-                  onLoad={(e) => {
-                    setImgSize({ w: e.target.naturalWidth, h: e.target.naturalHeight });
-                    setImgLoaded(true);
-                  }}
-                  onError={() => {
-                    // Hide broken images
-                    setImgLoaded(false);
-                    setImgSize({ w: 0, h: 0 });
-                  }}
-                  style={{
-                    display: imgLoaded ? 'block' : 'none',
-                    maxWidth: 'none',
-                    ...(imgLoaded && imgSize.w > 0 ? { width: imgSize.w, height: imgSize.h } : {}),
-                  }}
-                />
-              )}
-
-              {showGrid && effectiveSize.w > 0 && map?.id && (
-                <svg
-                  aria-hidden
-                  className="map-svg-export"
-                  width={effectiveSize.w}
-                  height={effectiveSize.h}
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    pointerEvents: 'none',
-                    zIndex: 1,
-                  }}
-                >
-                  <defs>
-                    <pattern
-                      id={`wb-grid-${map.id}`}
-                      width={GRID_CELL}
-                      height={GRID_CELL}
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <path
-                        d={`M ${GRID_CELL} 0 L 0 0 0 ${GRID_CELL}`}
-                        fill="none"
-                        stroke="rgba(148,163,184,0.14)"
-                        strokeWidth={1}
-                      />
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill={`url(#wb-grid-${map.id})`} />
-                </svg>
-              )}
-
-              {/* Drawing layers */}
-              {effectiveSize.w > 0 && (
-                <svg
-                  width={effectiveSize.w}
-                  height={effectiveSize.h}
-                  viewBox={`0 0 ${effectiveSize.w} ${effectiveSize.h}`}
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    pointerEvents: 'none',
-                    overflow: 'visible',
-                    zIndex: 2,
-                  }}
-                >
-                  {/* Render strokes bottom → top in DEFAULT_LAYERS order, hidden layers omitted. */}
-                  {PEN_LAYER_ORDER.map(layerId => {
-                    if (!isLayerVisible(layerId)) return null;
-                    const list = strokesByLayerId[layerId] || [];
-                    if (list.length === 0) return null;
-                    return (
-                      <g key={layerId}>
-                        {list.filter(s => !pendingErase.has(s.id)).map(s => (
-                          <path
-                            key={s.id}
-                            d={pointsToPathD(s.points)}
-                            stroke={s.color}
-                            strokeWidth={s.size}
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        ))}
-                      </g>
-                    );
-                  })}
-                  {/* Faded preview of strokes that will be deleted on pointer-up */}
-                  {(map.strokes || []).filter(s => pendingErase.has(s.id) && isLayerVisible(s.layerId || 'terrain')).map(s => (
-                    <path
-                      key={s.id + '-pending'}
-                      d={pointsToPathD(s.points)}
-                      stroke={s.color}
-                      strokeWidth={s.size}
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{ opacity: 0.18 }}
-                    />
-                  ))}
-                  {/* In-progress stroke (pen). */}
-                  {isDrawing && (
-                    <path
-                      ref={livePathRef}
-                      stroke={penColor}
-                      strokeWidth={penSize}
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  )}
-                </svg>
-              )}
-
-              {/* Stamps */}
-              {effectiveSize.w > 0 && stampsVisible && (map.stamps || []).map(stamp => {
-                let stampInner;
-                if (stamp.kind) {
-                  const def = STAMP_BY_KIND[stamp.kind];
-                  if (!def) return null;
-                  const Icon = def.icon;
-                  const color = stamp.colorTint || stamp.color || def.color;
-                  stampInner = <Icon size={stamp.size || DEFAULT_STAMP_SIZE} style={{ color, display: 'block' }} strokeWidth={1.6} />;
-                } else if (stamp.libraryPath) {
-                  // Library stamps from filesystem (PNG, SVG, etc.)
-                  const imgStyle = { 
-                    width: '100%', 
-                    height: '100%', 
-                    display: 'block',
-                    objectFit: 'contain',
-                    transform: `scaleX(${stamp.flipX ? -1 : 1}) scaleY(${stamp.flipY ? -1 : 1})`,
-                  };
-                  stampInner = (
-                    <img
-                      src={stampSrc(stamp.libraryPath)}
-                      alt="Stamp"
-                      draggable={false}
-                      style={imgStyle}
-                    />
-                  );
-                } else if (stamp.customId) {
-                  const def = customStampById[stamp.customId];
-                  if (!def) return null; // stamp references a deleted custom — silently hide
-                  stampInner = (
-                    <img
-                      src={svgToDataUri(def.svg)}
-                      alt={def.name}
-                      draggable={false}
-                      style={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        display: 'block',
-                        filter: stamp.colorTint ? `sepia(1) hue-rotate(${getHueRotation(stamp.colorTint)}) saturate(${getSaturation(stamp.colorTint)})` : 'none',
-                        transform: `scaleX(${stamp.flipX ? -1 : 1}) scaleY(${stamp.flipY ? -1 : 1})`,
-                      }}
-                    />
-                  );
-                } else {
-                  return null;
-                }
-
-                const isDragGhost = pinGhost && pinGhost.kind === 'stamp' && pinGhost.id === stamp.id;
-                const sx = (isDragGhost ? pinGhost.x : stamp.x) * effectiveSize.w;
-                const sy = (isDragGhost ? pinGhost.y : stamp.y) * effectiveSize.h;
-                const size = stamp.size || DEFAULT_STAMP_SIZE;
-                const interactive = tool !== 'stamp';
-                const stampPointerEvents = mapToolsNeedViewportHits ? 'none' : interactive ? 'auto' : 'none';
-                return (
-                  <div
-                    key={stamp.id}
-                    onPointerDown={interactive ? (e) => beginPinDrag(e, 'stamp', stamp.id) : undefined}
-                    onMouseEnter={interactive ? () => setHoveredStampId(stamp.id) : undefined}
-                    onMouseLeave={interactive ? () => setHoveredStampId(prev => prev === stamp.id ? null : prev) : undefined}
-                    style={{
-                      position: 'absolute',
-                      left: sx,
-                      top: sy,
-                      width: size,
-                      height: size,
-                      transform: 'translate(-50%, -50%)',
-                      cursor: interactive ? (tool === 'view' ? 'grab' : 'pointer') : 'crosshair',
-                      pointerEvents: stampPointerEvents,
-                      zIndex: 3,
-                    }}
-                  >
-                    {stampInner}
-                  </div>
-                );
-              })}
-
-              {/* Pins inside the transform so they scale with the map */}
-              {effectiveSize.w > 0 && pinsVisible && (map.pins || []).map(pin => {
-                const ent = lookupEntity(pin.entityType, pin.entityId);
-                if (!ent) return null;
-                const meta = TYPE_META[pin.entityType] || TYPE_META.things;
-                const isDragGhost = pinGhost && pinGhost.kind === 'pin' && pinGhost.id === pin.id;
-                const px = (isDragGhost ? pinGhost.x : pin.x) * effectiveSize.w;
-                const py = (isDragGhost ? pinGhost.y : pin.y) * effectiveSize.h;
-                return (
-                  <div
-                    key={pin.id}
-                    onPointerDown={(e) => beginPinDrag(e, 'pin', pin.id)}
-                    onClick={() => handlePinClick(pin)}
-                    onMouseEnter={() => setHoveredPin(pin.id)}
-                    onMouseLeave={() => setHoveredPin(prev => prev === pin.id ? null : prev)}
-                    style={{
-                      position: 'absolute',
-                      left: px,
-                      top: py,
-                      transform: 'translate(-50%, -100%)',
-                      cursor: 'pointer',
-                      pointerEvents: mapToolsNeedViewportHits ? 'none' : 'auto',
-                      zIndex: 4,
-                    }}
-                  >
-                    <PinMarker color={meta.color} Icon={meta.icon} isProtagonist={false} />
-                  </div>
-                );
-              })}
-
-              {effectiveSize.w > 0 && pinsVisible && map.protagonist && protagonistEntity && (() => {
-                const isDragGhost = pinGhost && pinGhost.kind === 'protagonist';
-                const px = (isDragGhost ? pinGhost.x : map.protagonist.x) * effectiveSize.w;
-                const py = (isDragGhost ? pinGhost.y : map.protagonist.y) * effectiveSize.h;
-                return (
-                  <div
-                    onPointerDown={(e) => beginPinDrag(e, 'protagonist')}
-                    onClick={() => !pinGhost && navigate(`/characters/${map.protagonist.entityId}`)}
-                    onMouseEnter={() => setHoveredPin('__protagonist__')}
-                    onMouseLeave={() => setHoveredPin(prev => prev === '__protagonist__' ? null : prev)}
-                    style={{
-                      position: 'absolute',
-                      left: px,
-                      top: py,
-                      transform: 'translate(-50%, -100%)',
-                      cursor: 'pointer',
-                      pointerEvents: mapToolsNeedViewportHits ? 'none' : 'auto',
-                      zIndex: 4,
-                    }}
-                  >
-                    <PinMarker color={PROTAGONIST_COLOR} Icon={Star} isProtagonist />
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Hover tooltip overlay (rendered in viewport space, NOT scaled) */}
-            {hoveredPin && pinsVisible && effectiveSize.w > 0 && (() => {
-              let pin, entity, color, isProto = false;
-              if (hoveredPin === '__protagonist__' && map.protagonist) {
-                pin = map.protagonist;
-                entity = protagonistEntity;
-                color = PROTAGONIST_COLOR;
-                isProto = true;
-              } else {
-                pin = (map.pins || []).find(p => p.id === hoveredPin);
-                if (!pin) return null;
-                entity = lookupEntity(pin.entityType, pin.entityId);
-                color = (TYPE_META[pin.entityType] || TYPE_META.things).color;
-              }
-              if (!entity) return null;
-              const sx = pin.x * effectiveSize.w * zoom + pan.x;
-              const sy = pin.y * effectiveSize.h * zoom + pan.y;
-              return (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: sx,
-                    top: sy - 50,
-                    transform: 'translate(-50%, -100%)',
-                    pointerEvents: 'none',
-                  }}
-                  className="bg-card border border-border rounded-md shadow-lg px-3 py-1.5 text-xs whitespace-nowrap"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                    <span className="font-semibold text-foreground">{entity.name}</span>
-                  </div>
-                  <div className="text-muted-foreground capitalize">
-                    {isProto ? 'Protagonist' : (TYPE_META[pin.entityType]?.label || pin.entityType)}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Bottom-left status badge */}
-            <div className="absolute bottom-3 left-3 bg-card/90 backdrop-blur-sm border border-border rounded-md px-2.5 py-1 text-xs text-muted-foreground flex items-center gap-2 pointer-events-none">
-              <span className="flex items-center gap-1"><Pin size={11} /> {(map.pins?.length || 0)}</span>
-              <span className="opacity-40">·</span>
-              <span className="flex items-center gap-1"><StampIcon size={11} /> {(map.stamps?.length || 0)}</span>
-              <span className="opacity-40">·</span>
-              <span className="flex items-center gap-1"><Pencil size={11} /> {(map.strokes?.length || 0)}</span>
-              {map.protagonist && (
-                <>
-                  <span className="opacity-40">·</span>
-                  <Star size={11} className="text-yellow-400" />
-                </>
-              )}
-              <span className="opacity-40">·</span>
-              <span className="flex items-center gap-1"><LayersIcon size={11} /> {layerById[activeLayerId]?.name || 'Terrain'}</span>
-            </div>
-
-            {/* Hover-stamp delete X */}
-            {hoveredStampId && stampsVisible && effectiveSize.w > 0 && (() => {
-              const stamp = (map.stamps || []).find(s => s.id === hoveredStampId);
-              if (!stamp) return null;
-              const sx = stamp.x * effectiveSize.w * zoom + pan.x;
-              const sy = stamp.y * effectiveSize.h * zoom + pan.y;
-              const half = ((stamp.size || DEFAULT_STAMP_SIZE) * zoom) / 2;
-              return (
-                <button
-                  onClick={(e) => { e.stopPropagation(); removeStamp(stamp.id); setHoveredStampId(null); }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onMouseEnter={() => setHoveredStampId(stamp.id)}
-                  onMouseLeave={() => setHoveredStampId(prev => prev === stamp.id ? null : prev)}
-                  style={{
-                    position: 'absolute',
-                    left: sx + half - 6,
-                    top: sy - half - 6,
-                    pointerEvents: 'auto',
-                  }}
-                  className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center shadow-md"
-                  title="Remove stamp"
-                >
-                  <X size={11} strokeWidth={3} />
-                </button>
-              );
-            })()}
-
-            {/* Hover-pin context controls */}
-            {hoveredPin && hoveredPin !== '__protagonist__' && pinsVisible && effectiveSize.w > 0 && (() => {
-              const pin = (map.pins || []).find(p => p.id === hoveredPin);
-              if (!pin) return null;
-              const sx = pin.x * effectiveSize.w * zoom + pan.x;
-              const sy = pin.y * effectiveSize.h * zoom + pan.y;
-              return (
-                <button
-                  onClick={(e) => { e.stopPropagation(); removePin(pin.id); }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  style={{
-                    position: 'absolute',
-                    left: sx + 16,
-                    top: sy - 40,
-                    pointerEvents: 'auto',
-                  }}
-                  className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center shadow-md"
-                  title="Remove pin"
-                >
-                  <X size={11} strokeWidth={3} />
-                </button>
-              );
-            })()}
-          </div>
-        </div>
-      </div>
-
-      {/* Entity picker for adding a regular pin */}
-      {pendingPos && tool === 'addPin' && (
-        <EntityPicker
-          title="Pin which entity?"
-          onPick={onPickForPin}
-          onClose={() => { setPendingPos(null); setTool('view'); }}
-        />
-      )}
-
-      {pickerForProto && (
-        <EntityPicker
-          title="Protagonist (current character)"
-          allowedTypes={['characters']}
-          onPick={onPickForProtagonist}
-          onClose={() => { setPickerForProto(false); setPendingPos(null); setTool('view'); }}
-        />
-      )}
-
-      {pendingCustomUpload && (
-        <CustomStampUploadModal
-          initialName={pendingCustomUpload.initialName}
-          svg={pendingCustomUpload.svg}
-          onSave={handleSaveCustomStamp}
-          onClose={() => setPendingCustomUpload(null)}
-        />
-      )}
-
-      {customStampToDelete && (
-        <ConfirmModal
-          title="Delete custom stamp?"
-          message={`"${customStampToDelete.name}" will be removed from your stamp library. Any maps already using it will keep showing it until you remove those instances. This can't be undone.`}
-          confirmLabel="Delete stamp"
-          onConfirm={handleConfirmDeleteCustomStamp}
-          onClose={() => setCustomStampToDelete(null)}
-        />
-      )}
-
-      {deletingMap && (
-        <ConfirmModal
-          title="Delete map?"
-          message={`"${map.name || 'Untitled map'}" and everything drawn or pinned on it will be removed. The original image file (if any) is also deleted from disk.`}
-          confirmLabel="Delete map"
-          onConfirm={async () => { await deleteMap(map.id); navigate('/maps'); }}
-          onClose={() => setDeletingMap(false)}
-        />
-      )}
-
-      {confirmClear && (
-        <ConfirmModal
-          title="Clear all strokes?"
-          message={`This removes every drawn stroke from "${map.name || 'this map'}". Pins and the background are unaffected. You can undo with ⌘Z right after.`}
-          confirmLabel="Clear strokes"
-          onConfirm={handleClearAll}
-          onClose={() => setConfirmClear(false)}
-        />
-      )}
-
-      {showKeyboardHelp && (
-        <Modal title="Keyboard Shortcuts" onClose={() => setShowKeyboardHelp(false)} size="md">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Tools</h3>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Hand / Pan</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">V</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Pen</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">P</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Eraser</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">E</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Stamps</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">S</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Cancel / Back to View</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">ESC</kbd>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Layers</h3>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Switch to Terrain</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">1</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Switch to Rivers</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">2</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Switch to Roads</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">3</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Switch to Annotations</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">4</kbd>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">View</h3>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Zoom In</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">+</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Zoom Out</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">-</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Reset Zoom & Pan</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">0</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Zoom to Fit</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">F</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Toggle Grid</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">G</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Toggle Snap to Grid</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">N</kbd>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Edit</h3>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Undo</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">⌘Z</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">Redo</span>
-                  <kbd className="px-2 py-0.5 rounded bg-secondary border border-border font-mono text-xs">⌘⇧Z</kbd>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {showGenerateModal && (
-        <GenerateShapeModal
-          onGenerate={handleGenerateShape}
-          onClose={() => setShowGenerateModal(false)}
-        />
-      )}
-    </>
-  );
-}
-
-// ── Generate Shape Modal ──────────────────────────────────────────────────────
-function GenerateShapeModal({ onGenerate, onClose }) {
-  const [shapeType, setShapeType] = useState('island');
-  const [size, setSize] = useState(3000);
-  const [complexity, setComplexity] = useState('medium');
-
-  const shapeTypes = [
-    { value: 'island', label: 'Island', desc: 'Circular landmass with moderate variation' },
-    { value: 'continent', label: 'Continent', desc: 'Large landmass with dramatic coastlines' },
-    { value: 'archipelago', label: 'Archipelago', desc: 'Fragmented island chain' },
-    { value: 'region', label: 'Region', desc: 'Custom territory shape' },
-    { value: 'coastline', label: 'Coastline', desc: 'Detailed coastal border' },
-  ];
-
-  return (
-    <Modal title="Generate Shape" onClose={onClose} size="md">
-      <div className="space-y-4">
-        <div>
-          <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-2 font-semibold">Shape Type</label>
-          <div className="space-y-2">
-            {shapeTypes.map(type => (
-              <button
-                key={type.value}
-                onClick={() => setShapeType(type.value)}
-                className={`w-full text-left px-3 py-2 rounded-md border transition-colors ${
-                  shapeType === type.value
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:bg-secondary'
-                }`}
-              >
-                <div className="font-medium text-sm text-foreground">{type.label}</div>
-                <div className="text-xs text-muted-foreground">{type.desc}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
-            Size: {size}px
-          </label>
-          <input
-            type="range"
-            min="500"
-            max="8000"
-            step="100"
-            value={size}
-            onChange={(e) => setSize(parseInt(e.target.value))}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>Small</span>
-            <span>Large</span>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-2 font-semibold">Complexity</label>
-          <div className="flex gap-2">
-            {['simple', 'medium', 'complex'].map(c => (
-              <button
-                key={c}
-                onClick={() => setComplexity(c)}
-                className={`flex-1 px-3 py-2 rounded-md border text-sm capitalize transition-colors ${
-                  complexity === c
-                    ? 'border-primary bg-primary/10 text-foreground'
-                    : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm rounded-md border border-border text-foreground hover:bg-secondary transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onGenerate(shapeType, size, complexity)}
-            className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center gap-1.5"
-          >
-            <Sparkles size={14} /> Generate Shape
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
+// A faint square grid whose spacing doubles as you zoom out, so lines stay
+// at least ~28 px apart.
+function drawGrid(ctx, view) {
+  let step = 64;
+  while (step * view.zoom < 28) step *= 2;
+  const r = visibleRect(view);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(60,45,30,0.14)';
+  ctx.lineWidth = 1 / view.zoom;
+  ctx.beginPath();
+  for (let x = Math.floor(r.minX / step) * step; x <= r.maxX; x += step) { ctx.moveTo(x, r.minY); ctx.lineTo(x, r.maxY); }
+  for (let y = Math.floor(r.minY / step) * step; y <= r.maxY; y += step) { ctx.moveTo(r.minX, y); ctx.lineTo(r.maxX, y); }
+  ctx.stroke();
+  ctx.restore();
 }

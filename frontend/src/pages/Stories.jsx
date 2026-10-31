@@ -9,10 +9,11 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
 
-const STATUS_STYLES = {
-  Draft:         'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  'In Progress': 'bg-blue-500/10  text-blue-400  border-blue-500/20',
-  Complete:      'bg-green-500/10 text-green-400  border-green-500/20',
+// Status shows as a small coloured dot beside a quiet label.
+const STATUS_DOTS = {
+  Draft:         'bg-yellow-500',
+  'In Progress': 'bg-blue-500',
+  Complete:      'bg-green-500',
 };
 
 const BOOK_GENRES = ['Fantasy', 'Horror', 'Romance', 'Mystery', 'Historical', 'Sci-Fi', 'Other'];
@@ -163,8 +164,8 @@ function BookModal({ initial = {}, onSave, onClose }) {
   const preview = { ...values, id: initial.id || 'preview' };
 
   return (
-    <Modal title={isEdit ? 'Edit Book' : 'New Book'} onClose={onClose} size="lg">
-      <div className="flex gap-6">
+    <Modal title={isEdit ? 'Edit book' : 'New book'} onClose={onClose} size="lg">
+      <div className="flex flex-col sm:flex-row gap-6">
         <div className="shrink-0 flex flex-col items-center gap-3">
           <BookCover book={preview} />
           <p className="text-xs text-muted-foreground">Preview</p>
@@ -172,12 +173,12 @@ function BookModal({ initial = {}, onSave, onClose }) {
             <div>
               <label className="block text-xs text-muted-foreground mb-1">Cover</label>
               <input type="color" value={values.coverColor} onChange={e => set('coverColor', e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent" />
+                className="w-8 h-8 rounded-md cursor-pointer border border-input bg-background" />
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">Spine</label>
               <input type="color" value={values.spineColor} onChange={e => set('spineColor', e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-border bg-transparent" />
+                className="w-8 h-8 rounded-md cursor-pointer border border-input bg-background" />
             </div>
           </div>
         </div>
@@ -187,54 +188,54 @@ function BookModal({ initial = {}, onSave, onClose }) {
           onSubmit={e => { e.preventDefault(); if (!values.name.trim()) return; onSave(values); }}
         >
           <div>
-            <label className="block text-xs font-medium text-foreground mb-1">Title *</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Title *</label>
             <input autoFocus value={values.name} onChange={e => set('name', e.target.value)}
               placeholder="e.g. The Tome of Forgotten Names"
-              className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" />
+              className="input" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-foreground mb-1">Subtitle</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Subtitle</label>
             <input value={values.subtitle} onChange={e => set('subtitle', e.target.value)}
               placeholder="Optional subtitle"
-              className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" />
+              className="input" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-foreground mb-1">Author</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Author</label>
             <input value={values.author} onChange={e => set('author', e.target.value)}
               placeholder="e.g. Eldrin the Scribe"
-              className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" />
+              className="input" />
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-foreground mb-1">Genre</label>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Genre</label>
               <select value={values.genre} onChange={e => set('genre', e.target.value)}
-                className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring">
+                className="input">
                 {BOOK_GENRES.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-medium text-foreground mb-1">Type</label>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Type</label>
               <select value={values.type} onChange={e => set('type', e.target.value)}
-                className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring">
+                className="input">
                 {BOOK_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-foreground mb-1">Description</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Description</label>
             <TextareaAutosize value={values.description} onChange={e => set('description', e.target.value)}
               placeholder="Back cover blurb..."
               minRows={3}
-              className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring resize-none placeholder:text-muted-foreground" />
+              className="input resize-none" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose}
-              className="h-9 px-4 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+              className="btn btn-outline">
               Cancel
             </button>
             <button type="submit"
-              className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-              {isEdit ? 'Save Changes' : 'Create Book'}
+              className="btn btn-primary">
+              {isEdit ? 'Save changes' : 'Create book'}
             </button>
           </div>
         </form>
@@ -246,45 +247,41 @@ function BookModal({ initial = {}, onSave, onClose }) {
 function LoosePageRow({ story, onEdit, onDelete }) {
   const navigate = useNavigate();
   const words = story.wordCount || 0;
-  const statusStyle = STATUS_STYLES[story.status] || STATUS_STYLES.Draft;
+  const status = story.status || 'Draft';
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => navigate(`/stories/${story.id}`)}
-      className="group flex items-center gap-4 px-4 py-3 rounded-lg border border-border bg-secondary/20 hover:bg-secondary/50 hover:border-border transition-colors cursor-pointer"
+      onKeyDown={e => { if (e.key === 'Enter') navigate(`/stories/${story.id}`); }}
+      className="ios-row group flex items-center gap-3 px-4 py-2.5 bg-card text-sm transition-colors hover:bg-accent/60 cursor-pointer outline-none focus-visible:bg-accent/60"
     >
-      <div className="shrink-0 w-8 h-8 rounded bg-background border border-border flex items-center justify-center">
-        <FileText size={14} className="text-muted-foreground" />
-      </div>
+      <FileText size={16} className="shrink-0 text-muted-foreground" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-          {story.name}
-        </p>
+        <p className="font-medium text-foreground truncate">{story.name}</p>
         {story.preview ? (
-          <p className="text-xs text-muted-foreground truncate mt-0.5">{story.preview.slice(0, 80)}…</p>
+          <p className="text-xs text-muted-foreground truncate">{story.preview.slice(0, 80)}…</p>
         ) : (
-          <p className="text-xs text-muted-foreground/40 italic mt-0.5">No content yet</p>
+          <p className="text-xs text-muted-foreground/60 italic">No content yet</p>
         )}
       </div>
-      <div className="hidden md:flex items-center gap-4 shrink-0">
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <FileText size={11} /> {words.toLocaleString()}
+      <div className="hidden md:flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
+        <span className="tabular-nums">{words.toLocaleString()} words</span>
+        <span className="flex items-center gap-1.5 w-24">
+          <span className={`size-1.5 rounded-full ${STATUS_DOTS[status] || STATUS_DOTS.Draft}`} />
+          {status}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="w-14 text-right">
           {story.updatedAt ? new Date(story.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
         </span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusStyle}`}>
-          {story.status || 'Draft'}
-        </span>
       </div>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-        <button onClick={() => onEdit(story)}
-          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-          <Pencil size={12} />
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+        <button onClick={() => onEdit(story)} aria-label="Rename" title="Rename" className="btn btn-ghost btn-icon btn-sm">
+          <Pencil />
         </button>
-        <button onClick={() => onDelete(story)}
-          className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
-          <Trash2 size={12} />
+        <button onClick={() => onDelete(story)} aria-label="Delete" title="Delete" className="btn btn-ghost btn-icon btn-sm hover:text-destructive">
+          <Trash2 />
         </button>
       </div>
     </div>
@@ -295,21 +292,21 @@ function StandaloneChapterModal({ initial, onSave, onClose }) {
   const isEdit = Boolean(initial?.id);
   const [name, setName] = useState(initial?.name || '');
   return (
-    <Modal title={isEdit ? 'Rename Page' : 'New Standalone Chapter'} onClose={onClose} size="sm">
+    <Modal title={isEdit ? 'Rename page' : 'New loose page'} onClose={onClose} size="sm">
       <form onSubmit={e => { e.preventDefault(); if (name.trim()) onSave(name.trim()); }} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">Title</label>
           <input autoFocus value={name} onChange={e => setName(e.target.value)}
             placeholder="e.g. The Night of Falling Stars"
-            className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" />
+            className="input" />
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose}
-            className="h-9 px-4 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            className="btn btn-outline">
             Cancel
           </button>
           <button type="submit"
-            className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            className="btn btn-primary">
             {isEdit ? 'Save' : 'Create'}
           </button>
         </div>
@@ -355,140 +352,133 @@ export default function Stories() {
   return (
     <>
     <div className="flex-1 overflow-y-auto w-full">
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md px-4 pt-6 pb-3 md:px-8 md:pt-8 mb-5 border-b border-border/40 flex flex-col gap-5 shadow-sm">
-        <header>
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <Library size={22} className="text-violet-400" />
-              <h2 className="text-3xl font-bold tracking-tight text-foreground">Library</h2>
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-3 sm:px-8 md:pt-8 flex flex-col gap-4">
+          <header className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            <div className="min-w-[16rem] flex-1">
+              <div className="flex items-center gap-2.5">
+                <Library size={20} className="shrink-0 text-muted-foreground" />
+                <h1 className="page-title">Library</h1>
+              </div>
+              <p className="page-subtitle">
+                {books.length} {books.length === 1 ? 'volume' : 'volumes'} · {looseStories.length} loose {looseStories.length === 1 ? 'page' : 'pages'} · {totalWords.toLocaleString()} words
+              </p>
             </div>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              {books.length} {books.length === 1 ? 'volume' : 'volumes'} \u00b7 {looseStories.length} loose {looseStories.length === 1 ? 'page' : 'pages'} \u00b7 {totalWords.toLocaleString()} total words
-            </p>
-          </div>
-        </header>
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-          <div className="relative w-full sm:w-72 shrink-0">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={() => setAddingStandalone(true)} className="btn btn-outline">
+                <Scroll /> New loose page
+              </button>
+              <button onClick={() => setAddingBook(true)} className="btn btn-primary">
+                <Plus /> New book
+              </button>
+            </div>
+          </header>
+          <div className="relative w-full sm:w-64">
+            <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search library..."
-              className="w-full pl-9 pr-9 py-2 text-sm bg-secondary/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+              placeholder="Search library…"
+              className="input pl-8 pr-8"
             />
             {query && (
               <button
                 onClick={() => setQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X size={13} />
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
-            <button
-              onClick={() => setAddingStandalone(true)}
-              className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              <Scroll size={14} /> New Loose Page
-            </button>
-            <button
-              onClick={() => setAddingBook(true)}
-              className="flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 rounded-lg text-sm font-medium transition-colors"
-            >
-              <Plus size={15} /> New Book
-            </button>
-          </div>
         </div>
       </div>
 
-      <div className="px-4 md:px-8 pb-8">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-8 sm:px-8">
           {books.length === 0 && looseStories.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center pb-16">
-              <div className="w-20 h-20 rounded-2xl bg-amber-900/20 border border-amber-800/20 flex items-center justify-center mb-4">
-                <BookMarked size={32} className="text-amber-600/60" />
-              </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">The shelves are bare</h3>
-              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+            <div className="flex flex-col items-center justify-center px-6 py-14 text-center rounded-lg border border-dashed border-border">
+              <span className="mb-3 grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                <BookMarked size={18} />
+              </span>
+              <h3 className="text-sm font-semibold text-foreground">The shelves are bare</h3>
+              <p className="mt-1 mb-4 text-sm text-muted-foreground max-w-xs">
                 Every library begins with a single volume. Add your first book or write a loose page.
               </p>
-              <button
-                onClick={() => setAddingBook(true)}
-                className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-5 rounded-md text-sm font-medium transition-colors"
-              >
-                <Plus size={15} /> Add First Book
-              </button>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                <button onClick={() => setAddingStandalone(true)} className="btn btn-outline">
+                  <Scroll /> New loose page
+                </button>
+                <button onClick={() => setAddingBook(true)} className="btn btn-primary">
+                  <Plus /> Add first book
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-10">
               {books.length > 0 && (
-                <section className="space-y-6">
-                  <div className="flex items-center gap-3 mb-2">
-                    <BookMarked size={16} className="text-muted-foreground" />
-                    <h3 className="text-sm font-semibold text-foreground uppercase tracking-widest">Volumes & Tomes</h3>
-                    <div className="flex-1 h-px bg-border" />
+                <section>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h2 className="section-title">Volumes</h2>
+                    <span className="text-xs text-muted-foreground">{books.length}</span>
                   </div>
 
                   {activeBook && (
-                    <div className="flex flex-col md:flex-row gap-8 bg-secondary/20 border border-border rounded-2xl p-8 items-center md:items-start relative overflow-hidden">
-                      <div className="absolute -right-20 -top-20 opacity-5 blur-3xl pointer-events-none">
-                        <div className="w-96 h-96 rounded-full" style={{ background: activeBook.coverColor }} />
-                      </div>
-                      
-                      <div className="shrink-0 drop-shadow-2xl">
+                    <div className="card flex flex-col md:flex-row gap-8 p-6 md:p-8 items-center md:items-start">
+                      <div className="shrink-0 drop-shadow-md">
                         <BookCover book={activeBook} size="large" />
                       </div>
-                      
-                      <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left z-10 w-full">
-                        <div className="inline-block px-3 py-1 rounded-full bg-secondary border border-border text-xs text-muted-foreground mb-4">
+
+                      <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left w-full min-w-0 self-stretch">
+                        <span className="badge mb-3">
                           {TYPE_LABELS[activeBook.type] || activeBook.type}
-                        </div>
-                        <h2 className="text-3xl font-bold text-foreground mb-2">{activeBook.name}</h2>
-                        {activeBook.subtitle && <p className="text-lg text-muted-foreground mb-2">{activeBook.subtitle}</p>}
-                        {activeBook.author && <p className="text-sm text-muted-foreground mb-6">by {activeBook.author}</p>}
-                        
-                        {activeBook.description && <p className="text-sm text-muted-foreground mb-6 max-w-lg leading-relaxed">{activeBook.description}</p>}
-                        
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-auto">
-                          <button onClick={() => navigate(`/books/${activeBook.id}`)} className="h-10 px-6 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm">
-                            <BookOpen size={16} /> Open Book
+                          {activeBook.genre && <span className="text-muted-foreground/70">· {activeBook.genre}</span>}
+                        </span>
+                        <h3 className="text-xl font-bold tracking-[-0.02em] text-foreground">{activeBook.name}</h3>
+                        {activeBook.subtitle && <p className="mt-1 text-[0.9375rem] text-muted-foreground">{activeBook.subtitle}</p>}
+                        {activeBook.author && <p className="mt-1 text-sm text-muted-foreground">by {activeBook.author}</p>}
+
+                        {activeBook.description && <p className="mt-4 text-sm text-muted-foreground max-w-lg leading-relaxed">{activeBook.description}</p>}
+
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 mt-6 md:mt-auto md:pt-6">
+                          <button onClick={() => navigate(`/books/${activeBook.id}`)} className="btn btn-primary">
+                            <BookOpen /> Open book
                           </button>
-                          <button onClick={() => setEditingBook(activeBook)} className="h-10 px-4 rounded-lg bg-secondary text-foreground font-medium border border-border hover:bg-secondary/80 transition-colors">
-                            Edit Details
+                          <button onClick={() => setEditingBook(activeBook)} className="btn btn-outline">
+                            <Pencil /> Edit details
                           </button>
-                          <button onClick={() => setDeletingBook(activeBook)} className="h-10 px-4 rounded-lg bg-transparent text-muted-foreground font-medium hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                            Delete
+                          <button onClick={() => setDeletingBook(activeBook)} className="btn btn-ghost hover:text-destructive">
+                            <Trash2 /> Delete
                           </button>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <div className="bg-secondary/10 border border-border rounded-xl p-6">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-5">Your Shelf</h4>
-                    <div className="flex flex-wrap gap-5 items-end">
+                  <div className="mt-6">
+                    <p className="section-label mb-3">Shelf</p>
+                    <div className="flex flex-wrap gap-5 items-end pb-3">
                       {filteredBooks.map(book => {
                         const isActive = book.id === activeBook?.id;
                         return (
-                          <div 
-                            key={book.id} 
+                          <div
+                            key={book.id}
                             onClick={() => setSelectedBookId(book.id)}
-                            className={`relative group cursor-pointer transition-all duration-300 ${isActive ? 'scale-105 z-10' : 'opacity-70 hover:opacity-100 hover:-translate-y-2'}`}
+                            className={`relative group cursor-pointer transition-all duration-300 ${isActive ? 'z-10' : 'opacity-75 hover:opacity-100 hover:-translate-y-1'}`}
                           >
                             <BookCover book={book} size="shelf" />
                             {isActive && (
-                              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-primary" />
+                              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-brand" />
                             )}
                           </div>
                         );
                       })}
                       <button
                         onClick={() => setAddingBook(true)}
-                        className="shrink-0 flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-border text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
+                        className="shrink-0 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input text-muted-foreground hover:border-ring hover:text-foreground hover:bg-accent/40 transition-colors"
                         style={{ width: 104 + 26 + 7, height: 160 }}
                       >
                         <Plus size={18} />
-                        <span className="text-xs font-medium">Add Book</span>
+                        <span className="text-xs font-medium">Add book</span>
                       </button>
                     </div>
                   </div>
@@ -497,18 +487,15 @@ export default function Stories() {
 
               {filteredLoose.length > 0 && (
                 <section>
-                  <div className="flex items-center gap-3 mb-4 mt-8">
-                    <Feather size={16} className="text-muted-foreground" />
-                    <h3 className="text-sm font-semibold text-foreground uppercase tracking-widest">Loose Pages</h3>
-                    <div className="flex-1 h-px bg-border" />
-                    <button
-                      onClick={() => setAddingStandalone(true)}
-                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-                    >
-                      <Plus size={12} /> New
+                  <div className="flex items-center gap-2 mb-3">
+                    <Feather size={15} className="text-muted-foreground" />
+                    <h2 className="section-title">Loose pages</h2>
+                    <span className="text-xs text-muted-foreground">{filteredLoose.length}</span>
+                    <button onClick={() => setAddingStandalone(true)} className="btn btn-ghost btn-sm ml-auto">
+                      <Plus /> New
                     </button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
                     {filteredLoose
                       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
                       .map(story => (
@@ -525,11 +512,8 @@ export default function Stories() {
 
               {books.length === 0 && looseStories.length > 0 && (
                 <div className="flex justify-center pt-4">
-                  <button
-                    onClick={() => setAddingBook(true)}
-                    className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium border border-dashed border-amber-900/40 text-amber-800/60 hover:text-amber-600/80 hover:border-amber-700/50 transition-colors"
-                  >
-                    <Plus size={14} /> Add your first book
+                  <button onClick={() => setAddingBook(true)} className="btn btn-outline border-dashed">
+                    <Plus /> Add your first book
                   </button>
                 </div>
               )}

@@ -2,18 +2,21 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
-import { ArrowLeft, Save, Eye, Edit3, CheckCircle2, Loader2, Target, Timer, StickyNote, Maximize2, Minimize2, CheckSquare, SlidersHorizontal, Tag, Rows3, Replace } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Edit3, CheckCircle2, Loader2, Target, Timer, StickyNote, Maximize2, Minimize2, SlidersHorizontal, Tag, Rows3, Replace, X, ChevronRight } from 'lucide-react';
 import StoryRenderer from '../components/StoryRenderer';
 import PagedEditor from '../components/PagedEditor';
 import Modal from '../components/Modal';
 import { recordWritingDay } from '../lib/writingStreak';
 
 const STATUS_CYCLE = ['Draft', 'In Progress', 'Complete'];
-const STATUS_STYLES = {
-  Draft:         'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
-  'In Progress': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-  Complete:      'bg-green-500/10 text-green-400 border-green-500/30',
+const STATUS_DOTS = {
+  Draft:         'bg-yellow-500',
+  'In Progress': 'bg-blue-500',
+  Complete:      'bg-green-500',
 };
+
+// Header icon buttons: ghost, with a quiet pressed state when their panel is open.
+const iconBtn = (on) => `btn btn-ghost btn-icon ${on ? 'bg-accent text-foreground' : ''}`;
 
 function useSessionTimer() {
   const [secs, setSecs] = useState(0);
@@ -49,45 +52,46 @@ function WordGoalBar({ count, goal, onSetGoal }) {
       {goal ? (
         <button
           onClick={() => { setInput(String(goal)); setEditing(true); }}
-          className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${done ? 'text-green-400' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`flex items-center gap-1.5 text-xs font-medium tabular-nums transition-colors ${done ? 'text-green-400' : 'text-muted-foreground hover:text-foreground'}`}
           title="Click to change goal"
         >
-          <Target size={11} />
-          <span>{count.toLocaleString()} / {goal.toLocaleString()}</span>
-          <span className="opacity-60">({pct}%)</span>
+          <Target size={12} />
+          <span className="hidden sm:inline">{count.toLocaleString()} / {goal.toLocaleString()}</span>
+          <span className="sm:opacity-60"><span className="hidden sm:inline">(</span>{pct}%<span className="hidden sm:inline">)</span></span>
           {done && <CheckCircle2 size={11} />}
         </button>
       ) : (
         <button
           onClick={() => { setInput(''); setEditing(true); }}
-          className="flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          title="Set a word goal"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Target size={11} /> Set goal
+          <Target size={12} /> <span className="hidden sm:inline">Set goal</span>
         </button>
       )}
       {goal && (
-        <div className="hidden sm:flex w-20 h-1.5 bg-secondary rounded-full overflow-hidden">
+        <div className="hidden sm:flex w-16 h-1 bg-muted rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${done ? 'bg-green-400' : 'bg-primary'}`}
+            className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-brand'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
       )}
       {editing && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-backdrop-in" onClick={() => setEditing(false)}>
-          <div role="dialog" aria-modal="true" className="bg-card border border-border rounded-t-[14px] sm:rounded-xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 shadow-2xl w-full sm:w-64 animate-sheet" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-semibold text-foreground mb-3">Word count goal</p>
+          <div role="dialog" aria-modal="true" className="bg-popover text-popover-foreground sm:ring-1 sm:ring-foreground/10 rounded-t-[14px] sm:rounded-xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5 shadow-lg w-full sm:w-72 animate-sheet" onClick={e => e.stopPropagation()}>
+            <p className="text-base font-semibold tracking-[-0.01em] text-foreground mb-3">Word count goal</p>
             <input
               autoFocus
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
               placeholder="e.g. 5000"
-              className="w-full bg-secondary text-foreground text-sm rounded-lg px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring mb-3"
+              className="input mb-4"
             />
-            <div className="flex gap-2">
-              {goal && <button onClick={() => { onSetGoal(null); setEditing(false); }} className="flex-1 text-sm py-2 rounded-lg bg-secondary text-muted-foreground hover:text-foreground transition-colors">Remove</button>}
-              <button onClick={save} className="flex-1 text-sm py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-colors">Set</button>
+            <div className="flex justify-end gap-2">
+              {goal && <button onClick={() => { onSetGoal(null); setEditing(false); }} className="btn btn-outline">Remove</button>}
+              <button onClick={save} className="btn btn-primary">Set goal</button>
             </div>
           </div>
         </div>
@@ -114,29 +118,29 @@ function FindReplaceModal({ initialContent, onApplyAll, onClose }) {
     <Modal title="Find & replace" onClose={onClose} size="sm">
       <div className="space-y-3">
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Find</label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Find</label>
           <input
             autoFocus
             value={find}
             onChange={e => setFind(e.target.value)}
-            className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+            className="input"
           />
         </div>
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Replace with</label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Replace with</label>
           <input
             value={repl}
             onChange={e => setRepl(e.target.value)}
-            className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+            className="input"
           />
         </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-          <input type="checkbox" checked={caseSens} onChange={e => setCaseSens(e.target.checked)} />
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+          <input type="checkbox" className="accent-brand" checked={caseSens} onChange={e => setCaseSens(e.target.checked)} />
           Case sensitive (whole substring only)
         </label>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-secondary">Cancel</button>
-          <button type="button" onClick={applyAll} disabled={!find} className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40">
+          <button type="button" onClick={onClose} className="btn btn-outline">Cancel</button>
+          <button type="button" onClick={applyAll} disabled={!find} className="btn btn-primary">
             Replace all
           </button>
         </div>
@@ -263,7 +267,7 @@ export default function StoryEditor() {
 
   if (!isStoryLoaded) return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground bg-background">
-      <Loader2 className="animate-spin text-primary" size={24} />
+      <Loader2 className="animate-spin" size={20} />
       <p className="text-sm">Loading chapter…</p>
     </div>
   );
@@ -275,53 +279,57 @@ export default function StoryEditor() {
     <div className={`flex-1 flex flex-col h-full overflow-hidden bg-background transition-all ${focusMode ? 'fixed inset-0 z-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : ''}`}>
 
       {/* ── Header ── */}
-      <header className={`flex items-center gap-3 px-5 py-3 border-b border-border bg-card shrink-0 transition-all ${focusMode ? 'opacity-0 hover:opacity-100 absolute top-[env(safe-area-inset-top)] left-0 right-0 z-10' : ''}`}>
+      <header className={`flex h-12 items-center gap-1.5 px-2 sm:px-3 border-b border-border bg-background shrink-0 transition-all ${focusMode ? 'opacity-0 hover:opacity-100 absolute top-[env(safe-area-inset-top)] left-0 right-0 z-10' : ''}`}>
         <button
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium shrink-0"
+          className="btn btn-ghost px-2 max-w-[14rem]"
           onClick={() => navigate(backPath)}
+          title={`Back to ${parentBook ? parentBook.name : 'Library'}`}
         >
-          <ArrowLeft size={15} />
-          <span className="hidden sm:inline">{parentBook ? parentBook.name : 'Library'}</span>
+          <ArrowLeft />
+          <span className="hidden sm:inline truncate">{parentBook ? parentBook.name : 'Library'}</span>
         </button>
 
+        <ChevronRight size={14} className="hidden sm:block shrink-0 text-muted-foreground/50" />
+
         {parentBook && story.chapterNumber != null && (
-          <span className="text-xs text-muted-foreground/60 shrink-0 hidden sm:block">Ch. {story.chapterNumber}</span>
+          <span className="text-sm text-muted-foreground shrink-0 hidden sm:block">Ch. {story.chapterNumber}</span>
         )}
 
-        <div className="w-px h-4 bg-border shrink-0" />
-
         <input
-          className="flex-1 min-w-0 bg-transparent border-none text-base font-semibold focus:outline-none text-foreground placeholder:text-muted-foreground/40"
+          className="flex-1 min-w-[5rem] h-8 rounded-md bg-transparent px-1.5 text-[0.9375rem] font-semibold text-foreground placeholder:text-muted-foreground/50 hover:bg-accent/50 focus:bg-accent/50 focus:outline-none transition-colors"
           value={title}
           onChange={e => { setTitle(e.target.value); scheduleAutosave(e.target.value, content); }}
-          placeholder="Chapter Title"
+          placeholder="Chapter title"
         />
 
-        <div className="flex items-center gap-2 shrink-0">
-          <WordGoalBar count={wc} goal={wordGoal} onSetGoal={handleSetWordGoal} />
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <div className="mr-1 sm:mr-1.5">
+            <WordGoalBar count={wc} goal={wordGoal} onSetGoal={handleSetWordGoal} />
+          </div>
 
           {/* Session timer */}
-          <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground/60 font-mono">
-            <Timer size={10} />{sessionTime}
-            {sessionWordsWritten > 0 && <span className="text-green-400/70">+{sessionWordsWritten}</span>}
+          <div className="hidden md:flex items-center gap-1 mr-1.5 text-xs text-muted-foreground tabular-nums">
+            <Timer size={12} />{sessionTime}
+            {sessionWordsWritten > 0 && <span className="text-green-400">+{sessionWordsWritten}</span>}
           </div>
 
           {/* Status badge */}
           <button
             onClick={cycleStatus}
             title="Click to cycle status"
-            className={`hidden sm:flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${STATUS_STYLES[status]}`}
+            className="btn btn-ghost btn-sm hidden sm:inline-flex text-foreground"
           >
-            <CheckSquare size={10} /> {status}
+            <span className={`size-1.5 rounded-full ${STATUS_DOTS[status] || STATUS_DOTS.Draft}`} /> {status}
           </button>
 
           {/* Notes toggle */}
           <button
             onClick={() => setShowNotes(n => !n)}
             title="Chapter notes"
-            className={`p-1.5 rounded-lg transition-colors ${showNotes ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+            aria-pressed={showNotes}
+            className={iconBtn(showNotes)}
           >
-            <StickyNote size={14} />
+            <StickyNote />
           </button>
 
           {/* Chip toggle — preview only */}
@@ -329,9 +337,10 @@ export default function StoryEditor() {
             <button
               onClick={() => setShowChips(s => !s)}
               title={showChips ? 'Hide entity chips' : 'Show entity chips'}
-              className={`p-1.5 rounded-lg transition-colors ${showChips ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+              aria-pressed={showChips}
+              className={iconBtn(showChips)}
             >
-              <Tag size={14} />
+              <Tag />
             </button>
           )}
 
@@ -339,9 +348,10 @@ export default function StoryEditor() {
           <button
             onClick={() => setShowDimSliders(s => !s)}
             title="Adjust page size"
-            className={`p-1.5 rounded-lg transition-colors ${showDimSliders ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+            aria-pressed={showDimSliders}
+            className={iconBtn(showDimSliders)}
           >
-            <SlidersHorizontal size={14} />
+            <SlidersHorizontal />
           </button>
 
           {/* Scene break */}
@@ -350,9 +360,9 @@ export default function StoryEditor() {
               type="button"
               onClick={() => editorRef.current?.insertSceneBreak?.()}
               title="Insert scene break (* * *)"
-              className="hidden sm:flex items-center gap-1 px-2 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors text-xs font-medium"
+              className="btn btn-ghost btn-sm hidden sm:inline-flex"
             >
-              <Rows3 size={13} /> Scene
+              <Rows3 /> Scene
             </button>
           )}
 
@@ -362,9 +372,9 @@ export default function StoryEditor() {
               type="button"
               onClick={() => setShowFindReplace(true)}
               title="Find & replace in this chapter"
-              className="hidden sm:flex items-center gap-1 px-2 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors text-xs font-medium"
+              className="btn btn-ghost btn-sm hidden sm:inline-flex"
             >
-              <Replace size={13} /> Replace
+              <Replace /> Replace
             </button>
           )}
 
@@ -372,39 +382,44 @@ export default function StoryEditor() {
           <button
             onClick={() => setFocusMode(f => !f)}
             title={focusMode ? 'Exit focus mode' : 'Focus mode'}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className={iconBtn(false)}
           >
-            {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            {focusMode ? <Minimize2 /> : <Maximize2 />}
           </button>
 
-          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
-            {saveState === 'saving'  && <><Loader2 size={11} className="animate-spin" /> Saving…</>}
+          <div className="hidden sm:flex items-center gap-1 mx-1.5 text-xs text-muted-foreground">
+            {saveState === 'saving'  && <><Loader2 size={12} className="animate-spin" /> Saving…</>}
             {saveState === 'unsaved' && <span>Unsaved</span>}
-            {saveState === 'saved'   && <><CheckCircle2 size={11} className="text-green-400" /> Saved</>}
-            {saveState === 'error'   && <span className="text-red-400">Save failed</span>}
+            {saveState === 'saved'   && <><CheckCircle2 size={12} /> Saved</>}
+            {saveState === 'error'   && <span className="text-destructive">Save failed</span>}
           </div>
 
           {/* Edit / Preview toggle */}
-          <div className="flex items-center rounded-lg border border-border bg-secondary/50 p-0.5 gap-0.5">
+          <div className="tabs" role="tablist">
             <button
+              role="tab"
+              aria-selected={mode === 'edit'}
               onClick={() => setMode('edit')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'edit' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              className="tab flex items-center gap-1.5"
             >
-              <Edit3 size={12} /> Edit
+              <Edit3 size={12} /> <span className="hidden sm:inline">Edit</span>
             </button>
             <button
+              role="tab"
+              aria-selected={mode === 'preview'}
               onClick={() => setMode('preview')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'preview' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              className="tab flex items-center gap-1.5"
             >
-              <Eye size={12} /> Preview
+              <Eye size={12} /> <span className="hidden sm:inline">Preview</span>
             </button>
           </div>
 
           <button
             onClick={() => doSave(title, content)}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition-colors"
+            className="btn btn-primary ml-1 max-sm:btn-icon"
+            title="Save"
           >
-            <Save size={13} /><span className="hidden sm:inline">Save</span>
+            <Save /><span className="hidden sm:inline">Save</span>
           </button>
         </div>
       </header>
@@ -412,16 +427,16 @@ export default function StoryEditor() {
       {/* ── Body: canvas + notes ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Page canvas */}
-        <main className="flex-1 overflow-y-auto bg-zinc-950 px-4 py-10 relative">
+        <main className="flex-1 overflow-y-auto bg-surface px-4 py-10 relative">
 
           {/* Dimension sliders panel */}
           {showDimSliders && (
-            <div className="absolute top-4 right-4 z-20 bg-card border border-border rounded-xl p-4 shadow-xl w-64 space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Page Size</p>
+            <div className="absolute top-3 right-3 z-20 bg-popover text-popover-foreground ring-1 ring-foreground/10 rounded-lg p-4 shadow-md w-64 space-y-4 animate-menu">
+              <p className="section-title">Page size</p>
 
               {/* Presets */}
               <div className="space-y-1.5">
-                <p className="text-xs text-muted-foreground">Presets</p>
+                <p className="section-label">Presets</p>
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
                     { label: '5×8', w: 550, h: 900 },
@@ -431,7 +446,7 @@ export default function StoryEditor() {
                     <button
                       key={p.label}
                       onClick={() => { setPageWidth(p.w); setPageHeight(p.h); }}
-                      className={`px-2 py-1.5 rounded-lg border text-xs font-medium transition-colors ${pageWidth === p.w && pageHeight === p.h ? 'bg-primary/20 border-primary/40 text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                      className={`h-7 rounded-md border text-xs font-medium transition-colors ${pageWidth === p.w && pageHeight === p.h ? 'bg-accent border-input text-foreground' : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent'}`}
                     >
                       {p.label}
                     </button>
@@ -441,19 +456,19 @@ export default function StoryEditor() {
 
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Width</span><span className="font-mono text-foreground">{pageWidth}px</span>
+                  <span>Width</span><span className="tabular-nums text-foreground">{pageWidth}px</span>
                 </div>
                 <input type="range" min={320} max={720} step={4} value={pageWidth}
                   onChange={e => setPageWidth(Number(e.target.value))}
-                  className="w-full accent-primary" />
+                  className="w-full accent-brand" />
               </div>
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Height</span><span className="font-mono text-foreground">{pageHeight}px</span>
+                  <span>Height</span><span className="tabular-nums text-foreground">{pageHeight}px</span>
                 </div>
                 <input type="range" min={400} max={1200} step={4} value={pageHeight}
                   onChange={e => setPageHeight(Number(e.target.value))}
-                  className="w-full accent-primary" />
+                  className="w-full accent-brand" />
               </div>
             </div>
           )}
@@ -477,22 +492,24 @@ export default function StoryEditor() {
 
         {/* Chapter notes panel */}
         {showNotes && (
-          <aside className="w-72 shrink-0 border-l border-border bg-card flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <aside className="w-72 shrink-0 border-l border-sidebar-border bg-sidebar flex flex-col overflow-hidden">
+            <div className="flex h-11 items-center justify-between pl-4 pr-2 border-b border-sidebar-border">
               <div className="flex items-center gap-2">
-                <StickyNote size={13} className="text-amber-400" />
-                <span className="text-sm font-semibold text-foreground">Chapter Notes</span>
+                <StickyNote size={15} className="text-muted-foreground" />
+                <span className="section-title">Chapter notes</span>
               </div>
-              <button onClick={() => setShowNotes(false)} className="text-muted-foreground hover:text-foreground transition-colors text-xs">✕</button>
+              <button onClick={() => setShowNotes(false)} aria-label="Close notes" className="btn btn-ghost btn-icon btn-sm">
+                <X />
+              </button>
             </div>
             <TextareaAutosize
               value={notes}
               onChange={e => saveNotes(e.target.value)}
               placeholder="Jot down ideas, reminders, outline points for this chapter…"
-              className="flex-1 bg-transparent text-sm text-foreground resize-none focus:outline-none px-4 py-3 leading-relaxed placeholder:text-muted-foreground/30"
+              className="flex-1 bg-transparent text-sm text-foreground resize-none focus:outline-none px-4 py-3 leading-relaxed placeholder:text-muted-foreground/60"
             />
-            <div className="px-4 py-2 border-t border-border">
-              <p className="text-xs text-muted-foreground/40 italic">Notes are private — not exported with story text</p>
+            <div className="px-4 py-2 border-t border-sidebar-border">
+              <p className="text-xs text-muted-foreground">Notes are private — not exported with story text.</p>
             </div>
           </aside>
         )}

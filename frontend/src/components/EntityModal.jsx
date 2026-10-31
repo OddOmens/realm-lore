@@ -53,7 +53,7 @@ export default function EntityModal({ entityType, initial = {}, onSave, onClose 
                 onChange={e => setValues(v => ({ ...v, [field.key]: e.target.value }))}
                 placeholder={field.placeholder}
                 minRows={4}
-                className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring resize-none placeholder:text-muted-foreground"
+                className="input resize-none"
               />
             ) : (
               <input
@@ -62,22 +62,22 @@ export default function EntityModal({ entityType, initial = {}, onSave, onClose 
                 value={values[field.key]}
                 onChange={e => setValues(v => ({ ...v, [field.key]: e.target.value }))}
                 placeholder={field.placeholder}
-                className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                className="input"
               />
             )}
           </div>
         ))}
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="h-9 px-4 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className="btn btn-outline"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="btn btn-primary"
           >
             {initial.id ? 'Save Changes' : 'Create'}
           </button>

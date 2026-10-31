@@ -22,14 +22,6 @@ const TYPE_META = {
 
 const TYPE_ICONS = { characters: Users, locations: MapIcon, things: Box, lore: BookMarked, factions: Flag, creatures: PawPrint };
 
-const ERA_GRADIENT_COLORS = [
-  'rgba(59,130,246,0.4)',
-  'rgba(34,197,94,0.4)',
-  'rgba(245,158,11,0.4)',
-  'rgba(168,85,247,0.4)',
-  'rgba(244,63,94,0.4)',
-];
-
 function EventModal({ initial = {}, onSave, onClose, allEntities }) {
   const [values, setValues] = useState({
     title:       initial.title || '',
@@ -50,39 +42,39 @@ function EventModal({ initial = {}, onSave, onClose, allEntities }) {
   };
 
   return (
-    <Modal title={initial.id ? 'Edit Event' : 'New Event'} onClose={onClose} size="2xl">
+    <Modal title={initial.id ? 'Edit event' : 'New event'} onClose={onClose} size="2xl">
       <form onSubmit={e => { e.preventDefault(); if (!values.title.trim()) return; onSave(values); }}>
         <div className="flex flex-col md:flex-row gap-6">
           
           {/* Main Info (Left Column) */}
           <div className="flex-1 space-y-5">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Event Title *</label>
+              <label className="block section-label mb-1.5">Event Title *</label>
               <input
                 autoFocus
                 value={values.title}
                 onChange={e => set('title', e.target.value)}
                 placeholder="e.g. The Fall of the Iron Throne"
-                className="w-full bg-secondary/50 text-base text-foreground rounded-xl px-4 py-3 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
+                className="input h-9"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</label>
+              <label className="block section-label mb-1.5">Description</label>
               <TextareaAutosize
                 value={values.description}
                 onChange={e => set('description', e.target.value)}
                 minRows={9}
                 placeholder="What happened? Why does it matter?"
-                className="w-full bg-secondary/50 text-sm text-foreground rounded-xl px-4 py-3 border border-border focus:outline-none focus:ring-1 focus:ring-ring resize-none placeholder:text-muted-foreground/40 transition-all"
+                className="input resize-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Linked Entities</label>
+              <label className="block section-label mb-1.5">Linked Entities</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto pr-2" style={{ maxHeight: '200px' }}>
                 {allEntities.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/50 italic p-1">No entities yet.</p>
+                  <p className="text-xs text-muted-foreground italic p-1">No entities yet.</p>
                 ) : allEntities.map(e => {
                   const meta = TYPE_META[e._type];
                   const Icon = TYPE_ICONS[e._type];
@@ -92,10 +84,10 @@ function EventModal({ initial = {}, onSave, onClose, allEntities }) {
                       key={e.id}
                       type="button"
                       onClick={() => toggleEntity(e.id)}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all text-left ${checked ? 'bg-primary/10 border-primary/30 ring-1 ring-primary/30 shadow-sm' : 'bg-secondary/30 border-border hover:bg-secondary hover:border-border/80'}`}
+                      className={`flex items-center gap-2.5 px-2.5 h-9 rounded-md border transition-colors text-left ${checked ? 'bg-brand-soft border-brand/30' : 'border-border hover:bg-accent'}`}
                     >
-                      <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-primary border-primary' : 'bg-background border-border'}`}>
-                        {checked && <span className="text-primary-foreground text-[10px] leading-none font-bold">✓</span>}
+                      <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-brand border-brand' : 'bg-background border-input'}`}>
+                        {checked && <span className="text-brand-foreground text-[10px] leading-none font-bold">✓</span>}
                       </div>
                       <div className="flex items-center gap-2 min-w-0">
                         {Icon && <Icon size={14} className={`${meta.color} shrink-0`} />}
@@ -109,45 +101,45 @@ function EventModal({ initial = {}, onSave, onClose, allEntities }) {
           </div>
 
           {/* Metadata (Right Column) */}
-          <div className="w-full md:w-72 shrink-0 space-y-5 bg-secondary/20 p-5 rounded-2xl border border-border">
+          <div className="w-full md:w-64 shrink-0 space-y-4 bg-surface p-4 rounded-lg border border-border">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5" title="Used for sorting">Year (Sort Order)</label>
+              <label className="block section-label mb-1.5" title="Used for sorting">Year (Sort Order)</label>
               <input
                 type="number"
                 value={values.year}
                 onChange={e => set('year', parseInt(e.target.value) || 0)}
                 placeholder="e.g. 342"
-                className="w-full bg-background text-sm text-foreground rounded-lg px-3 py-2.5 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
+                className="input"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Time / Season</label>
+              <label className="block section-label mb-1.5">Time / Season</label>
               <input
                 value={values.date}
                 onChange={e => set('date', e.target.value)}
                 placeholder="e.g. Early Spring"
-                className="w-full bg-background text-sm text-foreground rounded-lg px-3 py-2.5 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
+                className="input"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Era / Arc</label>
+              <label className="block section-label mb-1.5">Era / Arc</label>
               <input
                 value={values.era}
                 onChange={e => set('era', e.target.value)}
                 placeholder="e.g. The Dark Age"
-                className="w-full bg-background text-sm text-foreground rounded-lg px-3 py-2.5 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
+                className="input"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Event Type</label>
-              <div className="flex flex-wrap gap-2">
+              <label className="block section-label mb-1.5">Event Type</label>
+              <div className="flex flex-wrap gap-1.5">
                 {['event', 'battle', 'discovery', 'birth', 'death', 'founding', 'collapse', 'prophecy'].map(t => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => set('type', t)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize border ${
-                      values.type === t ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background text-muted-foreground border-border hover:border-border/80 hover:text-foreground'
+                    className={`h-7 px-2.5 rounded-md text-xs font-medium transition-colors capitalize border ${
+                      values.type === t ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-input hover:bg-accent hover:text-foreground'
                     }`}
                   >{t}</button>
                 ))}
@@ -156,12 +148,12 @@ function EventModal({ initial = {}, onSave, onClose, allEntities }) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-8 pt-5 border-t border-border">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+        <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="btn btn-outline">
             Cancel
           </button>
-          <button type="submit" className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm">
-            {initial.id ? 'Save Changes' : 'Create Event'}
+          <button type="submit" className="btn btn-primary">
+            {initial.id ? 'Save changes' : 'Create event'}
           </button>
         </div>
       </form>
@@ -294,119 +286,107 @@ export default function Timeline() {
   return (
     <>
     <div className="flex-1 overflow-y-auto w-full">
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md mb-5 border-b border-border/40 shadow-sm">
-        <div className="px-4 pt-6 pb-3 md:px-8 md:pt-8 flex flex-col gap-5">
-          <header>
-            <div>
-              <div className="flex items-center gap-2.5 mb-1">
-                <Clock size={22} className="text-muted-foreground" />
-                <h2 className="text-3xl font-bold tracking-tight text-foreground">Timeline</h2>
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
+        <div className="mx-auto w-full max-w-4xl px-4 pt-6 pb-3 sm:px-8 md:pt-8 flex flex-col gap-4">
+          <header className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2.5">
+                <Clock size={20} className="shrink-0 text-muted-foreground" />
+                <h1 className="page-title truncate">Timeline</h1>
               </div>
-              <p className="text-muted-foreground text-sm mt-0.5">Chronological history of your world.</p>
+              <p className="page-subtitle">Chronological history of your world.</p>
             </div>
+            <button onClick={() => setAdding(true)} className="btn btn-primary">
+              <Plus /> New event
+            </button>
           </header>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-            <div className="relative w-full sm:w-72 shrink-0">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-              <input
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search timeline..."
-                className="w-full pl-9 pr-9 py-2 text-sm bg-secondary/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring transition-all"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
+          <div className="relative w-full sm:w-64 shrink-0">
+            <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search timeline…"
+              className="input pl-8 pr-8"
+            />
+            {query && (
               <button
-                onClick={() => setAdding(true)}
-                className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition-colors shrink-0"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Plus size={15} /> Add Event
+                <X size={13} />
               </button>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="px-4 md:px-8 pb-8">
+      <div className="mx-auto w-full max-w-4xl px-4 pt-6 pb-8 sm:px-8">
           {events.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center pb-16">
-              <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4">
-                <TrendingUp size={28} className="text-rose-400/60" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">No events yet</h3>
-              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+            <div className="flex flex-col items-center justify-center px-6 py-14 text-center rounded-lg border border-dashed border-border">
+              <span className="mb-3 grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                <TrendingUp size={18} />
+              </span>
+              <h3 className="text-sm font-semibold text-foreground">No events yet</h3>
+              <p className="mt-1 text-sm text-muted-foreground mb-4 max-w-xs">
                 Chronicle your world's history. Add events, group them into eras, and link them to characters and places.
               </p>
               <button
                 onClick={() => setAdding(true)}
-                className="flex items-center gap-2 h-9 px-5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition-colors"
+                className="btn btn-primary"
               >
-                <Plus size={15} /> Add First Event
+                <Plus /> Add first event
               </button>
             </div>
           ) : (
             <div className="space-y-10">
-              {eraNames.map((era, eraIdx) => (
+              {eraNames.map((era) => (
                 <div key={era}>
                   {/* Era header */}
                   {era !== 'Ungrouped' && (
-                    <div className="flex items-center gap-3 mb-5">
-                      <div
-                        className="h-px flex-1"
-                        style={{ background: `linear-gradient(to right, transparent, ${ERA_GRADIENT_COLORS[eraIdx % ERA_GRADIENT_COLORS.length]})` }}
-                      />
-                      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-2">{era}</span>
-                      <div
-                        className="h-px flex-1"
-                        style={{ background: `linear-gradient(to left, transparent, ${ERA_GRADIENT_COLORS[eraIdx % ERA_GRADIENT_COLORS.length]})` }}
-                      />
+                    <div className="flex items-center gap-3 mb-4">
+                      <h2 className="section-title shrink-0">{era}</h2>
+                      <span className="text-xs text-muted-foreground">{eras[era].length}</span>
+                      <div className="h-px flex-1 bg-border" />
                     </div>
                   )}
 
                   {/* Events list */}
                   <div className="relative">
                     {/* Vertical timeline line */}
-                    <div className="absolute left-[22px] top-3 bottom-3 w-px bg-border/60" />
+                    <div className="absolute left-[17px] top-4 bottom-4 w-px bg-border" />
 
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {eras[era].map((event) => {
                         const linked = getLinkedEntities(event.linkedIds);
 
                         return (
                           <div
                             key={event.id}
-                            className="relative flex gap-4 group transition-opacity"
+                            className="relative flex gap-3 group"
                           >
                             {/* Timeline dot */}
-                            <div className="relative flex flex-col items-center shrink-0 mt-4">
-                              <div className="w-11 h-11 rounded-full bg-card border-2 border-border group-hover:border-primary/40 transition-colors flex items-center justify-center z-10">
+                            <div className="relative flex flex-col items-center shrink-0 mt-2">
+                              <div className="size-9 rounded-full bg-background border border-border group-hover:border-brand/50 group-hover:text-brand text-muted-foreground transition-colors flex items-center justify-center z-10">
                                 {(() => {
                                   const IconComponent = EVENT_TYPE_ICONS[event.type] || MapPin;
-                                  return <IconComponent size={18} className="text-muted-foreground" />;
+                                  return <IconComponent size={16} />;
                                 })()}
                               </div>
                             </div>
 
                             {/* Event card */}
-                            <div className="flex-1 min-w-0 mb-2">
+                            <div className="flex-1 min-w-0">
                               <div
-                                className="rounded-xl border border-border bg-card hover:border-border/80 transition-colors overflow-hidden"
+                                className="card transition-colors group-hover:border-foreground/15 overflow-hidden"
                               >
                                 <div className="flex items-start gap-3 px-4 py-3">
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <p className="text-sm font-semibold text-foreground">{event.name}</p>
                                       {(event.date || (typeof event.year === 'number' && event.year !== 0)) && (
-                                        <span className="text-xs text-muted-foreground/60 font-mono">
+                                        <span className="text-xs text-muted-foreground tabular-nums">
                                           {[
                                             (typeof event.year === 'number' && event.year !== 0) ? `Year ${event.year}` : null,
                                             event.date
@@ -414,7 +394,7 @@ export default function Timeline() {
                                         </span>
                                       )}
                                       {event.type && event.type !== 'event' && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-secondary border border-border text-muted-foreground capitalize">{event.type}</span>
+                                        <span className="badge capitalize">{event.type}</span>
                                       )}
                                     </div>
                                   </div>
@@ -422,13 +402,15 @@ export default function Timeline() {
                                   <div className="flex items-center gap-1 shrink-0">
                                     <button
                                       onClick={e => { e.stopPropagation(); setEditing(event); }}
-                                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+                                      className="btn btn-ghost btn-icon btn-sm opacity-0 group-hover:opacity-100"
+                                      aria-label="Edit event"
                                     >
                                       <Pencil size={14} />
                                     </button>
                                     <button
                                       onClick={e => { e.stopPropagation(); setDeleting(event); }}
-                                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                      className="btn btn-ghost btn-icon btn-sm hover:text-destructive opacity-0 group-hover:opacity-100"
+                                      aria-label="Delete event"
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -437,16 +419,16 @@ export default function Timeline() {
 
                                 {/* Content */}
                                 {(event.description || linked.length > 0) && (
-                                  <div className="px-4 pb-4 border-t border-border/50 pt-3 space-y-3">
+                                  <div className="px-4 pb-4 border-t border-border pt-3 space-y-3">
                                     {event.description && (
-                                      <p className="text-sm text-muted-foreground/90 leading-relaxed">
+                                      <p className="text-sm text-muted-foreground leading-relaxed">
                                         <PlainTextPreview text={event.description} />
                                       </p>
                                     )}
                                     {linked.length > 0 && (
                                       <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Involves</p>
-                                        <div className="flex flex-wrap gap-2">
+                                        <p className="section-label mb-1.5">Involves</p>
+                                        <div className="flex flex-wrap gap-1.5">
                                           {linked.map(e => {
                                             const meta = TYPE_META[e._type];
                                             const Icon = TYPE_ICONS[e._type];
@@ -454,11 +436,11 @@ export default function Timeline() {
                                               <button
                                                 key={e.id}
                                                 onClick={ev => { ev.stopPropagation(); navigate(`/${e._type}/${e.id}`); }}
-                                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${meta.border} ${meta.bg} text-xs font-medium ${meta.color} hover:opacity-80 transition-opacity`}
+                                                className="flex items-center gap-1.5 h-6 px-2 rounded-md border border-border text-xs font-medium text-foreground hover:bg-accent transition-colors"
                                               >
-                                                {Icon && <Icon size={11} />}
+                                                {Icon && <Icon size={12} className={meta.color} />}
                                                 {e.name}
-                                                <ExternalLink size={10} className="opacity-50" />
+                                                <ExternalLink size={10} className="text-muted-foreground" />
                                               </button>
                                             );
                                           })}

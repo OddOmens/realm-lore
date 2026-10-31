@@ -302,6 +302,7 @@ export const useWorldStore = create((set, get) => ({
     // the user never sees a "ghost" pin pointing nowhere.
     const mapsToTouch = get().maps.filter(m =>
       (m.pins || []).some(p => p.entityId === id) ||
+      (m.places || []).some(p => p.entityId === id) ||
       (m.protagonist && m.protagonist.entityId === id)
     );
     await Promise.all(mapsToTouch.map(m => {
@@ -310,9 +311,11 @@ export const useWorldStore = create((set, get) => ({
         pins: (m.pins || []).filter(p => p.entityId !== id),
         protagonist: (m.protagonist && m.protagonist.entityId === id) ? null : m.protagonist,
       };
+      // Map-builder places keep their name and just lose the link.
+      if (m.places) cleaned.places = m.places.map(p => p.entityId === id ? { ...p, entityId: null, entityType: null } : p);
       // Persist a disk-friendly copy that points at the on-disk image file
       // rather than the resolved data URL we keep in memory.
-      const diskVersion = { ...cleaned, image: `__local__${m.id}` };
+      const diskVersion = { ...cleaned, image: m.image ? `__local__${m.id}` : null };
       return dbService.put('maps', diskVersion);
     }));
 
@@ -325,6 +328,7 @@ export const useWorldStore = create((set, get) => ({
           ...m,
           pins: (m.pins || []).filter(p => p.entityId !== id),
           protagonist: (m.protagonist && m.protagonist.entityId === id) ? null : m.protagonist,
+          ...(m.places ? { places: m.places.map(p => p.entityId === id ? { ...p, entityId: null, entityType: null } : p) } : {}),
         };
       }),
     }));
@@ -337,7 +341,7 @@ export const useWorldStore = create((set, get) => ({
       await api.fsWrite(`${getActiveWorld()}/maps/${id}.img`, mapData.image);
       imageRef = `__local__${id}`;
     }
-    const toSave = { ...mapData, id, image: imageRef };
+    const toSave = { ...mapData, id, image: imageRef ?? null };
     const saved = await dbService.put('maps', toSave);
     const inMemory = { ...saved, image: mapData.image };
     set(state => {
@@ -349,7 +353,10 @@ export const useWorldStore = create((set, get) => ({
 
   deleteMap: async (id) => {
     await dbService.delete('maps', id);
-    await api.fsDelete(`${getActiveWorld()}/maps/${id}.img`).catch(() => {});
+    // Side files (background image, map-builder terrain, thumbnail) go to the trash with it.
+    for (const ext of ['img', 'terrain', 'thumb.img']) {
+      await api.fsDelete(`${getActiveWorld()}/maps/${id}.${ext}`).catch(() => {});
+    }
     set(state => ({ maps: state.maps.filter(m => m.id !== id) }));
   },
 
@@ -362,7 +369,7 @@ export const useWorldStore = create((set, get) => ({
     const existing = get().maps.find(m => m.id === id);
     if (!existing) return null;
     const merged = { ...existing, ...updates };
-    const diskVersion = { ...merged, image: `__local__${id}` };
+    const diskVersion = { ...merged, image: merged.image ? `__local__${id}` : null };
     await dbService.put('maps', diskVersion);
     set(state => ({ maps: state.maps.map(m => m.id === id ? merged : m) }));
     return merged;

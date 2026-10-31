@@ -9,10 +9,10 @@ const LINE_HEIGHT = 1.625;
 const MENTION_LIMIT = 24;
 
 const TYPE_META = {
-  characters: { icon: Users,      color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/30'  },
-  locations:  { icon: Map,        color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/30' },
-  things:     { icon: Box,        color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/30' },
-  lore:       { icon: BookMarked, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30'},
+  characters: { icon: Users },
+  locations:  { icon: Map },
+  things:     { icon: Box },
+  lore:       { icon: BookMarked },
 };
 
 function parsePages(v) { return v ? v.split(PAGE_SEP) : ['']; }
@@ -629,7 +629,7 @@ const PagedEditor = forwardRef(function PagedEditor({ value, onChange, placehold
                 style={{
                   top: padH, left: padW, right: padW,
                   fontSize: `${FONT_SIZE}px`, lineHeight: String(LINE_HEIGHT),
-                  color: 'rgba(255,255,255,0.2)',
+                  color: 'hsl(var(--muted-foreground) / 0.5)',
                 }}
               >
                 {placeholder}
@@ -656,7 +656,7 @@ const PagedEditor = forwardRef(function PagedEditor({ value, onChange, placehold
                 minHeight: `${textH}px`,
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
-                caretColor: 'white',
+                caretColor: 'hsl(var(--brand))',
                 outline: 'none',
                 position: 'relative',
                 zIndex: 1,
@@ -675,7 +675,7 @@ const PagedEditor = forwardRef(function PagedEditor({ value, onChange, placehold
                 justifyContent: 'space-between',
                 fontSize: '0.6rem',
                 letterSpacing: '0.08em',
-                color: 'rgba(255,255,255,0.18)',
+                color: 'hsl(var(--muted-foreground) / 0.45)',
               }}
             >
               <span>{parentBook?.name || 'Realm Lore'}</span>
@@ -690,9 +690,9 @@ const PagedEditor = forwardRef(function PagedEditor({ value, onChange, placehold
         <div
           ref={menuRef}
           style={{ ...menuStyle, position: 'fixed' }}
-          className="z-50 w-72 bg-popover border border-border rounded-xl shadow-2xl py-1.5 overflow-hidden"
+          className="z-50 w-72 bg-popover text-popover-foreground rounded-lg shadow-md ring-1 ring-foreground/10 p-1 overflow-hidden animate-menu"
         >
-          <p className="px-3 pb-1 text-xs text-muted-foreground font-medium">
+          <p className="px-2 pt-1 pb-1.5 text-xs text-muted-foreground font-medium">
             {mention.query ? `Matching "${mention.query}"` : 'All entities'} - Tab/Enter to insert
           </p>
           {mentionSuggestions.map((e, i) => {
@@ -703,11 +703,9 @@ const PagedEditor = forwardRef(function PagedEditor({ value, onChange, placehold
                 key={e.id}
                 onMouseDown={(ev) => { ev.preventDefault(); insertMention(e); }}
                 onMouseEnter={() => setMenuCursor(i)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${i === menuCursor ? 'bg-secondary' : 'hover:bg-secondary/50'}`}
+                className={`w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${i === menuCursor ? 'bg-accent' : ''}`}
               >
-                <span className={`shrink-0 p-1.5 rounded-md border ${meta.bg} ${meta.border}`}>
-                  <Icon size={12} className={meta.color} />
-                </span>
+                <Icon size={16} className="shrink-0 text-muted-foreground" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{e.name}</p>
                   <p className="text-xs text-muted-foreground truncate">

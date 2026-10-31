@@ -38,21 +38,21 @@ export default function Races() {
         <EntityCard key={race.id} entity={race} entityType="races" viewMode={viewMode}
           listContent={
             <div className="flex items-center gap-3 pr-8 min-w-0">
-              <span className="font-medium text-sm truncate flex-1">{race.name}</span>
+              <span className="font-medium text-sm text-foreground truncate flex-1">{race.name}</span>
               {race.status && (
-                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${STATUS_STYLES[race.status] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                  <span className="opacity-50 mr-1 uppercase">STAT</span>
+                <span className={`shrink-0 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${STATUS_STYLES[race.status] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                  <span className="opacity-60 mr-1">Status</span>
                   {race.status}
                 </span>
               )}
             </div>
           }
         >
-          <h4 className="font-semibold text-base leading-snug truncate pr-6 mb-1.5">{race.name}</h4>
+          <h4 className="font-semibold text-[0.9375rem] leading-snug truncate pr-6 mb-1.5">{race.name}</h4>
           {race.status && (
             <div className="flex flex-wrap gap-1.5 mb-2">
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${STATUS_STYLES[race.status] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                <span className="opacity-50 mr-1 uppercase">STAT</span>
+              <span className={`text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${STATUS_STYLES[race.status] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                <span className="opacity-60 mr-1">Status</span>
                 {race.status}
               </span>
             </div>

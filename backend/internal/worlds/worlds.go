@@ -393,7 +393,40 @@ func (s *Store) TrashRestore(p string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return "", err
 	}
-	return world + "/" + rest, os.Rename(src, dest)
+	if err := os.Rename(src, dest); err != nil {
+		return "", err
+	}
+	// A map's image, terrain and thumbnail come back with it.
+	for _, side := range sideFiles(src) {
+		target := filepath.Join(filepath.Dir(dest), filepath.Base(side))
+		if _, err := os.Stat(target); err == nil {
+			continue
+		}
+		os.Rename(side, target)
+	}
+	return world + "/" + rest, nil
+}
+
+// sideFiles lists the files stored next to a record that belong to it:
+// "<id>.<ext>" beside "<id>.md" (map images, map terrain, thumbnails).
+func sideFiles(mdPath string) []string {
+	if !strings.HasSuffix(mdPath, ".md") {
+		return nil
+	}
+	base := strings.TrimSuffix(filepath.Base(mdPath), ".md")
+	entries, err := os.ReadDir(filepath.Dir(mdPath))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || name == base+".md" || name == base+".md.bak" || !strings.HasPrefix(name, base+".") {
+			continue
+		}
+		out = append(out, filepath.Join(filepath.Dir(mdPath), name))
+	}
+	return out
 }
 
 func (s *Store) TrashPurge(p string) error {
@@ -405,8 +438,12 @@ func (s *Store) TrashPurge(p string) error {
 	if err != nil {
 		return err
 	}
+	sides := sideFiles(full)
 	if err := os.Remove(full); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
+	}
+	for _, side := range sides {
+		os.Remove(side)
 	}
 	return nil
 }

@@ -3,17 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
 import {
   ArrowLeft, Plus, Trash2, GripVertical,
-  FileText, Clock, ArrowRight, BookOpen, LayoutGrid, List, Download,
+  ArrowRight, BookOpen, LayoutGrid, List, Download, Target,
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
 import { compileHtmlManuscript, downloadTextFile, downloadBlob } from '../lib/exportBook';
 import { api } from '../lib/api';
 
-const STATUS_STYLES = {
-  Draft:         'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  'In Progress': 'bg-blue-500/10  text-blue-400  border-blue-500/20',
-  Complete:      'bg-green-500/10 text-green-400  border-green-500/20',
+const STATUS_DOTS = {
+  Draft:         'bg-yellow-500',
+  'In Progress': 'bg-blue-500',
+  Complete:      'bg-green-500',
 };
 
 const TYPE_LABELS = {
@@ -114,22 +114,20 @@ function BookCoverLarge({ book }) {
 function AddChapterModal({ onSave, onClose }) {
   const [name, setName] = useState('');
   return (
-    <Modal title="New Chapter" onClose={onClose} size="sm">
+    <Modal title="New chapter" onClose={onClose} size="sm">
       <form onSubmit={e => { e.preventDefault(); if (name.trim()) onSave(name.trim()); }} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Chapter Title</label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Chapter title</label>
           <input autoFocus value={name} onChange={e => setName(e.target.value)}
             placeholder="e.g. The First Betrayal"
-            className="w-full bg-secondary text-foreground text-sm rounded-md px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" />
+            className="input" />
         </div>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose}
-            className="h-9 px-4 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+          <button type="button" onClick={onClose} className="btn btn-outline">
             Cancel
           </button>
-          <button type="submit"
-            className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-            Add Chapter
+          <button type="submit" className="btn btn-primary">
+            Add chapter
           </button>
         </div>
       </form>
@@ -141,7 +139,8 @@ function ChapterRow({ story, index, onDelete, onDragStart, onDragEnter, onDragEn
   const navigate = useNavigate();
   const [isDragOver, setIsDragOver] = useState(false);
   const words = story.wordCount || 0;
-  const statusStyle = STATUS_STYLES[story.status] || STATUS_STYLES.Draft;
+  const status = story.status || 'Draft';
+  const open = () => navigate(`/stories/${story.id}`);
 
   return (
     <div
@@ -152,55 +151,51 @@ function ChapterRow({ story, index, onDelete, onDragStart, onDragEnter, onDragEn
       onDragOver={e => e.preventDefault()}
       onDrop={() => setIsDragOver(false)}
       onDragEnd={() => { setIsDragOver(false); onDragEnd(); }}
-      className={`group flex items-center gap-4 px-4 py-3 border-b transition-colors cursor-pointer select-none
-        ${isDragOver ? 'bg-primary/5 border-b-primary/30' : 'border-b-border hover:bg-secondary/30'}`}
+      className={`ios-row group flex items-center gap-3 px-3 py-2.5 border-b transition-colors cursor-pointer select-none
+        ${isDragOver ? 'bg-brand-soft border-b-brand/40' : 'border-b-border hover:bg-accent/60'}`}
     >
-      <div className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground cursor-grab active:cursor-grabbing transition-colors opacity-0 group-hover:opacity-100"
+      <div className="shrink-0 w-4 text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing transition-colors opacity-0 group-hover:opacity-100"
         onClick={e => e.stopPropagation()}>
         <GripVertical size={14} />
       </div>
 
-      <div className="shrink-0 w-7 h-7 rounded-full bg-secondary border border-border flex items-center justify-center"
-        onClick={() => navigate(`/stories/${story.id}`)}>
-        <span className="text-xs font-medium text-muted-foreground">{story.chapterNumber || index + 1}</span>
+      <div className="shrink-0 w-7 text-right text-sm tabular-nums text-muted-foreground" onClick={open}>
+        {story.chapterNumber || index + 1}
       </div>
 
-      <div className="flex-1 min-w-0" onClick={() => navigate(`/stories/${story.id}`)}>
-        <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
+      <div className="flex-1 min-w-0" onClick={open}>
+        <p className="text-sm font-medium text-foreground truncate">
           {story.name}
         </p>
         {story.preview ? (
-          <p className="text-xs text-muted-foreground truncate mt-0.5">{story.preview.slice(0, 80)}…</p>
+          <p className="text-xs text-muted-foreground truncate">{story.preview.slice(0, 80)}…</p>
         ) : (
-          <p className="text-xs text-muted-foreground/40 italic mt-0.5">No content yet</p>
+          <p className="text-xs text-muted-foreground/60 italic">No content yet</p>
         )}
       </div>
 
-      <div className="hidden md:flex items-center gap-4 shrink-0" onClick={() => navigate(`/stories/${story.id}`)}>
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <FileText size={11} /> {words.toLocaleString()}
-        </span>
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <Clock size={11} /> {readingTime(words)}
-        </span>
-        <span className="text-xs text-muted-foreground w-20 text-right">
+      <div className="hidden md:flex items-center gap-4 shrink-0 text-xs text-muted-foreground tabular-nums" onClick={open}>
+        <span className="w-20 text-right">{words.toLocaleString()}</span>
+        <span className="w-20 text-right">{readingTime(words)}</span>
+        <span className="w-28 text-right">
           {story.updatedAt ? new Date(story.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
         </span>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${statusStyle}`}>
-          {story.status || 'Draft'}
+        <span className="w-24 flex items-center gap-1.5 pl-3">
+          <span className={`size-1.5 rounded-full ${STATUS_DOTS[status] || STATUS_DOTS.Draft}`} />
+          {status}
         </span>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+      <div className="flex w-8 justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={e => e.stopPropagation()}>
-        <button onClick={() => onDelete(story)}
-          className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
-          <Trash2 size={12} />
+        <button onClick={() => onDelete(story)} aria-label="Delete chapter" title="Delete chapter"
+          className="btn btn-ghost btn-icon btn-sm hover:text-destructive">
+          <Trash2 />
         </button>
       </div>
 
       <ArrowRight size={14} className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={() => navigate(`/stories/${story.id}`)} />
+        onClick={open} />
     </div>
   );
 }
@@ -266,11 +261,10 @@ export default function BookDetail() {
   if (!book) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-        <BookOpen size={32} className="opacity-40" />
-        <p>Book not found.</p>
-        <button onClick={() => navigate('/stories')}
-          className="text-sm text-primary hover:underline flex items-center gap-1">
-          <ArrowLeft size={14} /> Back to Library
+        <BookOpen size={28} className="opacity-40" />
+        <p className="text-sm">Book not found.</p>
+        <button onClick={() => navigate('/stories')} className="btn btn-outline">
+          <ArrowLeft /> Back to Library
         </button>
       </div>
     );
@@ -282,57 +276,48 @@ export default function BookDetail() {
     <>
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         <aside
-          className="w-full lg:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-border overflow-y-auto p-6 flex flex-col gap-5"
-          style={{ background: 'linear-gradient(160deg, rgba(120,70,20,0.06) 0%, rgba(50,30,10,0.1) 100%)' }}
+          className="w-full lg:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-sidebar-border bg-sidebar overflow-y-auto px-4 pt-3 pb-6 flex flex-col gap-5"
         >
           <button
             onClick={() => navigate('/stories')}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors self-start"
+            className="btn btn-ghost btn-sm self-start -ml-1"
           >
-            <ArrowLeft size={14} /> Library
+            <ArrowLeft /> Library
           </button>
 
-          <div className="flex justify-center">
+          <div className="flex justify-center drop-shadow-md">
             <BookCoverLarge book={book} />
           </div>
 
-          <div className="space-y-2 text-center">
-            <h1 className="text-xl font-bold text-foreground leading-tight">{book.name}</h1>
+          <div className="space-y-1 text-center">
+            <h1 className="text-xl font-bold tracking-[-0.02em] text-foreground leading-tight">{book.name}</h1>
             {book.subtitle && (
-              <p className="text-sm font-medium italic text-muted-foreground">{book.subtitle}</p>
+              <p className="text-sm text-muted-foreground">{book.subtitle}</p>
             )}
             {book.author && (
               <p className="text-xs text-muted-foreground">by {book.author}</p>
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2 justify-center">
-            {book.genre && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-secondary border border-border text-muted-foreground">
-                {book.genre}
-              </span>
-            )}
-            {book.type && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-amber-900/20 border border-amber-800/20 text-amber-600/80">
-                {TYPE_LABELS[book.type] || book.type}
-              </span>
-            )}
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {book.type && <span className="badge">{TYPE_LABELS[book.type] || book.type}</span>}
+            {book.genre && <span className="badge">{book.genre}</span>}
           </div>
 
           {book.description && (
-            <p className="text-sm text-muted-foreground leading-relaxed text-center italic">
-              "{book.description}"
+            <p className="text-sm text-muted-foreground leading-relaxed text-center">
+              {book.description}
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-secondary/60 border border-border p-3 text-center">
-              <p className="text-lg font-semibold text-foreground">{chapters.length}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Chapters</p>
+          <div className="card grid grid-cols-2 divide-x divide-border">
+            <div className="p-3 text-center">
+              <p className="text-lg font-semibold tabular-nums text-foreground">{chapters.length}</p>
+              <p className="text-xs text-muted-foreground">Chapters</p>
             </div>
-            <div className="rounded-lg bg-secondary/60 border border-border p-3 text-center">
-              <p className="text-lg font-semibold text-foreground">{totalWords.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Words</p>
+            <div className="p-3 text-center">
+              <p className="text-lg font-semibold tabular-nums text-foreground">{totalWords.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Words</p>
             </div>
           </div>
 
@@ -345,9 +330,9 @@ export default function BookDetail() {
                   {Math.min(100, Math.round((totalWords / book.wordGoal) * 100))}%
                 </span>
               </div>
-              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${totalWords >= book.wordGoal ? 'bg-green-400' : 'bg-primary'}`}
+                  className={`h-full rounded-full transition-all ${totalWords >= book.wordGoal ? 'bg-green-500' : 'bg-brand'}`}
                   style={{ width: `${Math.min(100, (totalWords / book.wordGoal) * 100)}%` }}
                 />
               </div>
@@ -360,109 +345,101 @@ export default function BookDetail() {
                 const goal = parseInt(prompt('Set a word count goal for this book (e.g. 80000):'), 10);
                 if (!isNaN(goal) && goal > 0) await updateBook(bookId, { wordGoal: goal });
               }}
-              className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors text-center w-full"
+              className="btn btn-ghost btn-sm self-center"
             >
-              + Set word goal
+              <Target /> Set word goal
             </button>
           )}
         </aside>
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-6 py-4 border-b border-border shrink-0 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Chapters</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {chapters.length} {chapters.length === 1 ? 'chapter' : 'chapters'}
-              </p>
+          <div className="px-4 sm:px-6 py-3 border-b border-border shrink-0 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-baseline gap-2">
+              <h2 className="section-title">Chapters</h2>
+              <span className="text-xs text-muted-foreground tabular-nums">{chapters.length}</span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex rounded-lg border border-border bg-secondary/40 p-0.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="tabs" role="tablist">
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={chapterView === 'list'}
                   onClick={() => setChapterView('list')}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${chapterView === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  className="tab flex items-center gap-1"
                   title="List view"
                 >
                   <List size={13} /> List
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={chapterView === 'corkboard'}
                   onClick={() => setChapterView('corkboard')}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${chapterView === 'corkboard' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  className="tab flex items-center gap-1"
                   title="Outline / corkboard"
                 >
                   <LayoutGrid size={13} /> Outline
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setCompileOpen(true)}
-                className="flex items-center gap-2 border border-border bg-secondary/60 hover:bg-secondary text-foreground h-8 px-3 rounded-md text-sm font-medium transition-colors"
-              >
-                <Download size={13} /> Compile
+              <button type="button" onClick={() => setCompileOpen(true)} className="btn btn-outline">
+                <Download /> Compile
               </button>
-              <button
-                onClick={() => setAddingChapter(true)}
-                className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-3 rounded-md text-sm font-medium transition-colors"
-              >
-                <Plus size={13} /> Add Chapter
+              <button onClick={() => setAddingChapter(true)} className="btn btn-primary">
+                <Plus /> Add chapter
               </button>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
             {chapters.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center pb-16 px-8">
-                <div className="w-14 h-14 rounded-xl bg-secondary border border-border flex items-center justify-center mb-4">
-                  <BookOpen size={22} className="text-muted-foreground" />
-                </div>
-                <h3 className="text-base font-semibold text-foreground mb-1">No chapters yet</h3>
-                <p className="text-sm text-muted-foreground mb-5 max-w-xs italic">
+              <div className="m-4 sm:m-6 flex flex-col items-center justify-center text-center px-6 py-14 rounded-lg border border-dashed border-border">
+                <span className="mb-3 grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                  <BookOpen size={18} />
+                </span>
+                <h3 className="text-sm font-semibold text-foreground">No chapters yet</h3>
+                <p className="mt-1 mb-4 text-sm text-muted-foreground max-w-xs">
                   The first words of every great tale begin with a single chapter.
                 </p>
-                <button
-                  onClick={() => setAddingChapter(true)}
-                  className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-5 rounded-md text-sm font-medium transition-colors"
-                >
-                  <Plus size={14} /> Write First Chapter
+                <button onClick={() => setAddingChapter(true)} className="btn btn-primary">
+                  <Plus /> Write first chapter
                 </button>
               </div>
             ) : chapterView === 'corkboard' ? (
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {chapters.map((chapter, index) => (
                   <button
                     key={chapter.id}
                     type="button"
                     onClick={() => navigate(`/stories/${chapter.id}`)}
-                    className="text-left rounded-xl border border-border bg-card hover:bg-secondary/40 hover:border-primary/30 transition-all p-4 flex flex-col gap-2 min-h-[120px]"
+                    className="card card-hover text-left p-4 flex flex-col gap-2 min-h-[120px]"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-muted-foreground w-6">{chapter.chapterNumber ?? index + 1}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground w-5 shrink-0">{chapter.chapterNumber ?? index + 1}</span>
                       <span className="text-sm font-semibold text-foreground line-clamp-2">{chapter.name}</span>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-4 flex-1">
                       {chapter.preview ? chapter.preview.replace(/\[\[(.*?)\]\]/g, '$1').slice(0, 220) : 'Empty chapter'}
                     </p>
-                    <span className="text-[10px] text-muted-foreground/60">{(chapter.wordCount || 0).toLocaleString()} words</span>
+                    <span className="text-xs text-muted-foreground">{(chapter.wordCount || 0).toLocaleString()} words</span>
                   </button>
                 ))}
               </div>
             ) : (
               <>
                 {chapters.length > 0 && (
-                  <div className="px-4 py-2 border-b border-border">
-                    <div className="hidden md:flex items-center gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  <div className="hidden md:block px-3 py-2 border-b border-border bg-surface">
+                    <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
                       <div className="w-4 shrink-0" />
-                      <div className="w-7 shrink-0" />
+                      <div className="w-7 shrink-0 text-right">#</div>
                       <div className="flex-1">Chapter</div>
                       <div className="flex items-center gap-4 shrink-0">
                         <span className="w-20 text-right">Words</span>
                         <span className="w-20 text-right">Read time</span>
                         <span className="w-28 text-right">Last edited</span>
-                        <span className="w-20 text-center">Status</span>
-                        <span className="w-10" />
-                        <span className="w-4" />
+                        <span className="w-24 pl-3">Status</span>
                       </div>
+                      <span className="w-8 shrink-0" />
+                      <span className="w-3.5 shrink-0" />
                     </div>
                   </div>
                 )}
@@ -488,12 +465,12 @@ export default function BookDetail() {
       {compileOpen && (
         <Modal title="Compile manuscript" onClose={() => setCompileOpen(false)} size="md">
           <p className="text-sm text-muted-foreground mb-4">
-            Exports combine every chapter in order. <code className="text-xs bg-secondary px-1 rounded">[[mentions]]</code> become plain names. Use Print for a PDF via your browser.
+            Exports combine every chapter in order. <code className="text-xs bg-muted px-1 rounded">[[mentions]]</code> become plain names. Use Print for a PDF via your browser.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               type="button"
-              className="h-10 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-sm font-medium text-foreground transition-colors"
+              className="btn btn-outline h-9 w-full"
               onClick={() => {
                 const html = compileHtmlManuscript(book, chapters);
                 const slug = (book.name || 'book').replace(/\s+/g, '-').replace(/[^a-z0-9-_]/gi, '').toLowerCase() || 'book';
@@ -504,7 +481,7 @@ export default function BookDetail() {
             </button>
             <button
               type="button"
-              className="h-10 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-sm font-medium text-foreground transition-colors"
+              className="btn btn-outline h-9 w-full"
               onClick={async () => {
                 try {
                   await api.exportEpub({
@@ -531,7 +508,7 @@ export default function BookDetail() {
             </button>
             <button
               type="button"
-              className="h-10 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-sm font-medium text-foreground transition-colors"
+              className="btn btn-outline h-9 w-full"
               onClick={() => {
                 const html = compileHtmlManuscript(book, chapters);
                 const slug = (book.name || 'book').replace(/\s+/g, '-').replace(/[^a-z0-9-_]/gi, '').toLowerCase() || 'book';
@@ -543,7 +520,7 @@ export default function BookDetail() {
             </button>
             <button
               type="button"
-              className="h-10 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 text-sm font-medium text-primary transition-colors"
+              className="btn btn-primary h-9 w-full"
               onClick={async () => {
                 const html = compileHtmlManuscript(book, chapters);
                 try {
@@ -557,13 +534,11 @@ export default function BookDetail() {
               Print / Save as PDF…
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setCompileOpen(false)}
-            className="mt-4 w-full h-9 rounded-lg border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors"
-          >
-            Close
-          </button>
+          <div className="mt-5 flex justify-end">
+            <button type="button" onClick={() => setCompileOpen(false)} className="btn btn-ghost">
+              Close
+            </button>
+          </div>
         </Modal>
       )}
 

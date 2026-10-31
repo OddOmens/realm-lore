@@ -3,52 +3,71 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* ── Core themes: the neutral, flat palette shared with Quire ──
+     --brand is the one accent (links, focus, selection, active marks);
+     --surface and --sidebar are the slightly recessed chrome behind content. */
+
+  /* Light */
+  :root, .theme-light {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 213 12.7% 13.9%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 213 12.7% 13.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
+    --popover-foreground: 213 12.7% 13.9%;
+    --primary: 213 12.7% 13.9%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 16.7% 95.3%;
+    --secondary-foreground: 210 10.3% 22.7%;
+    --muted: 210 16.7% 95.3%;
+    --muted-foreground: 210 6.1% 45.1%;
+    --accent: 210 16.7% 95.3%;
+    --accent-foreground: 213 12.7% 13.9%;
+    --destructive: 0 73.8% 53.5%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 15.8% 92.5%;
+    --input: 210 13.8% 88.6%;
+    --ring: 228 89.4% 62.9%;
+    --brand: 228 69% 54.5%;
+    --brand-foreground: 0 0% 100%;
+    --brand-soft: 223 100% 96.5%;
+    --surface: 210 16.7% 97.6%;
+    --sidebar: 210 16.7% 97.6%;
+    --sidebar-foreground: 210 10.3% 22.7%;
+    --sidebar-accent: 210 15.8% 92.5%;
+    --sidebar-border: 210 15.8% 92.5%;
     --radius: 0.5rem;
   }
 
-  /* ── Core Themes ── */
-
-  /* Default Dark (Original Shadcn Dark) */
-  :root, .theme-dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 6% 10%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+  /* Dark */
+  .theme-dark {
+    --background: 225 7.1% 11%;
+    --foreground: 216 9.8% 90%;
+    --card: 225 6.1% 12.9%;
+    --card-foreground: 216 9.8% 90%;
+    --popover: 228 6.7% 14.7%;
+    --popover-foreground: 216 9.8% 90%;
+    --primary: 216 9.8% 90%;
+    --primary-foreground: 225 7.1% 11%;
+    --secondary: 228 6.2% 15.9%;
+    --secondary-foreground: 217 8% 80.4%;
+    --muted: 228 6.2% 15.9%;
+    --muted-foreground: 216 4.8% 59.2%;
+    --accent: 230 6.7% 17.6%;
+    --accent-foreground: 216 9.8% 90%;
+    --destructive: 0 100% 71%;
+    --destructive-foreground: 220 7% 8.4%;
+    --border: 223 7.4% 18.6%;
+    --input: 220 7.6% 23.3%;
+    --ring: 228 95.8% 72.2%;
+    --brand: 228 95.8% 72.2%;
+    --brand-foreground: 220 7% 8.4%;
+    --brand-soft: 232 35.8% 21.4%;
+    --surface: 220 7% 8.4%;
+    --sidebar: 220 7% 8.4%;
+    --sidebar-foreground: 217 6.9% 77.3%;
+    --sidebar-accent: 230 7.5% 15.7%;
+    --sidebar-border: 230 7.5% 15.7%;
     --radius: 0.5rem;
   }
 
@@ -73,6 +92,14 @@
     --border: 42 20% 78%;
     --input: 42 20% 82%;
     --ring: 25 40% 30%;
+    --brand: 18 55% 38%;
+    --brand-foreground: 42 45% 94%;
+    --brand-soft: 32 45% 84%;
+    --surface: 42 30% 86%;
+    --sidebar: 42 30% 86%;
+    --sidebar-foreground: 25 20% 25%;
+    --sidebar-accent: 42 22% 80%;
+    --sidebar-border: 42 20% 78%;
   }
 
   /* Sci-Fi (Deep blues, cyan accents) */
@@ -96,6 +123,14 @@
     --border: 220 30% 18%;
     --input: 220 30% 15%;
     --ring: 190 90% 50%;
+    --brand: 190 90% 50%;
+    --brand-foreground: 220 40% 5%;
+    --brand-soft: 200 50% 14%;
+    --surface: 220 40% 4%;
+    --sidebar: 220 40% 4%;
+    --sidebar-foreground: 200 40% 80%;
+    --sidebar-accent: 220 30% 12%;
+    --sidebar-border: 220 30% 14%;
   }
 
   /* Grimdark (Pure blacks, crimson accents) */
@@ -119,6 +154,14 @@
     --border: 0 0% 15%;
     --input: 0 0% 10%;
     --ring: 0 80% 45%;
+    --brand: 0 80% 45%;
+    --brand-foreground: 0 0% 100%;
+    --brand-soft: 0 50% 12%;
+    --surface: 0 0% 2%;
+    --sidebar: 0 0% 2%;
+    --sidebar-foreground: 0 0% 75%;
+    --sidebar-accent: 0 0% 10%;
+    --sidebar-border: 0 0% 12%;
   }
 
   /* Purple (Deep amethyst with vibrant violet accents) */
@@ -142,6 +185,14 @@
     --border: 260 25% 20%;
     --input: 260 25% 18%;
     --ring: 265 80% 65%;
+    --brand: 265 80% 65%;
+    --brand-foreground: 0 0% 100%;
+    --brand-soft: 262 40% 18%;
+    --surface: 260 20% 4.5%;
+    --sidebar: 260 20% 4.5%;
+    --sidebar-foreground: 260 10% 80%;
+    --sidebar-accent: 260 25% 13%;
+    --sidebar-border: 260 25% 15%;
   }
 
   /* Green (Forest shadows with emerald accents) */
@@ -165,6 +216,14 @@
     --border: 140 25% 20%;
     --input: 140 25% 18%;
     --ring: 142 70% 45%;
+    --brand: 142 70% 45%;
+    --brand-foreground: 140 20% 6%;
+    --brand-soft: 142 35% 14%;
+    --surface: 140 20% 4.5%;
+    --sidebar: 140 20% 4.5%;
+    --sidebar-foreground: 140 10% 80%;
+    --sidebar-accent: 140 25% 13%;
+    --sidebar-border: 140 25% 15%;
   }
 }
 
@@ -199,10 +258,112 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "cv11", "ss03";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+@layer base {
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: hsl(var(--brand) / 0.22);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--foreground) / 0.18) transparent;
+  }
+}
+
+/* Before the settings script runs, follow the system appearance. */
+@media (prefers-color-scheme: dark) {
+  html:not([class]) body { background-color: #1a1b1e; }
+}
+
+/* Category colours (role badges, entity-type icons, status text) are written as
+   Tailwind's -300/-400 shades, which are tuned for dark backgrounds. On the
+   light themes they get the deeper shade of the same hue so they stay legible. */
+:is(.theme-light, .theme-parchment) .text-red-400 { color: #dc2626; }
+:is(.theme-light, .theme-parchment) .text-red-300 { color: #b91c1c; }
+:is(.theme-light, .theme-parchment) .text-green-400 { color: #16a34a; }
+:is(.theme-light, .theme-parchment) .text-green-300 { color: #15803d; }
+:is(.theme-light, .theme-parchment) .text-emerald-400 { color: #059669; }
+:is(.theme-light, .theme-parchment) .text-emerald-300 { color: #047857; }
+:is(.theme-light, .theme-parchment) .text-amber-400 { color: #d97706; }
+:is(.theme-light, .theme-parchment) .text-amber-300 { color: #b45309; }
+:is(.theme-light, .theme-parchment) .text-yellow-400 { color: #ca8a04; }
+:is(.theme-light, .theme-parchment) .text-yellow-300 { color: #a16207; }
+:is(.theme-light, .theme-parchment) .text-orange-400 { color: #ea580c; }
+:is(.theme-light, .theme-parchment) .text-orange-300 { color: #c2410c; }
+:is(.theme-light, .theme-parchment) .text-blue-400 { color: #2563eb; }
+:is(.theme-light, .theme-parchment) .text-blue-300 { color: #1d4ed8; }
+:is(.theme-light, .theme-parchment) .text-sky-400 { color: #0284c7; }
+:is(.theme-light, .theme-parchment) .text-sky-300 { color: #0369a1; }
+:is(.theme-light, .theme-parchment) .text-cyan-400 { color: #0891b2; }
+:is(.theme-light, .theme-parchment) .text-cyan-300 { color: #0e7490; }
+:is(.theme-light, .theme-parchment) .text-teal-400 { color: #0d9488; }
+:is(.theme-light, .theme-parchment) .text-teal-300 { color: #0f766e; }
+:is(.theme-light, .theme-parchment) .text-indigo-400 { color: #4f46e5; }
+:is(.theme-light, .theme-parchment) .text-indigo-300 { color: #4338ca; }
+:is(.theme-light, .theme-parchment) .text-purple-400 { color: #9333ea; }
+:is(.theme-light, .theme-parchment) .text-purple-300 { color: #7e22ce; }
+:is(.theme-light, .theme-parchment) .text-pink-400 { color: #db2777; }
+:is(.theme-light, .theme-parchment) .text-pink-300 { color: #be185d; }
+:is(.theme-light, .theme-parchment) .text-rose-400 { color: #e11d48; }
+:is(.theme-light, .theme-parchment) .text-rose-300 { color: #be123c; }
+:is(.theme-light, .theme-parchment) .text-zinc-400 { color: #71717a; }
+:is(.theme-light, .theme-parchment) .text-zinc-300 { color: #52525b; }
+:is(.theme-light, .theme-parchment) .text-slate-400 { color: #64748b; }
+:is(.theme-light, .theme-parchment) .text-slate-300 { color: #475569; }
+:is(.theme-light, .theme-parchment) .text-gray-400 { color: #6b7280; }
+:is(.theme-light, .theme-parchment) .text-gray-300 { color: #4b5563; }
+
+/* ── Quire-style building blocks ─────────────────────────────────────────────
+   Flat and neutral: 32px controls, 1px borders, no drop shadows on cards,
+   near-black primary buttons, and --brand only for focus, links and marks. */
+@layer components {
+  .btn {
+    @apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2.5 text-sm font-medium transition-colors;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn > svg { @apply size-4 shrink-0; }
+  .btn-primary { @apply bg-primary text-primary-foreground hover:bg-primary/85; }
+  .btn-brand { @apply bg-brand text-brand-foreground hover:bg-brand/90; }
+  .btn-outline { @apply border-input bg-background text-foreground hover:bg-accent; }
+  .btn-secondary { @apply bg-secondary text-secondary-foreground hover:bg-accent; }
+  .btn-ghost { @apply text-muted-foreground hover:bg-accent hover:text-foreground; }
+  .btn-destructive { @apply bg-destructive/10 text-destructive hover:bg-destructive/20; }
+  .btn-sm { @apply h-7 px-2 text-[0.8rem]; }
+  .btn-sm > svg { @apply size-3.5; }
+  .btn-icon { @apply size-8 px-0; }
+  .btn-icon.btn-sm { @apply size-7; }
+
+  .input {
+    @apply h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground transition-colors placeholder:text-muted-foreground;
+    @apply focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30;
+  }
+  textarea.input { @apply h-auto py-2 leading-relaxed; }
+
+  .card { @apply rounded-lg border border-border bg-card text-card-foreground; }
+  .card-hover { @apply transition-colors hover:border-foreground/15 hover:bg-accent/40; }
+
+  /* A page's content column and its heading. */
+  .page { @apply mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 md:py-10; }
+  .page-narrow { @apply mx-auto w-full max-w-4xl px-4 py-6 sm:px-10 md:py-12; }
+  .page-title { @apply text-2xl font-bold tracking-[-0.02em] text-foreground; }
+  .page-subtitle { @apply mt-1 text-sm text-muted-foreground; }
+  .section-title { @apply text-sm font-semibold text-foreground; }
+  .section-label { @apply text-xs font-medium text-muted-foreground; }
+
+  /* Segmented filter tabs. */
+  .tabs { @apply inline-flex items-center gap-0.5 rounded-lg bg-muted p-0.5; }
+  .tab { @apply h-7 shrink-0 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground; }
+  .tab[aria-selected="true"], .tab.is-active { @apply bg-background text-foreground shadow-sm; }
+
+  .badge { @apply inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[0.7rem] font-medium text-muted-foreground; }
+  .kbd { @apply rounded border border-border bg-background px-1.5 font-sans text-[0.7rem] text-muted-foreground; }
 }
 
 /* ── Native-app feel on phones and tablets ──────────────────────────────────── */
@@ -364,12 +525,12 @@ button, [role="button"], nav, .no-select {
 }
 
 .book-3d {
-  transform: perspective(600px) rotateY(-12deg);
+  transform: perspective(600px) rotateY(-8deg);
   transition: transform 0.3s ease, filter 0.3s ease;
 }
 .book-3d:hover {
-  transform: perspective(600px) rotateY(-2deg) scale(1.04);
-  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.6));
+  transform: perspective(600px) rotateY(-2deg) scale(1.02);
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.25));
 }
 
 /* Prose editor font — readable monospace-adjacent feel for markdown editing */
@@ -439,4 +600,14 @@ textarea::placeholder {
   .opacity-0.group-hover\:opacity-100.inset-0 > * {
     pointer-events: auto;
   }
+}
+
+/* Dropdown menus open with a short fade and scale, as Quire's do. */
+@keyframes menu-in {
+  from { opacity: 0; transform: scale(0.97) translateY(-2px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-menu { animation: menu-in 0.1s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-menu { animation: none; }
 }

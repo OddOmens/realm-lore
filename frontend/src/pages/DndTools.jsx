@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Dice5, Swords, Table2, Sparkles, Plus, Trash2, RotateCcw, Play,
   X, BookOpen, Gem, User, ChevronDown, ChevronUp, Shield, Heart,
-  Zap, AlertTriangle, Pause, SkipForward, Wand2, Box, Layers
+  Zap, SkipForward, Wand2, Box, Layers
 } from 'lucide-react';
 import DiceBox from '@3d-dice/dice-box';
 import SpellsList from '../components/dnd/SpellsList';
@@ -22,7 +22,7 @@ function loadState(key, fallback) {
 }
 
 function saveState(key, value) {
-  try { localStorage.setItem(`dndTool_${key}`, JSON.stringify(value)); } catch {}
+  try { localStorage.setItem(`dndTool_${key}`, JSON.stringify(value)); } catch { /* storage full or blocked */ }
 }
 
 function usePersisted(key, fallback) {
@@ -40,13 +40,13 @@ function usePersisted(key, fallback) {
 // ─── Dice Roller ─────────────────────────────────────────────────────────────
 
 const DICE = [
-  { sides: 4,   label: 'd4',   color: 'bg-red-500/20 border-red-500/40 text-red-300 hover:bg-red-500/30' },
-  { sides: 6,   label: 'd6',   color: 'bg-orange-500/20 border-orange-500/40 text-orange-300 hover:bg-orange-500/30' },
-  { sides: 8,   label: 'd8',   color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/30' },
-  { sides: 10,  label: 'd10',  color: 'bg-green-500/20 border-green-500/40 text-green-300 hover:bg-green-500/30' },
-  { sides: 12,  label: 'd12',  color: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30' },
-  { sides: 20,  label: 'd20',  color: 'bg-violet-500/20 border-violet-500/40 text-violet-300 hover:bg-violet-500/30' },
-  { sides: 100, label: 'd%',   color: 'bg-pink-500/20 border-pink-500/40 text-pink-300 hover:bg-pink-500/30' },
+  { sides: 4,   label: 'd4',   color: 'bg-red-500/10 border-red-500/25 text-red-300 hover:bg-red-500/20' },
+  { sides: 6,   label: 'd6',   color: 'bg-orange-500/10 border-orange-500/25 text-orange-300 hover:bg-orange-500/20' },
+  { sides: 8,   label: 'd8',   color: 'bg-yellow-500/10 border-yellow-500/25 text-yellow-300 hover:bg-yellow-500/20' },
+  { sides: 10,  label: 'd10',  color: 'bg-green-500/10 border-green-500/25 text-green-300 hover:bg-green-500/20' },
+  { sides: 12,  label: 'd12',  color: 'bg-cyan-500/10 border-cyan-500/25 text-cyan-300 hover:bg-cyan-500/20' },
+  { sides: 20,  label: 'd20',  color: 'bg-violet-500/10 border-violet-500/25 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20' },
+  { sides: 100, label: 'd%',   color: 'bg-pink-500/10 border-pink-500/25 text-pink-300 hover:bg-pink-500/20' },
 ];
 
 function rollDie(sides) {
@@ -105,8 +105,8 @@ function DiceRoller() {
 
   const trigger3DRoll = async (sides, isPool = false) => {
     setRolling(true);
-    let label = '';
-    let rollStr = '';
+    let label;
+    let rollStr;
 
     if (!isPool) {
       if (sides === 20 && advantage) {
@@ -147,8 +147,8 @@ function DiceRoller() {
     } else {
       // Fallback
       setTimeout(() => {
-        let rolls = [];
-        let total = 0;
+        let rolls;
+        let total;
         if (!isPool) {
           if (sides === 20 && advantage) {
             const r1 = rollDie(20), r2 = rollDie(20);
@@ -218,10 +218,10 @@ function DiceRoller() {
       <div ref={diceBoxRef} className="fixed inset-0 pointer-events-none z-[100]" />
       <div className="flex flex-col gap-5 max-w-2xl">
       {/* Quick-roll row */}
-      <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+      <div className="card p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Quick Roll</h3>
-          <span className="text-[10px] text-muted-foreground/50">Click to roll once · Right-click to add to pool</span>
+          <h3 className="section-title">Quick roll</h3>
+          <span className="text-xs text-muted-foreground">Click to roll once · Right-click to add to pool</span>
         </div>
         <div className="grid grid-cols-7 gap-2">
           {DICE.map(d => {
@@ -231,11 +231,11 @@ function DiceRoller() {
                 key={d.sides}
                 onClick={() => quickRoll(d.sides)}
                 onContextMenu={e => { e.preventDefault(); addDie(d.sides); }}
-                className={`relative flex flex-col items-center justify-center h-14 rounded-lg border-2 font-bold text-base transition-all hover:scale-105 active:scale-95 select-none ${d.color}`}
+                className={`relative flex flex-col items-center justify-center h-12 rounded-lg border font-semibold text-sm transition-colors active:scale-95 select-none ${d.color}`}
               >
                 {d.label}
                 {inPool && (
-                  <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-xs flex items-center justify-center font-bold">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-brand text-brand-foreground text-[0.7rem] flex items-center justify-center font-semibold">
                     {inPool.count}
                   </span>
                 )}
@@ -246,15 +246,15 @@ function DiceRoller() {
       </div>
 
       {/* Pool builder */}
-      <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Dice Pool</h3>
+      <div className="card p-4 flex flex-col gap-3">
+        <h3 className="section-title">Dice pool</h3>
 
         <div className="grid grid-cols-7 gap-1.5">
           {DICE.map(d => (
             <button
               key={d.sides}
               onClick={() => addDie(d.sides)}
-              className="flex items-center justify-center h-8 rounded-md border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              className="btn btn-outline btn-sm px-0 text-muted-foreground hover:text-foreground"
             >
               +{d.label}
             </button>
@@ -262,18 +262,18 @@ function DiceRoller() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-0 text-sm text-muted-foreground font-mono bg-secondary/60 rounded-md px-3 py-2 truncate">
+          <div className="flex-1 min-w-0 h-8 flex items-center text-sm text-muted-foreground font-mono bg-muted rounded-md px-2.5 truncate">
             {poolLabel}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-xs text-muted-foreground mr-1">Mod</span>
-            <button onClick={() => setModifier(m => m - 1)} className="w-7 h-7 rounded bg-secondary border border-border text-sm hover:bg-secondary/80 transition-colors">−</button>
+            <button onClick={() => setModifier(m => m - 1)} aria-label="Decrease modifier" className="btn btn-outline btn-icon btn-sm">−</button>
             <span className="w-10 text-center text-sm font-mono">{modifier >= 0 ? `+${modifier}` : modifier}</span>
-            <button onClick={() => setModifier(m => m + 1)} className="w-7 h-7 rounded bg-secondary border border-border text-sm hover:bg-secondary/80 transition-colors">+</button>
+            <button onClick={() => setModifier(m => m + 1)} aria-label="Increase modifier" className="btn btn-outline btn-icon btn-sm">+</button>
           </div>
           {pool.length > 0 && (
-            <button onClick={clear} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-              <RotateCcw size={12} /> Clear
+            <button onClick={clear} className="btn btn-ghost btn-sm">
+              <RotateCcw /> Clear
             </button>
           )}
         </div>
@@ -284,7 +284,7 @@ function DiceRoller() {
               <button
                 key={d.sides}
                 onClick={() => removeDie(d.sides)}
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground hover:text-red-400 hover:border-red-500/40 transition-colors"
+                className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors"
               >
                 <X size={10} /> {d.count}d{d.sides}
               </button>
@@ -297,54 +297,54 @@ function DiceRoller() {
           <div className="flex gap-1.5">
             <button
               onClick={() => setAdvantage(a => a === 'adv' ? null : 'adv')}
-              className={`flex-1 h-8 rounded-md text-xs font-semibold border transition-colors ${advantage === 'adv' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${advantage === 'adv' ? 'bg-green-500/10 border-green-500/40 text-green-300' : 'border-input text-muted-foreground hover:bg-accent hover:text-foreground'}`}
             >
               Advantage
             </button>
             <button
               onClick={() => setAdvantage(a => a === 'dis' ? null : 'dis')}
-              className={`flex-1 h-8 rounded-md text-xs font-semibold border transition-colors ${advantage === 'dis' ? 'bg-red-500/20 border-red-500/50 text-red-300' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${advantage === 'dis' ? 'bg-red-500/10 border-red-500/40 text-red-300' : 'border-input text-muted-foreground hover:bg-accent hover:text-foreground'}`}
             >
               Disadvantage
             </button>
           </div>
         )}
 
-        <div className="flex gap-2 items-center border-t border-border/50 pt-3 mt-1">
+        <div className="flex gap-2 items-center border-t border-border pt-3 mt-1">
           <input
             value={macroName}
             onChange={e => setMacroName(e.target.value)}
-            placeholder="Macro Name (e.g. Fireball)"
-            className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+            placeholder="Macro name (e.g. Fireball)"
+            className="input flex-1"
           />
           <button
             onClick={saveMacro}
             disabled={!macroName.trim() || pool.length === 0}
-            className="h-8 px-3 rounded-md bg-secondary border border-border text-xs font-medium hover:bg-secondary/80 transition-colors disabled:opacity-40"
+            className="btn btn-outline"
           >
-            Save Macro
+            Save macro
           </button>
         </div>
 
         <button
           onClick={roll}
           disabled={!pool.length || rolling}
-          className="flex items-center justify-center gap-2 h-10 rounded-lg bg-violet-600 text-white font-semibold text-sm hover:bg-violet-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn btn-primary h-9 w-full"
         >
-          <Dice5 size={15} className={rolling ? 'animate-spin' : ''} />
+          <Dice5 className={rolling ? 'animate-spin' : ''} />
           {rolling ? 'Rolling…' : `Roll ${poolLabel}`}
         </button>
       </div>
 
       {/* Saved Macros */}
       {macros.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Saved Macros</h3>
+        <div className="card p-4 flex flex-col gap-3">
+          <h3 className="section-title">Saved macros</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {macros.map(m => {
               const mLabel = m.pool.map(d => `${d.count}d${d.sides}`).join('+') + (m.modifier ? (m.modifier > 0 ? `+${m.modifier}` : m.modifier) : '') + (m.advantage ? (m.advantage === 'adv' ? ' (Adv)' : ' (Dis)') : '');
               return (
-                <div key={m.id} className="group relative flex flex-col rounded-lg border border-border bg-secondary/30 hover:bg-secondary/60 transition-colors">
+                <div key={m.id} className="group relative flex flex-col rounded-lg border border-border transition-colors hover:bg-accent/60">
                   <button
                     onClick={() => rollMacro(m)}
                     className="flex-1 flex flex-col items-start p-2 text-left"
@@ -354,7 +354,8 @@ function DiceRoller() {
                   </button>
                   <button
                     onClick={() => removeMacro(m.id)}
-                    className="absolute top-2 right-2 text-muted-foreground/0 group-hover:text-red-400/80 hover:!text-red-400 transition-all"
+                    aria-label={`Delete ${m.name}`}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
                   >
                     <X size={12} />
                   </button>
@@ -367,9 +368,9 @@ function DiceRoller() {
 
       {/* Result */}
       {results && (
-        <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-5 flex flex-col gap-3">
+        <div className="card p-5 flex flex-col gap-3">
           <div className="text-center">
-            <p className="text-6xl font-black text-violet-300 tabular-nums leading-none">{results.total}</p>
+            <p className="text-6xl font-bold tracking-tight text-foreground tabular-nums leading-none">{results.total}</p>
             <p className="text-xs text-muted-foreground mt-2">
               {results.label}
               {results.modifier !== 0 ? ` ${results.modifier > 0 ? '+' : ''}${results.modifier}` : ''}
@@ -384,11 +385,11 @@ function DiceRoller() {
               return (
                 <span
                   key={i}
-                  className={`inline-flex items-center justify-center w-10 h-10 rounded-lg text-sm font-bold border transition-all ${
-                    dropped   ? 'bg-secondary/30 border-border/40 text-muted-foreground/40 line-through' :
-                    isCrit    ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300 ring-1 ring-yellow-500/50' :
-                    isFumble  ? 'bg-red-500/20 border-red-500/50 text-red-400 ring-1 ring-red-500/50' :
-                    'bg-secondary border-border text-foreground'
+                  className={`inline-flex items-center justify-center w-10 h-10 rounded-md text-sm font-semibold border tabular-nums transition-all ${
+                    dropped   ? 'border-border text-muted-foreground/50 line-through' :
+                    isCrit    ? 'bg-yellow-500/10 border-yellow-500/40 text-yellow-300' :
+                    isFumble  ? 'bg-red-500/10 border-red-500/40 text-red-400' :
+                    'bg-muted border-border text-foreground'
                   }`}
                   title={`d${r.sides}${dropped ? ' (dropped)' : ''}`}
                 >
@@ -397,36 +398,36 @@ function DiceRoller() {
               );
             })}
             {results.modifier !== 0 && (
-              <span className="inline-flex items-center justify-center px-2.5 h-10 rounded-lg text-sm font-bold border bg-secondary border-border text-muted-foreground">
+              <span className="inline-flex items-center justify-center px-2.5 h-10 rounded-md text-sm font-semibold border border-border text-muted-foreground">
                 {results.modifier > 0 ? '+' : ''}{results.modifier}
               </span>
             )}
           </div>
           {results.rolls.some(r => r.value === r.sides && r.kept) && (
-            <p className="text-center text-xs font-semibold text-yellow-400 uppercase tracking-wider">Critical Hit!</p>
+            <p className="text-center text-xs font-medium text-yellow-400">Critical hit!</p>
           )}
           {results.rolls.some(r => r.value === 1 && r.kept) && !results.rolls.some(r => r.value === r.sides && r.kept) && (
-            <p className="text-center text-xs font-semibold text-red-400 uppercase tracking-wider">Fumble</p>
+            <p className="text-center text-xs font-medium text-red-400">Fumble</p>
           )}
         </div>
       )}
 
       {/* History */}
       {history.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2">
+        <div className="card p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Roll History</h3>
-            <button onClick={() => setHistory([])} className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors">Clear</button>
+            <h3 className="section-title">Roll history</h3>
+            <button onClick={() => setHistory([])} className="btn btn-ghost btn-sm">Clear</button>
           </div>
           <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto">
             {history.map((h, i) => (
-              <div key={h.ts} className={`flex items-center justify-between text-sm py-1.5 px-1 rounded transition-colors ${i === 0 ? 'bg-violet-500/5' : 'hover:bg-secondary/50'}`}>
+              <div key={h.ts} className={`flex items-center justify-between text-sm py-1.5 px-2 rounded-md transition-colors ${i === 0 ? 'bg-accent' : 'hover:bg-accent/60'}`}>
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-muted-foreground font-mono text-xs shrink-0">{h.label}</span>
-                  {h.advantage && <span className="text-[10px] text-muted-foreground/60">{h.advantage === 'adv' ? 'adv' : 'dis'}</span>}
-                  {h.modifier !== 0 && <span className="text-[10px] text-muted-foreground/60">{h.modifier > 0 ? '+' : ''}{h.modifier}</span>}
+                  {h.advantage && <span className="text-xs text-muted-foreground">{h.advantage === 'adv' ? 'adv' : 'dis'}</span>}
+                  {h.modifier !== 0 && <span className="text-xs text-muted-foreground">{h.modifier > 0 ? '+' : ''}{h.modifier}</span>}
                 </div>
-                <span className={`font-bold tabular-nums ml-2 ${i === 0 ? 'text-violet-300' : 'text-foreground'}`}>{h.total}</span>
+                <span className={`font-semibold tabular-nums ml-2 ${i === 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{h.total}</span>
               </div>
             ))}
           </div>
@@ -440,22 +441,22 @@ function DiceRoller() {
 // ─── Initiative Tracker ───────────────────────────────────────────────────────
 
 const CONDITIONS = [
-  { name: 'Blinded',        color: 'bg-slate-500/20 border-slate-500/40 text-slate-300' },
-  { name: 'Charmed',        color: 'bg-pink-500/20 border-pink-500/40 text-pink-300' },
-  { name: 'Deafened',       color: 'bg-slate-500/20 border-slate-500/40 text-slate-300' },
-  { name: 'Exhaustion',     color: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
-  { name: 'Frightened',     color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300' },
-  { name: 'Grappled',       color: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
-  { name: 'Incapacitated',  color: 'bg-red-500/20 border-red-500/40 text-red-300' },
-  { name: 'Invisible',      color: 'bg-violet-500/20 border-violet-500/40 text-violet-300' },
-  { name: 'Paralyzed',      color: 'bg-red-500/20 border-red-500/40 text-red-300' },
-  { name: 'Petrified',      color: 'bg-stone-500/20 border-stone-500/40 text-stone-300' },
-  { name: 'Poisoned',       color: 'bg-green-500/20 border-green-500/40 text-green-300' },
-  { name: 'Prone',          color: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
-  { name: 'Restrained',     color: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
-  { name: 'Stunned',        color: 'bg-red-500/20 border-red-500/40 text-red-300' },
-  { name: 'Unconscious',    color: 'bg-gray-500/20 border-gray-500/40 text-gray-400' },
-  { name: 'Concentration',  color: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' },
+  { name: 'Blinded',        color: 'bg-slate-500/10 border-slate-500/25 text-slate-300' },
+  { name: 'Charmed',        color: 'bg-pink-500/10 border-pink-500/25 text-pink-300' },
+  { name: 'Deafened',       color: 'bg-slate-500/10 border-slate-500/25 text-slate-300' },
+  { name: 'Exhaustion',     color: 'bg-orange-500/10 border-orange-500/25 text-orange-300' },
+  { name: 'Frightened',     color: 'bg-yellow-500/10 border-yellow-500/25 text-yellow-300' },
+  { name: 'Grappled',       color: 'bg-amber-500/10 border-amber-500/25 text-amber-300' },
+  { name: 'Incapacitated',  color: 'bg-red-500/10 border-red-500/25 text-red-300' },
+  { name: 'Invisible',      color: 'bg-violet-500/10 border-violet-500/25 text-violet-600 dark:text-violet-300' },
+  { name: 'Paralyzed',      color: 'bg-red-500/10 border-red-500/25 text-red-300' },
+  { name: 'Petrified',      color: 'bg-stone-500/10 border-stone-500/25 text-stone-600 dark:text-stone-300' },
+  { name: 'Poisoned',       color: 'bg-green-500/10 border-green-500/25 text-green-300' },
+  { name: 'Prone',          color: 'bg-amber-500/10 border-amber-500/25 text-amber-300' },
+  { name: 'Restrained',     color: 'bg-orange-500/10 border-orange-500/25 text-orange-300' },
+  { name: 'Stunned',        color: 'bg-red-500/10 border-red-500/25 text-red-300' },
+  { name: 'Unconscious',    color: 'bg-gray-500/10 border-gray-500/25 text-gray-400' },
+  { name: 'Concentration',  color: 'bg-cyan-500/10 border-cyan-500/25 text-cyan-300' },
 ];
 
 function InitiativeTracker() {
@@ -548,14 +549,14 @@ function InitiativeTracker() {
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
       {/* Add combatant */}
-      <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+      <div className="card p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Add Combatant</h3>
-          <button 
+          <h3 className="section-title">Add combatant</h3>
+          <button
             onClick={() => setImporting(!importing)}
-            className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+            className="btn btn-ghost btn-sm"
           >
-            <Box size={12} /> {importing ? 'Manual Add' : 'Import Lore'}
+            <Box /> {importing ? 'Manual add' : 'Import from world'}
           </button>
         </div>
         
@@ -570,7 +571,7 @@ function InitiativeTracker() {
                   add(ent.name, ent.ac || null, ent.hp || null, false, ent.id, ent.__type);
                 }
               }}
-              className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="input flex-1"
             >
               <option value="">Select Character or Creature...</option>
               {importableEntities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -583,32 +584,32 @@ function InitiativeTracker() {
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && add()}
             placeholder="Name"
-            className="flex-1 min-w-[120px] bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input flex-1 min-w-[120px]"
           />
           <input
             value={newInit}
             onChange={e => setNewInit(e.target.value)}
             placeholder="Init"
             type="number"
-            className="w-16 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input w-16"
           />
           <input
             value={newHp}
             onChange={e => setNewHp(e.target.value)}
             placeholder="HP"
             type="number"
-            className="w-16 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input w-16"
           />
           <input
             value={newAc}
             onChange={e => setNewAc(e.target.value)}
             placeholder="AC"
             type="number"
-            className="w-16 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input w-16"
           />
           <button
             onClick={() => add()}
-            className="flex items-center gap-1.5 h-9 px-4 rounded-md text-sm font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+            className="btn btn-primary"
           >
             <Plus size={14} /> Add
           </button>
@@ -622,45 +623,46 @@ function InitiativeTracker() {
           {!started ? (
             <button
               onClick={() => { setStarted(true); setCurrentTurn(0); setRound(1); }}
-              className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-500 transition-colors"
+              className="btn btn-primary"
             >
-              <Play size={14} /> Start Combat
+              <Play /> Start combat
             </button>
           ) : (
             <>
-              <div className="flex items-center gap-1.5 bg-secondary border border-border rounded-md px-3 h-9">
+              <div className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-8">
                 <span className="text-xs text-muted-foreground">Round</span>
-                <span className="text-sm font-bold text-foreground">{round}</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">{round}</span>
               </div>
-              <div className="text-xs text-muted-foreground bg-secondary border border-border rounded-md px-3 h-9 flex items-center">
+              <div className="text-xs text-muted-foreground bg-muted rounded-md px-2.5 h-8 flex items-center">
                 {sorted[currentTurn]?.name ?? '—'}&apos;s turn
               </div>
               <button
                 onClick={prevTurn}
-                className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+                className="btn btn-outline btn-icon"
                 title="Previous turn"
+                aria-label="Previous turn"
               >
                 ←
               </button>
               <button
                 onClick={nextTurn}
-                className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+                className="btn btn-primary"
               >
-                Next Turn <SkipForward size={13} />
+                Next turn <SkipForward />
               </button>
               <button
                 onClick={reset}
-                className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+                className="btn btn-outline"
               >
-                <RotateCcw size={13} /> Reset
+                <RotateCcw /> Reset
               </button>
             </>
           )}
           <button
             onClick={() => { setCombatants([]); reset(); }}
-            className="ml-auto flex items-center gap-1.5 h-9 px-3 rounded-md text-sm text-muted-foreground hover:text-red-400 transition-colors"
+            className="btn btn-ghost ml-auto hover:text-destructive"
           >
-            <Trash2 size={13} /> Clear All
+            <Trash2 /> Clear all
           </button>
         </div>
       )}
@@ -678,43 +680,43 @@ function InitiativeTracker() {
           return (
             <div
               key={c.id}
-              className={`rounded-xl border flex flex-col transition-colors ${
-                isActive ? 'border-violet-500/60 bg-violet-500/5' : isDead ? 'border-red-900/40 bg-red-950/20 opacity-70' : 'border-border bg-card'
+              className={`rounded-lg border flex flex-col transition-colors ${
+                isActive ? 'border-brand/50 bg-brand-soft' : isDead ? 'border-border bg-card opacity-60' : 'border-border bg-card'
               }`}
             >
               {/* Main row */}
               <div className="flex items-center gap-3 px-4 py-3">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-                  isActive ? 'bg-violet-600 text-white' : 'bg-secondary text-muted-foreground'
+                <div className={`size-8 rounded-md flex items-center justify-center text-sm font-semibold tabular-nums shrink-0 ${
+                  isActive ? 'bg-brand text-brand-foreground' : 'bg-muted text-muted-foreground'
                 }`}>
                   {c.initiative}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`font-semibold text-sm truncate ${isDead ? 'line-through text-muted-foreground' : ''}`}>{c.name}</span>
+                    <span className={`font-medium text-sm truncate ${isDead ? 'line-through text-muted-foreground' : ''}`}>{c.name}</span>
                     {c.ac && (
-                      <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 shrink-0">
-                        <Shield size={9} /> {c.ac}
+                      <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0">
+                        <Shield size={11} /> {c.ac}
                       </span>
                     )}
                     {c.entityId && c.entityType && (
                       <button 
                         onClick={() => navigate(`/${c.entityType}/${c.entityId}`)}
-                        className="flex items-center gap-0.5 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 transition-colors shrink-0"
-                        title="View Lore"
+                        className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        title="Open wiki page"
                       >
-                        <BookOpen size={10} /> Lore
+                        <BookOpen size={11} /> Wiki
                       </button>
                     )}
-                    {isActive && <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider shrink-0">Active</span>}
+                    {isActive && <span className="text-xs font-medium text-brand shrink-0">Active</span>}
                   </div>
                   {c.conditions.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {c.conditions.map(cond => {
                         const meta = CONDITIONS.find(x => x.name === cond);
                         return (
-                          <span key={cond} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${meta?.color ?? 'border-border text-muted-foreground'}`}>
+                          <span key={cond} className={`text-[0.7rem] px-1.5 py-px rounded-md border ${meta?.color ?? 'border-border text-muted-foreground'}`}>
                             {cond}
                           </span>
                         );
@@ -727,34 +729,37 @@ function InitiativeTracker() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => update(c.id, { currentHp: Math.max(0, c.currentHp - 1) })}
-                    className="w-6 h-6 rounded bg-secondary border border-border text-xs hover:bg-red-500/20 hover:border-red-500/40 transition-colors"
+                    aria-label="Lose 1 HP"
+                    className="btn btn-outline btn-icon btn-sm hover:text-destructive"
                   >−</button>
                   <span className="text-sm font-mono w-16 text-center tabular-nums">{c.currentHp}/{c.maxHp}</span>
                   <button
                     onClick={() => update(c.id, { currentHp: Math.min(c.maxHp, c.currentHp + 1) })}
-                    className="w-6 h-6 rounded bg-secondary border border-border text-xs hover:bg-green-500/20 hover:border-green-500/40 transition-colors"
+                    aria-label="Gain 1 HP"
+                    className="btn btn-outline btn-icon btn-sm"
                   >+</button>
                 </div>
 
                 <button
                   onClick={() => setExpandedId(expanded ? null : c.id)}
-                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  aria-label={expanded ? 'Collapse' : 'Expand'}
+                  className="btn btn-ghost btn-icon btn-sm"
                 >
                   {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
-                <button onClick={() => remove(c.id)} className="text-muted-foreground hover:text-red-400 transition-colors shrink-0">
+                <button onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`} className="btn btn-ghost btn-icon btn-sm hover:text-destructive">
                   <X size={14} />
                 </button>
               </div>
 
               {/* HP bar */}
-              <div className="mx-4 mb-2 h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div className="mx-4 mb-3 h-1 rounded-full bg-muted overflow-hidden">
                 <div className={`h-full rounded-full transition-all duration-300 ${hpColor}`} style={{ width: `${hpPct}%` }} />
               </div>
 
               {/* Expanded section */}
               {expanded && (
-                <div className="px-4 pb-4 flex flex-col gap-3 border-t border-border/40 pt-3">
+                <div className="px-4 pb-4 flex flex-col gap-3 border-t border-border pt-3">
                   {/* Damage / Heal input */}
                   <div className="flex gap-2 items-center">
                     <input
@@ -764,23 +769,23 @@ function InitiativeTracker() {
                       onChange={e => setDmgInputs(prev => ({ ...prev, [c.id]: e.target.value }))}
                       onKeyDown={e => { if (e.key === 'Enter' && dmgVal) applyDamage(c.id, parseInt(dmgVal)); }}
                       placeholder="Amount"
-                      className="w-24 bg-secondary border border-border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="input w-24"
                     />
                     <button
                       onClick={() => dmgVal && applyDamage(c.id, parseInt(dmgVal))}
-                      className="flex-1 h-8 rounded-md text-xs font-semibold bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors"
+                      className="btn btn-destructive flex-1"
                     >
-                      <Heart size={11} className="inline mr-1" /> Damage
+                      <Heart /> Damage
                     </button>
                     <button
                       onClick={() => dmgVal && applyDamage(c.id, parseInt(dmgVal), true)}
-                      className="flex-1 h-8 rounded-md text-xs font-semibold bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors"
+                      className="btn flex-1 bg-green-500/10 text-green-400 hover:bg-green-500/20"
                     >
-                      <Zap size={11} className="inline mr-1" /> Heal
+                      <Zap /> Heal
                     </button>
                     <button
                       onClick={() => update(c.id, { currentHp: c.maxHp })}
-                      className="h-8 px-2 rounded-md text-xs text-muted-foreground border border-border hover:text-foreground transition-colors"
+                      className="btn btn-outline"
                       title="Full heal"
                     >
                       Full
@@ -790,9 +795,9 @@ function InitiativeTracker() {
                   {/* Death saves (shown when at 0 HP) */}
                   {isDead && (
                     <div className="flex items-center gap-4">
-                      <span className="text-xs text-muted-foreground w-20 shrink-0">Death Saves</span>
+                      <span className="text-xs text-muted-foreground w-20 shrink-0">Death saves</span>
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-green-400 mr-1">Success</span>
+                        <span className="text-xs text-green-400 mr-1">Success</span>
                         {[0, 1, 2].map(i => (
                           <button
                             key={i}
@@ -802,7 +807,7 @@ function InitiativeTracker() {
                         ))}
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-red-400 mr-1">Fail</span>
+                        <span className="text-xs text-red-400 mr-1">Fail</span>
                         {[0, 1, 2].map(i => (
                           <button
                             key={i}
@@ -816,7 +821,7 @@ function InitiativeTracker() {
 
                   {/* Conditions */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Conditions</p>
+                    <p className="section-label mb-1.5">Conditions</p>
                     <div className="flex flex-wrap gap-1">
                       {CONDITIONS.map(({ name, color }) => {
                         const active = c.conditions.includes(name);
@@ -824,8 +829,8 @@ function InitiativeTracker() {
                           <button
                             key={name}
                             onClick={() => toggleCondition(c.id, name)}
-                            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                              active ? color : 'border-border text-muted-foreground/50 hover:text-muted-foreground hover:border-border/80'
+                            className={`text-xs px-2 py-0.5 rounded-md border transition-colors ${
+                              active ? color : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
                             }`}
                           >
                             {name}
@@ -841,7 +846,7 @@ function InitiativeTracker() {
         })}
 
         {combatants.length === 0 && (
-          <div className="text-center py-10 text-muted-foreground/50 text-sm border border-dashed border-border rounded-xl">
+          <div className="text-center py-10 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
             Add combatants above to begin tracking.
           </div>
         )}
@@ -963,23 +968,23 @@ function EncounterRoller() {
           <button
             key={t.id}
             onClick={() => { setActiveTable(i); setLastRoll(null); }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${i === activeTable ? 'bg-violet-600 text-white' : 'bg-secondary border border-border text-muted-foreground hover:text-foreground'}`}
+            className={`btn ${i === activeTable ? 'btn-primary' : 'btn-outline text-muted-foreground hover:text-foreground'}`}
           >
             {t.name}
           </button>
         ))}
         <button
           onClick={addTable}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-muted-foreground border border-dashed border-border hover:border-violet-500/50 hover:text-violet-400 transition-colors"
+          className="btn btn-ghost border border-dashed border-border"
         >
-          <Plus size={12} /> New Table
+          <Plus /> New table
         </button>
       </div>
 
       {table && (
         <>
           {/* Table header + roll */}
-          <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
+          <div className="card p-5 flex flex-col gap-4">
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 {editingName ? (
@@ -989,12 +994,12 @@ function EncounterRoller() {
                     onChange={e => updateTableName(e.target.value)}
                     onBlur={() => setEditingName(false)}
                     onKeyDown={e => e.key === 'Enter' && setEditingName(false)}
-                    className="text-base font-semibold bg-transparent text-foreground focus:outline-none border-b border-violet-500 w-full"
+                    className="text-base font-semibold bg-transparent text-foreground focus:outline-none border-b border-ring w-full"
                   />
                 ) : (
                   <button
                     onClick={() => setEditingName(true)}
-                    className="text-base font-semibold text-foreground hover:text-violet-400 transition-colors text-left"
+                    className="text-base font-semibold text-foreground hover:text-muted-foreground transition-colors text-left"
                   >
                     {table.name}
                   </button>
@@ -1007,7 +1012,7 @@ function EncounterRoller() {
                     <select
                       value={table.die}
                       onChange={e => updateTableDie(e.target.value)}
-                      className="bg-secondary border border-border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="input h-7 w-auto px-2 text-xs"
                     >
                       {DIE_OPTIONS.map(d => <option key={d} value={d}>d{d}</option>)}
                     </select>
@@ -1016,25 +1021,25 @@ function EncounterRoller() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {tables.length > 1 && (
-                  <button onClick={deleteTable} className="text-muted-foreground/50 hover:text-red-400 transition-colors" title="Delete table">
-                    <Trash2 size={14} />
+                  <button onClick={deleteTable} className="btn btn-ghost btn-icon hover:text-destructive" title="Delete table" aria-label="Delete table">
+                    <Trash2 />
                   </button>
                 )}
                 <button
                   onClick={rollTable}
                   disabled={!table.entries.length}
-                  className="flex items-center gap-2 h-9 px-5 rounded-lg bg-violet-600 text-white font-semibold text-sm hover:bg-violet-500 transition-colors disabled:opacity-40"
+                  className="btn btn-primary"
                 >
-                  <Dice5 size={15} /> Roll d{table.die}
+                  <Dice5 /> Roll d{table.die}
                 </button>
               </div>
             </div>
 
             {lastRoll && (
-              <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-4 py-3 flex items-start gap-3">
-                <span className="text-2xl font-black text-violet-300 tabular-nums shrink-0 leading-tight">{lastRoll.roll}</span>
+              <div className="rounded-lg bg-muted px-4 py-3 flex items-start gap-3">
+                <span className="text-2xl font-bold text-foreground tabular-nums shrink-0 leading-tight">{lastRoll.roll}</span>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">d{table.die} result</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">d{table.die} result</p>
                   <p className="text-sm font-medium text-foreground">{lastRoll.result}</p>
                 </div>
               </div>
@@ -1042,23 +1047,24 @@ function EncounterRoller() {
           </div>
 
           {/* Entries */}
-          <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Table Entries</h3>
+          <div className="card p-4 flex flex-col gap-3">
+            <h3 className="section-title">Table entries</h3>
             {table.entries.length === 0 ? (
-              <p className="text-sm text-muted-foreground/40 italic text-center py-4">No entries yet — add some below.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No entries yet — add some below.</p>
             ) : (
               <div className="flex flex-col gap-0.5">
                 {table.entries.map(entry => (
-                  <div key={entry.id} className="flex items-center gap-3 py-1.5 border-b border-border/40 last:border-0 group">
+                  <div key={entry.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0 group">
                     <input
                       value={entry.range}
                       onChange={e => updateEntryRange(entry.id, e.target.value)}
-                      className="text-xs font-mono text-muted-foreground w-10 shrink-0 bg-transparent focus:outline-none focus:text-foreground border-b border-transparent focus:border-violet-500"
+                      className="text-xs font-mono text-muted-foreground w-10 shrink-0 bg-transparent focus:outline-none focus:text-foreground border-b border-transparent focus:border-ring"
                     />
                     <span className="text-sm flex-1">{entry.result}</span>
                     <button
                       onClick={() => removeEntry(entry.id)}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all shrink-0"
+                      aria-label="Remove entry"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
                     >
                       <X size={13} />
                     </button>
@@ -1072,13 +1078,14 @@ function EncounterRoller() {
                 onChange={e => setNewEntry(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addEntry()}
                 placeholder="Add encounter result…"
-                className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+                className="input flex-1"
               />
               <button
                 onClick={addEntry}
-                className="flex items-center gap-1 h-9 px-3 rounded-md text-sm bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Add entry"
+                className="btn btn-outline btn-icon"
               >
-                <Plus size={14} />
+                <Plus />
               </button>
             </div>
           </div>
@@ -1133,7 +1140,7 @@ function SpellSlotTracker() {
 
   const removeChar = (id) => setCharacters(prev => prev.filter(c => c.id !== id));
 
-  const useSlot = (charId, level) => {
+  const spendSlot = (charId, level) => {
     setCharacters(prev => prev.map(c => {
       if (c.id !== charId) return c;
       return { ...c, slots: c.slots.map(s => s.level === level && s.used < s.max ? { ...s, used: s.used + 1 } : s) };
@@ -1168,26 +1175,26 @@ function SpellSlotTracker() {
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
       {/* Add character */}
-      <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Add Character</h3>
+      <div className="card p-4 flex flex-col gap-3">
+        <h3 className="section-title">Add character</h3>
         <div className="flex gap-2 flex-wrap">
           <input
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addCharacter()}
             placeholder="Character name"
-            className="flex-1 min-w-[140px] bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input flex-1 min-w-[140px]"
           />
           <select
             value={newClass}
             onChange={e => setNewClass(e.target.value)}
-            className="bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input w-auto"
           >
             {Object.keys(CLASS_PRESETS).map(c => <option key={c}>{c}</option>)}
           </select>
           <button
             onClick={addCharacter}
-            className="flex items-center gap-1.5 h-9 px-4 rounded-md text-sm font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+            className="btn btn-primary"
           >
             <Plus size={14} /> Add
           </button>
@@ -1196,7 +1203,7 @@ function SpellSlotTracker() {
 
       {/* Character cards */}
       {characters.map(char => (
-        <div key={char.id} className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
+        <div key={char.id} className="card p-5 flex flex-col gap-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold text-foreground">{char.name}</h3>
@@ -1205,26 +1212,25 @@ function SpellSlotTracker() {
             <div className="flex gap-2 shrink-0">
               <button
                 onClick={() => setEditingSlots(editingSlots === char.id ? null : char.id)}
-                className={`flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border transition-colors ${
-                  editingSlots === char.id ? 'bg-violet-500/15 border-violet-500/40 text-violet-400' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
-                }`}
+                aria-pressed={editingSlots === char.id}
+                className={`btn btn-sm ${editingSlots === char.id ? 'btn-secondary text-foreground' : 'btn-outline'}`}
               >
-                Edit Slots
+                Edit slots
               </button>
               <button
                 onClick={() => longRest(char.id)}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+                className="btn btn-outline btn-sm"
               >
-                <Sparkles size={12} /> Long Rest
+                <Sparkles /> Long rest
               </button>
-              <button onClick={() => removeChar(char.id)} className="text-muted-foreground hover:text-red-400 transition-colors">
-                <X size={14} />
+              <button onClick={() => removeChar(char.id)} aria-label={`Remove ${char.name}`} className="btn btn-ghost btn-icon btn-sm hover:text-destructive">
+                <X />
               </button>
             </div>
           </div>
 
           {char.slots.length === 0 ? (
-            <p className="text-xs text-muted-foreground/50 italic">No spell slots — use Edit Slots to add some.</p>
+            <p className="text-sm text-muted-foreground">No spell slots — use Edit slots to add some.</p>
           ) : (
             <div className="flex flex-col gap-2.5">
               {char.slots.map(slot => {
@@ -1237,17 +1243,17 @@ function SpellSlotTracker() {
                       {Array.from({ length: slot.max }, (_, i) => (
                         <button
                           key={i}
-                          onClick={() => i < remaining ? useSlot(char.id, slot.level) : restoreSlot(char.id, slot.level)}
+                          onClick={() => i < remaining ? spendSlot(char.id, slot.level) : restoreSlot(char.id, slot.level)}
                           className={`w-7 h-7 rounded-md border transition-all ${
                             i < remaining
-                              ? 'bg-violet-500/30 border-violet-500/50 hover:bg-red-500/20 hover:border-red-500/40'
-                              : 'bg-secondary/30 border-border/40 opacity-40 hover:bg-green-500/20 hover:border-green-500/40 hover:opacity-80'
+                              ? 'bg-brand/80 border-brand hover:bg-red-500/30 hover:border-red-500/50'
+                              : 'bg-transparent border-border hover:bg-green-500/15 hover:border-green-500/40'
                           }`}
                           title={i < remaining ? `Use level ${slot.level} slot` : `Restore level ${slot.level} slot`}
                         />
                       ))}
                     </div>
-                    <span className={`text-xs font-mono w-10 text-right tabular-nums ${pct === 0 ? 'text-muted-foreground/40' : pct < 0.34 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                    <span className={`text-xs font-mono w-10 text-right tabular-nums ${pct === 0 ? 'text-muted-foreground/60' : pct < 0.34 ? 'text-red-400' : 'text-muted-foreground'}`}>
                       {remaining}/{slot.max}
                     </span>
                   </div>
@@ -1258,8 +1264,8 @@ function SpellSlotTracker() {
 
           {/* Edit slots panel */}
           {editingSlots === char.id && (
-            <div className="rounded-lg border border-border bg-secondary/20 p-3 flex flex-col gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">Max Slots per Level</p>
+            <div className="rounded-lg bg-muted/60 p-3 flex flex-col gap-2">
+              <p className="section-label mb-1">Max slots per level</p>
               <div className="grid grid-cols-3 gap-2">
                 {[1,2,3,4,5,6,7,8,9].map(lvl => {
                   const existing = char.slots.find(s => s.level === lvl);
@@ -1272,7 +1278,7 @@ function SpellSlotTracker() {
                         max="20"
                         value={existing?.max ?? 0}
                         onChange={e => updateSlotMax(char.id, lvl, parseInt(e.target.value) || 0)}
-                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        className="input w-full h-7 px-2 text-xs"
                       />
                     </div>
                   );
@@ -1284,7 +1290,7 @@ function SpellSlotTracker() {
       ))}
 
       {characters.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground/50 text-sm border border-dashed border-border rounded-xl">
+        <div className="text-center py-12 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
           Add a character above to start tracking spell slots.
         </div>
       )}
@@ -1297,7 +1303,7 @@ function SpellSlotTracker() {
 const CONDITION_REFERENCE = [
   {
     name: 'Blinded',
-    color: 'border-slate-500/40 bg-slate-500/10 text-slate-300',
+    color: 'border-slate-500/25 bg-slate-500/5 text-slate-300',
     effects: [
       'A blinded creature can\'t see and automatically fails any ability check that requires sight.',
       'Attack rolls against the creature have advantage, and the creature\'s attack rolls have disadvantage.',
@@ -1305,7 +1311,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Charmed',
-    color: 'border-pink-500/40 bg-pink-500/10 text-pink-300',
+    color: 'border-pink-500/25 bg-pink-500/5 text-pink-300',
     effects: [
       'A charmed creature can\'t attack the charmer or target the charmer with harmful abilities or magical effects.',
       'The charmer has advantage on any ability check to interact socially with the creature.',
@@ -1313,14 +1319,14 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Deafened',
-    color: 'border-slate-500/40 bg-slate-500/10 text-slate-300',
+    color: 'border-slate-500/25 bg-slate-500/5 text-slate-300',
     effects: [
       'A deafened creature can\'t hear and automatically fails any ability check that requires hearing.',
     ],
   },
   {
     name: 'Exhaustion',
-    color: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
+    color: 'border-orange-500/25 bg-orange-500/5 text-orange-300',
     effects: [
       'Level 1: Disadvantage on ability checks.',
       'Level 2: Speed halved.',
@@ -1333,7 +1339,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Frightened',
-    color: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300',
+    color: 'border-yellow-500/25 bg-yellow-500/5 text-yellow-300',
     effects: [
       'A frightened creature has disadvantage on ability checks and attack rolls while the source of its fear is within line of sight.',
       'The creature can\'t willingly move closer to the source of its fear.',
@@ -1341,7 +1347,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Grappled',
-    color: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    color: 'border-amber-500/25 bg-amber-500/5 text-amber-300',
     effects: [
       'A grappled creature\'s speed becomes 0, and it can\'t benefit from any bonus to its speed.',
       'The condition ends if the grappler is incapacitated.',
@@ -1350,14 +1356,14 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Incapacitated',
-    color: 'border-red-500/40 bg-red-500/10 text-red-300',
+    color: 'border-red-500/25 bg-red-500/5 text-red-300',
     effects: [
       'An incapacitated creature can\'t take actions or reactions.',
     ],
   },
   {
     name: 'Invisible',
-    color: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
+    color: 'border-violet-500/25 bg-violet-500/5 text-violet-600 dark:text-violet-300',
     effects: [
       'An invisible creature is impossible to see without the aid of magic or a special sense.',
       'The creature\'s location can be detected by any noise it makes or any tracks it leaves.',
@@ -1366,7 +1372,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Paralyzed',
-    color: 'border-red-500/40 bg-red-500/10 text-red-300',
+    color: 'border-red-500/25 bg-red-500/5 text-red-300',
     effects: [
       'A paralyzed creature is incapacitated and can\'t move or speak.',
       'The creature automatically fails Strength and Dexterity saving throws.',
@@ -1376,7 +1382,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Petrified',
-    color: 'border-stone-500/40 bg-stone-500/10 text-stone-300',
+    color: 'border-stone-500/25 bg-stone-500/5 text-stone-600 dark:text-stone-300',
     effects: [
       'A petrified creature is transformed, along with any nonmagical object it is wearing or carrying, into a solid inanimate substance (usually stone).',
       'Its weight increases by a factor of ten, and it ceases aging.',
@@ -1389,14 +1395,14 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Poisoned',
-    color: 'border-green-500/40 bg-green-500/10 text-green-300',
+    color: 'border-green-500/25 bg-green-500/5 text-green-300',
     effects: [
       'A poisoned creature has disadvantage on attack rolls and ability checks.',
     ],
   },
   {
     name: 'Prone',
-    color: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    color: 'border-amber-500/25 bg-amber-500/5 text-amber-300',
     effects: [
       'A prone creature\'s only movement option is to crawl, unless it stands up (costing half movement speed).',
       'The creature has disadvantage on attack rolls.',
@@ -1405,7 +1411,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Restrained',
-    color: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
+    color: 'border-orange-500/25 bg-orange-500/5 text-orange-300',
     effects: [
       'A restrained creature\'s speed becomes 0, and it can\'t benefit from any bonus to its speed.',
       'Attack rolls against the creature have advantage, and the creature\'s attack rolls have disadvantage.',
@@ -1414,7 +1420,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Stunned',
-    color: 'border-red-500/40 bg-red-500/10 text-red-300',
+    color: 'border-red-500/25 bg-red-500/5 text-red-300',
     effects: [
       'A stunned creature is incapacitated, can\'t move, and can speak only falteringly.',
       'The creature automatically fails Strength and Dexterity saving throws.',
@@ -1423,7 +1429,7 @@ const CONDITION_REFERENCE = [
   },
   {
     name: 'Unconscious',
-    color: 'border-gray-500/40 bg-gray-500/10 text-gray-400',
+    color: 'border-gray-500/25 bg-gray-500/5 text-gray-400',
     effects: [
       'An unconscious creature is incapacitated, can\'t move or speak, and is unaware of its surroundings.',
       'The creature drops whatever it\'s holding and falls prone.',
@@ -1433,6 +1439,11 @@ const CONDITION_REFERENCE = [
     ],
   },
 ];
+
+// The text colour classes from a category colour string.
+function textClasses(color) {
+  return color.split(' ').filter(c => /^(dark:)?text-/.test(c)).join(' ');
+}
 
 function ConditionReference() {
   const [search, setSearch] = useState('');
@@ -1448,35 +1459,39 @@ function ConditionReference() {
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder="Search conditions…"
-        className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+        className="input w-full"
       />
 
-      <div className="flex flex-col gap-2">
+      {filtered.length > 0 && (
+      <div className="flex flex-col divide-y divide-border rounded-lg border border-border overflow-hidden">
         {filtered.map(cond => (
-          <div key={cond.name} className={`rounded-xl border overflow-hidden ${cond.color}`}>
+          <div key={cond.name} className="bg-card">
             <button
               onClick={() => setExpanded(e => e === cond.name ? null : cond.name)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left"
+              aria-expanded={expanded === cond.name}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-accent/60"
             >
-              <span className="font-semibold text-sm">{cond.name}</span>
-              {expanded === cond.name ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              <span className={`size-2 shrink-0 rounded-full bg-current ${textClasses(cond.color)}`} />
+              <span className={`flex-1 font-medium text-sm ${textClasses(cond.color)}`}>{cond.name}</span>
+              {expanded === cond.name ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
             </button>
             {expanded === cond.name && (
-              <div className="px-4 pb-4 border-t border-current/20 pt-3 flex flex-col gap-1.5">
+              <div className="px-4 pb-4 pl-[2.125rem] flex flex-col gap-1.5">
                 {cond.effects.map((e, i) => (
-                  <p key={i} className="text-xs leading-relaxed opacity-90">• {e}</p>
+                  <p key={i} className="text-sm leading-relaxed text-foreground/90">• {e}</p>
                 ))}
                 {cond.note && (
-                  <p className="text-xs italic opacity-70 mt-1">{cond.note}</p>
+                  <p className="text-xs italic text-muted-foreground mt-1">{cond.note}</p>
                 )}
               </div>
             )}
           </div>
         ))}
-        {filtered.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground/50 py-8">No conditions match "{search}"</p>
-        )}
       </div>
+      )}
+      {filtered.length === 0 && (
+        <p className="text-center text-sm text-muted-foreground py-8">No conditions match "{search}"</p>
+      )}
     </div>
   );
 }
@@ -1581,12 +1596,12 @@ function LootGenerator() {
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
       {/* Config */}
-      <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
-        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Generator Settings</h3>
+      <div className="card p-5 flex flex-col gap-4">
+        <h3 className="section-title">Generator settings</h3>
 
         <div className="flex gap-4 flex-wrap items-end">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">Challenge Rating</label>
+            <label className="section-label">Challenge rating</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -1594,18 +1609,18 @@ function LootGenerator() {
                 max="30"
                 value={cr}
                 onChange={e => setCr(Number(e.target.value))}
-                className="w-32 accent-violet-500"
+                className="w-32 accent-brand"
               />
-              <span className="text-sm font-bold text-foreground w-6 text-center">{cr}</span>
+              <span className="text-sm font-semibold text-foreground w-6 text-center tabular-nums">{cr}</span>
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">Gemstones</label>
+            <label className="section-label">Gemstones</label>
             <div className="flex items-center gap-1">
-              <button onClick={() => setGemCount(g => Math.max(0, g - 1))} className="w-7 h-7 rounded bg-secondary border border-border text-sm hover:bg-secondary/80">−</button>
+              <button onClick={() => setGemCount(g => Math.max(0, g - 1))} aria-label="Fewer gemstones" className="btn btn-outline btn-icon btn-sm">−</button>
               <span className="w-8 text-center text-sm font-mono">{gemCount}</span>
-              <button onClick={() => setGemCount(g => Math.min(10, g + 1))} className="w-7 h-7 rounded bg-secondary border border-border text-sm hover:bg-secondary/80">+</button>
+              <button onClick={() => setGemCount(g => Math.min(10, g + 1))} aria-label="More gemstones" className="btn btn-outline btn-icon btn-sm">+</button>
             </div>
           </div>
 
@@ -1614,34 +1629,34 @@ function LootGenerator() {
               type="checkbox"
               checked={includeItems}
               onChange={e => setIncludeItems(e.target.checked)}
-              className="accent-violet-500 w-4 h-4"
+              className="accent-brand w-4 h-4"
             />
-            <span className="text-sm text-muted-foreground">Include magic items</span>
+            <span className="text-sm text-foreground">Include magic items</span>
           </label>
         </div>
 
         <button
           onClick={generate}
-          className="flex items-center justify-center gap-2 h-10 rounded-lg bg-violet-600 text-white font-semibold text-sm hover:bg-violet-500 transition-colors"
+          className="btn btn-primary h-9 w-full"
         >
-          <Gem size={15} /> Generate Loot
+          <Gem /> Generate loot
         </button>
       </div>
 
       {/* Result */}
       {result && (
-        <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-5 flex flex-col gap-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">CR {result.cr} Hoard</p>
+        <div className="card p-5 flex flex-col gap-4">
+          <h3 className="section-title">CR {result.cr} hoard</h3>
 
           {/* Currency */}
           {Object.keys(result.currency).length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Currency</p>
+              <p className="section-label mb-2">Currency</p>
               <div className="flex flex-wrap gap-3">
                 {['pp','gp','sp','cp'].filter(k => result.currency[k] > 0).map(k => (
                   <div key={k} className="flex flex-col items-center gap-0.5">
-                    <span className={`text-xl font-black tabular-nums ${currencyColors[k]}`}>{result.currency[k].toLocaleString()}</span>
-                    <span className="text-[10px] text-muted-foreground/60">{currencyLabels[k]}</span>
+                    <span className={`text-xl font-bold tabular-nums ${currencyColors[k]}`}>{result.currency[k].toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground">{currencyLabels[k]}</span>
                   </div>
                 ))}
               </div>
@@ -1651,11 +1666,11 @@ function LootGenerator() {
           {/* Gemstones */}
           {result.gems.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Gemstones</p>
+              <p className="section-label mb-2">Gemstones</p>
               <div className="flex flex-wrap gap-2">
                 {result.gems.map((gem, i) => (
-                  <span key={i} className="flex items-center gap-1.5 text-xs bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 px-2.5 py-1 rounded-full">
-                    <Gem size={10} /> {gem.name} ({gem.value.toLocaleString()} gp)
+                  <span key={i} className="flex items-center gap-1.5 text-xs border border-border text-foreground px-2 py-0.5 rounded-md">
+                    <Gem size={11} className="text-cyan-400" /> {gem.name} ({gem.value.toLocaleString()} gp)
                   </span>
                 ))}
               </div>
@@ -1665,11 +1680,11 @@ function LootGenerator() {
           {/* Items */}
           {result.items.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Magic Items</p>
+              <p className="section-label mb-2">Magic items</p>
               <div className="flex flex-col gap-1.5">
                 {result.items.map((item, i) => (
                   <div key={i} className="flex items-center gap-2.5">
-                    <span className={`text-[9px] uppercase tracking-wider font-semibold w-12 shrink-0 ${RARITY_COLORS[item.rarity]}`}>{item.rarity}</span>
+                    <span className={`text-xs font-medium capitalize w-12 shrink-0 ${RARITY_COLORS[item.rarity]}`}>{item.rarity}</span>
                     <span className="text-sm text-foreground">{item.name}</span>
                   </div>
                 ))}
@@ -1681,14 +1696,14 @@ function LootGenerator() {
 
       {/* History */}
       {history.length > 1 && (
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2">
+        <div className="card p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Hoards</h3>
-            <button onClick={() => setHistory([])} className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors">Clear</button>
+            <h3 className="section-title">Recent hoards</h3>
+            <button onClick={() => setHistory([])} className="btn btn-ghost btn-sm">Clear</button>
           </div>
           <div className="flex flex-col gap-1">
-            {history.slice(1).map((h, i) => (
-              <div key={h.ts} className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0">
+            {history.slice(1).map(h => (
+              <div key={h.ts} className="flex items-center justify-between text-xs py-1.5 border-b border-border last:border-0">
                 <span className="text-muted-foreground">CR {h.cr}</span>
                 <span className="text-foreground font-mono">
                   {['pp','gp','sp','cp'].filter(k => h.currency[k]).map(k => `${h.currency[k]}${k}`).join(' ')}
@@ -1780,29 +1795,31 @@ function NameGenerator() {
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
       {/* Config */}
-      <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
-        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Generator Settings</h3>
+      <div className="card p-5 flex flex-col gap-4">
+        <h3 className="section-title">Generator settings</h3>
 
         <div className="flex gap-3 flex-wrap items-end">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">Race</label>
+            <label className="section-label">Race</label>
             <select
               value={race}
               onChange={e => setRace(e.target.value)}
-              className="bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="input w-auto min-w-[8rem]"
             >
               {races.map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">Gender</label>
-            <div className="flex rounded-md overflow-hidden border border-border">
+            <label className="section-label">Gender</label>
+            <div className="tabs" role="tablist">
               {['male','female'].map(g => (
                 <button
                   key={g}
+                  role="tab"
+                  aria-selected={gender === g}
                   onClick={() => setGender(g)}
-                  className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${gender === g ? 'bg-violet-600 text-white' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}
+                  className="tab capitalize px-3"
                 >
                   {g}
                 </button>
@@ -1811,40 +1828,40 @@ function NameGenerator() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">Count</label>
+            <label className="section-label">Count</label>
             <div className="flex items-center gap-1">
-              <button onClick={() => setCount(c => Math.max(1, c - 1))} className="w-7 h-9 rounded-l bg-secondary border border-border text-sm hover:bg-secondary/80">−</button>
-              <span className="w-8 h-9 flex items-center justify-center text-sm font-mono border-t border-b border-border bg-secondary">{count}</span>
-              <button onClick={() => setCount(c => Math.min(20, c + 1))} className="w-7 h-9 rounded-r bg-secondary border border-border text-sm hover:bg-secondary/80">+</button>
+              <button onClick={() => setCount(c => Math.max(1, c - 1))} aria-label="Fewer names" className="btn btn-outline btn-icon">−</button>
+              <span className="w-8 text-center text-sm font-mono tabular-nums">{count}</span>
+              <button onClick={() => setCount(c => Math.min(20, c + 1))} aria-label="More names" className="btn btn-outline btn-icon">+</button>
             </div>
           </div>
         </div>
 
         <button
           onClick={generate}
-          className="flex items-center justify-center gap-2 h-10 rounded-lg bg-violet-600 text-white font-semibold text-sm hover:bg-violet-500 transition-colors"
+          className="btn btn-primary h-9 w-full"
         >
-          <User size={15} /> Generate Names
+          <User /> Generate names
         </button>
       </div>
 
       {/* Results */}
       {generated.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2">
+        <div className="card p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{race} Names</h3>
-            <button onClick={generate} className="text-xs text-muted-foreground/50 hover:text-violet-400 flex items-center gap-1 transition-colors">
-              <RotateCcw size={11} /> Regenerate
+            <h3 className="section-title">{race} names</h3>
+            <button onClick={generate} className="btn btn-ghost btn-sm">
+              <RotateCcw /> Regenerate
             </button>
           </div>
           <div className="flex flex-col gap-1">
             {generated.map((name, i) => (
-              <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-secondary/50 group transition-colors">
+              <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-accent/60 group transition-colors">
                 <span className="font-medium text-sm text-foreground">{name}</span>
                 <button
                   onClick={() => pin(name)}
                   disabled={pinned.includes(name)}
-                  className="text-xs text-muted-foreground/40 group-hover:text-muted-foreground hover:text-violet-400 disabled:text-violet-400 disabled:cursor-default transition-colors"
+                  className="text-sm text-muted-foreground/50 group-hover:text-muted-foreground hover:text-foreground disabled:text-yellow-400 disabled:cursor-default transition-colors"
                   title="Save name"
                 >
                   {pinned.includes(name) ? '★' : '☆'}
@@ -1857,16 +1874,16 @@ function NameGenerator() {
 
       {/* Saved names */}
       {pinned.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2">
+        <div className="card p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Saved Names</h3>
-            <button onClick={() => setPinned([])} className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors">Clear all</button>
+            <h3 className="section-title">Saved names</h3>
+            <button onClick={() => setPinned([])} className="btn btn-ghost btn-sm">Clear all</button>
           </div>
           <div className="flex flex-wrap gap-2">
             {pinned.map((name, i) => (
-              <span key={i} className="flex items-center gap-1.5 text-sm bg-violet-500/10 border border-violet-500/30 text-violet-300 px-3 py-1 rounded-full">
+              <span key={i} className="flex items-center gap-1.5 text-sm border border-border text-foreground px-2 py-0.5 rounded-md">
                 {name}
-                <button onClick={() => unpin(name)} className="text-violet-400/60 hover:text-violet-400 transition-colors">
+                <button onClick={() => unpin(name)} aria-label={`Remove ${name}`} className="text-muted-foreground hover:text-foreground transition-colors">
                   <X size={11} />
                 </button>
               </span>
@@ -1881,58 +1898,58 @@ function NameGenerator() {
 // ─── Campaign Dashboard ───────────────────────────────────────────────────────
 
 function CampaignDashboard() {
-  const [activeTab, setActiveTab] = useState('initiative');
+  const [activeTab, setActiveTab] = useState('monsters');
 
   return (
-    <div className="flex flex-col xl:flex-row gap-6 w-full h-full max-w-[1600px] mx-auto">
+    <div className="flex flex-col xl:flex-row gap-8 w-full h-full">
       {/* Left Column: Initiative Tracker */}
       <div className="flex-1 min-w-[300px] xl:max-w-2xl flex flex-col gap-4">
-        <h3 className="font-semibold text-lg flex items-center gap-2 border-b border-border pb-2"><Swords size={20} className="text-violet-400" /> Initiative Tracker</h3>
+        <h2 className="section-title flex items-center gap-2"><Swords size={16} className="text-muted-foreground" /> Initiative tracker</h2>
         <InitiativeTracker />
       </div>
 
       {/* Right Column: Split between Dice and Compendium */}
       <div className="w-full xl:w-[450px] shrink-0 flex flex-col gap-6">
         <div className="flex flex-col gap-4">
-          <h3 className="font-semibold text-lg flex items-center gap-2 border-b border-border pb-2"><Dice5 size={20} className="text-violet-400" /> Quick Dice</h3>
+          <h2 className="section-title flex items-center gap-2"><Dice5 size={16} className="text-muted-foreground" /> Quick dice</h2>
           <DiceRoller />
         </div>
 
         <div className="flex flex-col gap-4 flex-1">
-          <h3 className="font-semibold text-lg flex items-center gap-2 border-b border-border pb-2"><BookOpen size={20} className="text-violet-400" /> Quick Compendium</h3>
+          <h2 className="section-title flex items-center gap-2"><BookOpen size={16} className="text-muted-foreground" /> Quick compendium</h2>
           
-          <div className="flex gap-2">
-            <button onClick={() => setActiveTab('monsters')} className={`px-3 py-1.5 text-xs font-medium rounded-md border ${activeTab === 'monsters' ? 'bg-violet-600 border-violet-600 text-white' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>Monsters</button>
-            <button onClick={() => setActiveTab('spells')} className={`px-3 py-1.5 text-xs font-medium rounded-md border ${activeTab === 'spells' ? 'bg-violet-600 border-violet-600 text-white' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>Spells</button>
-            <button onClick={() => setActiveTab('items')} className={`px-3 py-1.5 text-xs font-medium rounded-md border ${activeTab === 'items' ? 'bg-violet-600 border-violet-600 text-white' : 'bg-secondary border-border text-muted-foreground hover:text-foreground'}`}>Items</button>
+          <div className="tabs self-start" role="tablist">
+            <button onClick={() => setActiveTab('monsters')} role="tab" aria-selected={activeTab === 'monsters'} className="tab">Monsters</button>
+            <button onClick={() => setActiveTab('spells')} role="tab" aria-selected={activeTab === 'spells'} className="tab">Spells</button>
+            <button onClick={() => setActiveTab('items')} role="tab" aria-selected={activeTab === 'items'} className="tab">Items</button>
           </div>
 
-          <div className="flex-1 bg-card border border-border rounded-xl p-4 overflow-y-auto max-h-[600px] flex flex-col gap-2">
+          <div className="flex-1 rounded-lg border border-border overflow-y-auto max-h-[600px] flex flex-col divide-y divide-border">
             {activeTab === 'monsters' && SRD_MONSTERS.map(m => (
-              <div key={m.id} className="p-3 border border-border/40 rounded-lg hover:border-violet-500/30 transition-colors">
+              <div key={m.id} className="px-4 py-2.5 bg-card transition-colors hover:bg-accent/60">
                 <div className="flex justify-between items-start">
-                  <h4 className="font-semibold text-sm">{m.name}</h4>
-                  <span className="text-[10px] text-muted-foreground">CR {m.cr}</span>
+                  <h4 className="font-medium text-sm">{m.name}</h4>
+                  <span className="text-xs text-muted-foreground">CR {m.cr}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">AC: {m.ac} | HP: {m.maxHp} | {m.speed}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">AC: {m.ac} | HP: {m.maxHp} | {m.speed}</p>
               </div>
             ))}
             {activeTab === 'spells' && SRD_SPELLS.map(s => (
-              <div key={s.id} className="p-3 border border-border/40 rounded-lg hover:border-violet-500/30 transition-colors">
+              <div key={s.id} className="px-4 py-2.5 bg-card transition-colors hover:bg-accent/60">
                 <div className="flex justify-between items-start">
-                  <h4 className="font-semibold text-sm">{s.name}</h4>
-                  <span className="text-[10px] text-muted-foreground">Lvl {s.level}</span>
+                  <h4 className="font-medium text-sm">{s.name}</h4>
+                  <span className="text-xs text-muted-foreground">Lvl {s.level}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate">{s.school} • {s.castingTime}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{s.school} • {s.castingTime}</p>
               </div>
             ))}
             {activeTab === 'items' && SRD_ITEMS.map(i => (
-              <div key={i.id} className="p-3 border border-border/40 rounded-lg hover:border-violet-500/30 transition-colors">
+              <div key={i.id} className="px-4 py-2.5 bg-card transition-colors hover:bg-accent/60">
                 <div className="flex justify-between items-start">
-                  <h4 className="font-semibold text-sm">{i.name}</h4>
-                  <span className="text-[10px] text-muted-foreground capitalize">{i.rarity}</span>
+                  <h4 className="font-medium text-sm">{i.name}</h4>
+                  <span className="text-xs text-muted-foreground capitalize">{i.rarity}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate">{i.type}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{i.type}</p>
               </div>
             ))}
           </div>
@@ -1966,8 +1983,10 @@ export default function DndTools() {
   if (!dndTools.enabled) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 text-center">
-        <div>
-          <Dice5 size={40} className="text-muted-foreground mx-auto mb-3 opacity-40" />
+        <div className="flex flex-col items-center">
+          <span className="mb-3 grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+            <Dice5 size={18} />
+          </span>
           <p className="text-muted-foreground text-sm">DnD Tools are disabled. Enable them in <strong>Settings → General</strong>.</p>
         </div>
       </div>
@@ -1977,8 +1996,10 @@ export default function DndTools() {
   if (!tool || !dndTools[tool.settingKey]) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 text-center">
-        <div>
-          <Dice5 size={40} className="text-muted-foreground mx-auto mb-3 opacity-40" />
+        <div className="flex flex-col items-center">
+          <span className="mb-3 grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+            <Dice5 size={18} />
+          </span>
           <p className="text-muted-foreground text-sm">This tool is not enabled. Turn it on in <strong>Settings → General</strong>.</p>
         </div>
       </div>
@@ -1990,16 +2011,14 @@ export default function DndTools() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ WebkitAppRegion: 'no-drag' }}>
-      <header className="flex items-center gap-3 px-6 py-4 border-b border-border bg-card sticky top-0 z-10">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-violet-500/15 border border-violet-500/30 shrink-0">
-          <Icon size={16} className="text-violet-400" />
-        </div>
-        <div>
-          <h2 className="text-base font-bold tracking-tight text-foreground">{tool.label}</h2>
-          <p className="text-xs text-muted-foreground">{tool.desc}</p>
-        </div>
-      </header>
-      <div className="p-6">
+      <div className={pathname === '/tools/dashboard' ? 'mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-8 md:py-10' : 'page'}>
+        <header className="mb-6 flex items-start gap-3">
+          <Icon size={20} className="mt-1.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <h1 className="page-title">{tool.label}</h1>
+            <p className="page-subtitle">{tool.desc}</p>
+          </div>
+        </header>
         <Component />
       </div>
     </div>

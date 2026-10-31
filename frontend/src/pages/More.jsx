@@ -9,23 +9,11 @@ import { useAppSettings } from '../store/useAppSettings';
 import { navItems, dndToolItems, customTypeIcons } from '../config/nav';
 import { WorldModal } from '../components/Sidebar';
 import GlobalSearch from '../components/GlobalSearch';
+import WorldAvatar from '../components/WorldAvatar';
+import { displayWorldName } from '../lib/worlds';
 
 // Paths that already have their own tab in BottomNav.
 const TAB_PATHS = new Set(['/', '/characters', '/locations', '/stories']);
-
-// Icon tile colour per destination, in the style of the iOS Settings app.
-const TILE = {
-  '/creatures': 'bg-orange-500',
-  '/races':     'bg-pink-500',
-  '/factions':  'bg-red-500',
-  '/lore':      'bg-amber-500',
-  '/things':    'bg-teal-500',
-  '/notes':     'bg-yellow-500',
-  '/timeline':  'bg-indigo-500',
-  '/maps':      'bg-green-500',
-  '/names':     'bg-purple-500',
-  '/assets':    'bg-sky-500',
-};
 
 const CODEX = ['/creatures', '/races', '/factions', '/lore', '/things', '/notes'];
 const lore = { path: '/lore', label: 'Lore', icon: BookMarked };
@@ -34,32 +22,29 @@ function Section({ title, children }) {
   return (
     <section className="mb-7">
       {title && (
-        <h2 className="px-4 pb-1.5 text-[13px] uppercase tracking-wide text-muted-foreground">{title}</h2>
+        <h2 className="px-1 pb-1.5 text-xs font-medium text-muted-foreground">{title}</h2>
       )}
-      <div className="rounded-xl bg-card border border-border/60 overflow-hidden divide-y divide-border/60">
+      <div className="rounded-lg bg-card border border-border overflow-hidden divide-y divide-border">
         {children}
       </div>
     </section>
   );
 }
 
-function RowBody({ icon: Icon, tile, label, detail, accessory = 'chevron' }) {
+function RowBody({ icon: Icon, lead, label, detail, accessory = 'chevron' }) {
   return (
     <>
-      {Icon && (
-        <span className={`shrink-0 w-[30px] h-[30px] rounded-[7px] flex items-center justify-center text-white ${tile || 'bg-zinc-500'}`}>
-          <Icon size={18} strokeWidth={2} />
-        </span>
-      )}
-      <span className="flex-1 min-w-0 truncate text-[17px] text-foreground">{label}</span>
-      {detail && <span className="shrink-0 text-[15px] text-muted-foreground">{detail}</span>}
-      {accessory === 'chevron' && <ChevronRight size={18} className="shrink-0 text-muted-foreground/50" />}
-      {accessory === 'check' && <Check size={18} strokeWidth={2.5} className="shrink-0 text-primary" />}
+      {lead}
+      {Icon && <Icon size={18} className="shrink-0 text-muted-foreground" />}
+      <span className="flex-1 min-w-0 truncate text-base text-foreground">{label}</span>
+      {detail && <span className="shrink-0 text-sm text-muted-foreground">{detail}</span>}
+      {accessory === 'chevron' && <ChevronRight size={16} className="shrink-0 text-muted-foreground/60" />}
+      {accessory === 'check' && <Check size={18} strokeWidth={2.25} className="shrink-0 text-brand" />}
     </>
   );
 }
 
-const rowClass = 'ios-row flex items-center gap-3 w-full min-h-[44px] px-4 py-2 text-left';
+const rowClass = 'ios-row flex items-center gap-3 w-full min-h-[44px] px-3.5 py-2 text-left transition-colors hover:bg-accent/60';
 
 function LinkRow({ to, ...body }) {
   return <Link to={to} className={rowClass}><RowBody {...body} /></Link>;
@@ -105,12 +90,12 @@ export default function More() {
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 pb-8">
-      <h1 className="pt-3 pb-3 text-[34px] leading-tight font-bold tracking-tight text-foreground">More</h1>
+      <h1 className="pt-4 pb-4 text-[30px] leading-tight font-bold tracking-[-0.02em] text-foreground">More</h1>
 
       <button
         type="button"
         onClick={() => setSearchOpen(true)}
-        className="w-full mb-7 flex items-center gap-2 h-9 px-2.5 rounded-[10px] bg-secondary text-muted-foreground text-[17px]"
+        className="w-full mb-7 flex items-center gap-2 h-10 px-3 rounded-lg border border-border bg-surface text-muted-foreground text-base"
       >
         <Search size={17} className="shrink-0" />
         <span>Search</span>
@@ -118,16 +103,16 @@ export default function More() {
 
       <Section title="Worlds">
         {worlds.map(w => (
-          <ButtonRow key={w} onClick={() => switchWorld(w)} label={w} accessory={w === activeWorld ? 'check' : null} />
+          <ButtonRow key={w} onClick={() => switchWorld(w)} lead={<WorldAvatar name={w} />} label={displayWorldName(w)} accessory={w === activeWorld ? 'check' : null} />
         ))}
-        <ButtonRow onClick={() => setShowCreate(true)} icon={Plus} tile="bg-blue-500" label="Add World" accessory={null} />
-        <ButtonRow onClick={importWorld} icon={FolderOpen} tile="bg-blue-500" label="Import World" accessory={null} />
+        <ButtonRow onClick={() => setShowCreate(true)} icon={Plus} label="New world" accessory={null} />
+        <ButtonRow onClick={importWorld} icon={FolderOpen} label="Import world folder" accessory={null} />
       </Section>
 
       {codex.length > 0 && (
         <Section title="Codex">
           {codex.map(i => (
-            <LinkRow key={i.path} to={i.path} icon={i.icon} tile={TILE[i.path]} label={i.label}
+            <LinkRow key={i.path} to={i.path} icon={i.icon} label={i.label}
               detail={showEntityCounts && counts[i.path] ? counts[i.path] : null} />
           ))}
         </Section>
@@ -135,14 +120,14 @@ export default function More() {
 
       {tools.length > 0 && (
         <Section title="Tools">
-          {tools.map(i => <LinkRow key={i.path} to={i.path} icon={i.icon} tile={TILE[i.path]} label={i.label} />)}
+          {tools.map(i => <LinkRow key={i.path} to={i.path} icon={i.icon} label={i.label} />)}
         </Section>
       )}
 
       {dndTools.enabled && (
         <Section title="DnD Tools">
           {dndToolItems.filter(t => dndTools[t.key]).map(t => (
-            <LinkRow key={t.path} to={t.path} icon={t.icon} tile="bg-rose-600" label={t.label} />
+            <LinkRow key={t.path} to={t.path} icon={t.icon} label={t.label} />
           ))}
         </Section>
       )}
@@ -150,14 +135,14 @@ export default function More() {
       {customTypes.length > 0 && (
         <Section title="Custom">
           {customTypes.map(type => (
-            <LinkRow key={type.id} to={`/custom/${type.id}`} icon={customTypeIcons[type.icon] || Box} tile="bg-violet-500" label={type.label} />
+            <LinkRow key={type.id} to={`/custom/${type.id}`} icon={customTypeIcons[type.icon] || Box} label={type.label} />
           ))}
         </Section>
       )}
 
       <Section>
-        <LinkRow to="/trash" icon={Trash2} tile="bg-zinc-500" label="Trash" />
-        <LinkRow to="/settings" icon={Settings} tile="bg-zinc-500" label="Settings" />
+        <LinkRow to="/trash" icon={Trash2} label="Trash" />
+        <LinkRow to="/settings" icon={Settings} label="Settings" />
       </Section>
 
       {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}

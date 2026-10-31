@@ -24,10 +24,10 @@ export default function SaveBanner() {
 
   return (
     <div
-      className="fixed bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+12px)] lg:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border shadow-lg text-sm text-foreground"
+      className="fixed bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+12px)] lg:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-3 py-2 rounded-lg bg-popover ring-1 ring-foreground/10 shadow-md text-sm text-popover-foreground animate-menu"
       role="status"
     >
-      <CheckCircle2 size={14} className="text-green-400 shrink-0" />
+      <CheckCircle2 size={15} className="text-green-400 shrink-0" />
       <span>{msg}</span>
     </div>
   );

@@ -91,75 +91,74 @@ export default function NameGenerator() {
 
   return (
     <div className="flex-1 overflow-y-auto w-full">
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md mb-5 border-b border-border/40 shadow-sm">
-        <div className="px-4 pt-6 pb-3 md:px-8 md:pt-8 flex flex-col gap-5">
-          <header>
-            <div>
-              <div className="flex items-center gap-2.5 mb-1">
-                <Wand2 size={22} className="text-primary" />
-                <h2 className="text-3xl font-bold tracking-tight text-foreground">Name Generator</h2>
-              </div>
-              <p className="text-muted-foreground text-sm mt-0.5">Generate lore-friendly names for characters, places, and more.</p>
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-3 sm:px-8 md:pt-8 flex flex-col gap-4">
+          <header className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <Wand2 size={20} className="shrink-0 text-muted-foreground" />
+              <h1 className="page-title truncate">Name Generator</h1>
             </div>
+            <p className="page-subtitle">Generate lore-friendly names for characters, places, and more.</p>
           </header>
 
-          {/* Top row: Search and Filters (Type tabs) */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-            <div className="relative w-full sm:w-72 shrink-0">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          {/* Search and generator type tabs */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="relative w-full sm:w-64 shrink-0">
+              <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <input
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search names..."
-                className="w-full pl-9 pr-9 py-2 text-sm bg-secondary/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+                placeholder="Search names…"
+                className="input pl-8 pr-8"
               />
               {query && (
                 <button
                   onClick={() => setQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X size={13} />
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0 sm:ml-auto">
-            {GENERATOR_TYPES.map(t => (
-              <button
-                key={t.key}
-                onClick={() => {
-                  setActiveType(t.key);
-                  setResults([]);
-                  setAddedIds(new Set());
-                  if (t.key !== 'character') setActiveRace('any');
-                }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
-                  activeType === t.key
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-secondary border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+            <div className="min-w-0 overflow-x-auto scrollbar-none">
+              <div className="tabs" role="tablist">
+                {GENERATOR_TYPES.map(t => (
+                  <button
+                    key={t.key}
+                    role="tab"
+                    aria-selected={activeType === t.key}
+                    onClick={() => {
+                      setActiveType(t.key);
+                      setResults([]);
+                      setAddedIds(new Set());
+                      if (t.key !== 'character') setActiveRace('any');
+                    }}
+                    className="tab"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="space-y-6 px-4 md:px-8 pb-8">
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 pt-5 pb-8 sm:px-8">
 
           {/* Race picker — only shown for Character */}
           {activeType === 'character' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-xl border border-border bg-card/50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="card p-3">
+                <p className="section-label mb-2">
                   Race
                 </p>
                 <div className="relative">
                   <select
                     value={activeRace}
                     onChange={(e) => { setActiveRace(e.target.value); setResults([]); setAddedIds(new Set()); }}
-                    className="w-full appearance-none bg-secondary/50 border border-border rounded-lg pl-3 pr-10 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring focus:border-primary transition-all text-foreground"
+                    className="input appearance-none pr-9"
                   >
                     {CHARACTER_RACES.map(r => (
                       <option key={r.key} value={r.key}>
@@ -167,21 +166,21 @@ export default function NameGenerator() {
                       </option>
                     ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-card/50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <div className="card p-3">
+                <p className="section-label mb-2">
                   Gender Expression
                 </p>
                 <div className="relative">
                   <select
                     value={activeGender}
                     onChange={(e) => { setActiveGender(e.target.value); setResults([]); setAddedIds(new Set()); }}
-                    className="w-full appearance-none bg-secondary/50 border border-border rounded-lg pl-3 pr-10 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring focus:border-primary transition-all text-foreground"
+                    className="input appearance-none pr-9"
                   >
                     {[{key: 'any', label: 'Any', emoji: '✨'}, {key: 'male', label: 'Masculine', emoji: '♂️'}, {key: 'female', label: 'Feminine', emoji: '♀️'}].map(g => (
                       <option key={g.key} value={g.key}>
@@ -189,21 +188,21 @@ export default function NameGenerator() {
                       </option>
                     ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-card/50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <div className="card p-3">
+                <p className="section-label mb-2">
                   Format
                 </p>
                 <div className="relative">
                   <select
                     value={activeFormat}
                     onChange={(e) => { setActiveFormat(e.target.value); setResults([]); setAddedIds(new Set()); }}
-                    className="w-full appearance-none bg-secondary/50 border border-border rounded-lg pl-3 pr-10 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring focus:border-primary transition-all text-foreground"
+                    className="input appearance-none pr-9"
                   >
                     {[{key: 'any', label: 'Any'}, {key: 'first', label: 'First Name'}, {key: 'full', label: 'Full Name'}].map(f => (
                       <option key={f.key} value={f.key}>
@@ -211,7 +210,7 @@ export default function NameGenerator() {
                       </option>
                     ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                   </div>
                 </div>
@@ -220,18 +219,18 @@ export default function NameGenerator() {
           )}
 
           {/* Generate button */}
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <button
               onClick={() => generate(BATCH_SIZE)}
-              className="flex-1 flex items-center justify-center gap-3 py-5 rounded-2xl bg-primary text-primary-foreground font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-primary/20 active:scale-[0.98]"
+              className="btn btn-primary h-10 flex-1 text-[0.9375rem]"
             >
-              <Shuffle size={22} />
+              <Shuffle />
               Generate {generateLabel}
             </button>
             <button
               onClick={generateOne}
               title="Generate one more"
-              className="px-5 py-5 rounded-2xl bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all font-bold text-sm"
+              className="btn btn-outline h-10 px-4"
             >
               +1
             </button>
@@ -241,39 +240,39 @@ export default function NameGenerator() {
           {results.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Results</p>
+                <p className="section-title">Results</p>
                 {mapping && mapping.storeType && (
-                  <p className="text-[10px] text-muted-foreground/50">Click <Plus size={9} className="inline" /> to create as a {mapping.label}</p>
+                  <p className="text-xs text-muted-foreground">Click <Plus size={9} className="inline" /> to create as a {mapping.label}</p>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
                 {(query.trim() ? results.filter(r => r.name?.toLowerCase().includes(query.trim().toLowerCase())) : results).map(entry => {
                   const added = addedIds.has(entry.id);
                   return (
                     <div
                       key={entry.id}
-                      className={`group flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${
+                      className={`group flex items-center gap-2 pl-3 pr-1.5 h-11 rounded-lg border transition-colors ${
                         added
-                          ? 'bg-primary/5 border-primary/30 text-muted-foreground'
-                          : 'bg-card border-border hover:border-primary/40'
+                          ? 'bg-muted/50 border-border text-muted-foreground'
+                          : 'bg-card border-border hover:border-foreground/15 hover:bg-accent/40'
                       }`}
                     >
-                      <span className={`flex-1 text-sm font-medium leading-snug ${added ? 'line-through text-muted-foreground/50' : 'text-foreground'}`}>
+                      <span className={`flex-1 min-w-0 truncate text-sm font-medium ${added ? 'line-through text-muted-foreground/50' : 'text-foreground'}`}>
                         {entry.name}
                       </span>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={() => copy(entry.name, entry.id)}
                           title="Copy name"
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          className="btn btn-ghost btn-icon btn-sm"
                         >
-                          {copiedId === entry.id ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+                          {copiedId === entry.id ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
                         </button>
                         {mapping && mapping.storeType && !added && (
                           <button
                             onClick={() => handleAdd(entry)}
                             title={`Create as ${mapping.label}`}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            className="btn btn-ghost btn-icon btn-sm hover:text-brand"
                           >
                             <Plus size={13} />
                           </button>
@@ -287,9 +286,11 @@ export default function NameGenerator() {
           )}
 
           {results.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-              <Shuffle size={40} className="text-muted-foreground/20" />
-              <p className="text-muted-foreground/50 text-sm">
+            <div className="flex flex-col items-center justify-center px-6 py-14 text-center rounded-lg border border-dashed border-border">
+              <span className="mb-3 grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                <Shuffle size={18} />
+              </span>
+              <p className="text-muted-foreground text-sm">
                 Hit Generate to roll {BATCH_SIZE} {generateLabel.toLowerCase()}
               </p>
             </div>

@@ -13,7 +13,7 @@ function loadState(key, fallback) {
 }
 
 function saveState(key, value) {
-  try { localStorage.setItem(`dndTool_${key}`, JSON.stringify(value)); } catch {}
+  try { localStorage.setItem(`dndTool_${key}`, JSON.stringify(value)); } catch { /* storage full or blocked */ }
 }
 
 const DEFAULT_ITEMS = [
@@ -76,26 +76,26 @@ export default function ItemsList() {
 
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
-      <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Add Item</h3>
+      <div className="card p-4 flex flex-col gap-3">
+        <h3 className="section-title">Add item</h3>
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">
             <input
               value={newItem.name}
               onChange={e => setNewItem({ ...newItem, name: e.target.value })}
-              placeholder="Item Name"
-              className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              placeholder="Item name"
+              className="input flex-1"
             />
             <input
               value={newItem.type}
               onChange={e => setNewItem({ ...newItem, type: e.target.value })}
               placeholder="Type (e.g. Weapon)"
-              className="w-32 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="input w-32"
             />
             <select
               value={newItem.rarity}
               onChange={e => setNewItem({ ...newItem, rarity: e.target.value })}
-              className="w-32 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="input w-32"
             >
               <option value="mundane">Mundane</option>
               <option value="common">Common</option>
@@ -108,37 +108,38 @@ export default function ItemsList() {
           <TextareaAutosize
             value={newItem.description}
             onChange={e => setNewItem({ ...newItem, description: e.target.value })}
-            placeholder="Item Description..."
-            className="w-full h-24 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
+            placeholder="Item description…"
+            minRows={3}
+            className="input w-full resize-none"
           />
           <button
             onClick={handleAdd}
-            className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md text-sm font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+            className="btn btn-primary self-start"
           >
-            <Plus size={14} /> Add Item
+            <Plus /> Add item
           </button>
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search items across Local, Realm Lore, and SRD..."
-            className="w-full bg-card border border-border rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input w-full pl-8"
           />
         </div>
 
         {filteredItems.map(item => (
-          <div key={item.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2 group">
+          <div key={item.id} className="card p-4 flex flex-col gap-1.5 group">
             <div className="flex justify-between items-start">
               <div>
-                <h4 className="font-semibold text-foreground flex items-center gap-2">
-                  <Box size={14} className={item.source === 'srd' ? 'text-amber-400' : item.source === 'realm' ? 'text-green-400' : 'text-violet-400'} /> 
+                <h4 className="font-medium text-sm text-foreground flex items-center gap-2">
+                  <Box size={14} className={item.source === 'srd' ? 'text-amber-400' : item.source === 'realm' ? 'text-green-400' : 'text-muted-foreground'} /> 
                   {item.name}
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground ml-2">
+                  <span className="badge capitalize ml-1">
                     {item.source}
                   </span>
                 </h4>
@@ -149,19 +150,19 @@ export default function ItemsList() {
                   <>
                     <button
                       onClick={() => populateWorld(item)}
-                      className="text-xs flex items-center gap-1 text-muted-foreground hover:text-violet-400 transition-colors"
-                      title="Add to World"
+                      className="btn btn-ghost btn-sm"
+                      title="Add to world"
                     >
-                      <ArrowRight size={14} /> To World
+                      <ArrowRight /> To world
                     </button>
-                    <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-red-400 transition-colors">
-                      <X size={14} />
+                    <button onClick={() => removeItem(item.id)} aria-label="Delete" className="btn btn-ghost btn-icon btn-sm hover:text-destructive">
+                      <X />
                     </button>
                   </>
                 )}
               </div>
             </div>
-            <p className="text-sm text-foreground/80 mt-1 whitespace-pre-wrap">{item.description}</p>
+            <p className="text-sm leading-relaxed text-foreground/85 mt-1 whitespace-pre-wrap">{item.description}</p>
           </div>
         ))}
       </div>

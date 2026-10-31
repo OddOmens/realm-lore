@@ -28,15 +28,6 @@ const COLOR = {
   indigo: { dot: 'bg-indigo-400', text: 'text-indigo-400', badge: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', header: 'from-indigo-500/8', link: 'text-indigo-400' },
 };
 
-const TYPE_COLORS = {
-  characters: 'text-blue-400 hover:text-blue-300',
-  locations:  'text-green-400 hover:text-green-300',
-  things:     'text-amber-400 hover:text-amber-300',
-  lore:       'text-purple-400 hover:text-purple-300',
-  factions:   'text-indigo-400 hover:text-indigo-300',
-  creatures:  'text-orange-400 hover:text-orange-300',
-};
-
 const SEMANTIC_STYLES = {
   // Statuses & Rarity
   Common:       'bg-slate-500/10 text-slate-400 border-slate-500/20',
@@ -60,9 +51,41 @@ const SEMANTIC_STYLES = {
   Catastrophic: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
 };
 
-function getBadgeStyle(value, themeBadgeClass) {
-  if (!value) return themeBadgeClass;
-  return SEMANTIC_STYLES[value] || themeBadgeClass;
+// Fields whose value reads as a status rather than plain text.
+const BADGE_FIELDS = ['Status', 'Rarity', 'Danger', 'Danger Level', 'Condition'];
+
+// Dot colours for the semantic values above; anything else gets a neutral dot.
+const SEMANTIC_DOTS = {
+  Alive: 'bg-green-500', Dead: 'bg-red-500', Undead: 'bg-purple-500', Imprisoned: 'bg-yellow-500', Missing: 'bg-amber-500',
+};
+// Written out in full so Tailwind sees every class.
+const HUE_DOTS = {
+  slate: 'bg-slate-400', zinc: 'bg-zinc-400', emerald: 'bg-emerald-500', blue: 'bg-blue-500', purple: 'bg-purple-500',
+  indigo: 'bg-indigo-500', amber: 'bg-amber-500', red: 'bg-red-500', rose: 'bg-rose-500', green: 'bg-green-500', orange: 'bg-orange-500',
+};
+function semanticDot(value) {
+  if (SEMANTIC_DOTS[value]) return SEMANTIC_DOTS[value];
+  const hue = SEMANTIC_STYLES[value]?.match(/text-([a-z]+)-400/);
+  return (hue && HUE_DOTS[hue[1]]) || 'bg-muted-foreground/60';
+}
+
+function StatusBadge({ value, label }) {
+  return (
+    <span className="badge text-foreground">
+      <span className={`size-1.5 rounded-full ${semanticDot(value)}`} />
+      {label && <span className="text-muted-foreground">{label}</span>}
+      {value}
+    </span>
+  );
+}
+
+function PropertyRow({ label, children }) {
+  return (
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 py-1.5">
+      <dt className="text-[0.8125rem] text-muted-foreground">{label}</dt>
+      <dd className="text-[0.8125rem] font-medium text-foreground break-words">{children}</dd>
+    </div>
+  );
 }
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
@@ -115,7 +138,7 @@ function renderMarkdown(text, allEntities, navigate) {
       if (m[0].startsWith('**')) {
         parts.push(<strong key={`b${m.index}`} className="font-semibold text-foreground">{m[2]}</strong>);
       } else {
-        parts.push(<em key={`i${m.index}`} className="italic text-foreground/90">{m[3]}</em>);
+        parts.push(<em key={`i${m.index}`} className="italic">{m[3]}</em>);
       }
       last = m.index + m[0].length;
     }
@@ -132,10 +155,10 @@ function renderMarkdown(text, allEntities, navigate) {
       const level = trimmed.match(/^#+/)[0].length;
       const content = trimmed.replace(/^#+\s/, '');
       const cls = level === 1
-        ? 'text-xl font-bold text-foreground mt-6 mb-2 first:mt-0'
+        ? 'text-xl font-bold tracking-[-0.02em] text-foreground mt-6 mb-2 first:mt-0'
         : level === 2
-        ? 'text-base font-bold text-foreground mt-5 mb-1.5 first:mt-0'
-        : 'text-sm font-bold text-foreground mt-4 mb-1 first:mt-0 uppercase tracking-wider';
+        ? 'text-lg font-semibold tracking-[-0.01em] text-foreground mt-5 mb-1.5 first:mt-0'
+        : 'text-base font-semibold text-foreground mt-4 mb-1 first:mt-0';
       elements.push(<p key={i} className={cls}>{inlineRender(content, `h${i}`)}</p>);
       i++; continue;
     }
@@ -158,7 +181,7 @@ function renderMarkdown(text, allEntities, navigate) {
           {items.map(item => (
             <li
               key={item.idx}
-              className="flex gap-2 text-sm text-foreground/90 leading-relaxed"
+              className="flex gap-2 text-[0.9375rem] text-foreground leading-relaxed"
               style={{ paddingLeft: `${item.indent * 0.5}rem` }}
             >
               <span className="text-muted-foreground mt-0.5 shrink-0 select-none">•</span>
@@ -184,7 +207,7 @@ function renderMarkdown(text, allEntities, navigate) {
 
     // Regular paragraph
     elements.push(
-      <p key={i} className="text-sm text-foreground/90 leading-relaxed">
+      <p key={i} className="text-[0.9375rem] text-foreground leading-relaxed">
         {inlineRender(trimmed, `p${i}`)}
       </p>
     );
@@ -203,18 +226,18 @@ function ProseViewer({ label, value, allEntities, navigate, onEdit }) {
   );
   return (
     <div
-      className="group rounded-xl border border-border/60 bg-secondary/10 overflow-hidden cursor-text"
+      className="group -mx-3 rounded-lg px-3 py-2 cursor-text transition-colors hover:bg-accent/40"
       onClick={onEdit}
       title="Click to edit"
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border/40 bg-secondary/20">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</span>
-        <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-muted-foreground/50">
-          <Pencil size={10} /> edit
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-muted-foreground">
+          <Pencil size={11} /> Edit
         </span>
       </div>
-      <div className="px-5 py-4 min-h-[4rem]">
-        {rendered ?? <p className="text-sm text-muted-foreground/30 italic">Nothing written yet — click to add.</p>}
+      <div className="min-h-[1.5rem]">
+        {rendered ?? <p className="text-sm text-muted-foreground/60">Nothing written yet. Click to add.</p>}
       </div>
     </div>
   );
@@ -252,22 +275,22 @@ function CustomSelect({ value, options, onChange, placeholder = '— Select —'
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm text-foreground hover:bg-secondary transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+        className="input flex items-center justify-between gap-2 text-left hover:bg-accent"
       >
-        <span className={value ? 'text-foreground' : 'text-muted-foreground/60'}>{value || placeholder}</span>
+        <span className={`truncate ${value ? 'text-foreground' : 'text-muted-foreground'}`}>{value || placeholder}</span>
         <ChevronDown size={13} className={`text-muted-foreground shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div style={{ ...dropdownStyle, zIndex: 9999 }} className="bg-popover border border-border rounded-xl shadow-2xl py-1 overflow-y-auto max-h-72">
+        <div style={{ ...dropdownStyle, zIndex: 9999 }} className="bg-popover rounded-lg shadow-md ring-1 ring-foreground/10 p-1 overflow-y-auto max-h-72 animate-menu">
           <button
             onClick={() => { onChange(''); setOpen(false); }}
-            className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary transition-colors italic"
+            className="w-full rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent transition-colors"
           >— None —</button>
           {options.map(opt => (
             <button
               key={opt}
               onClick={() => { onChange(opt); setOpen(false); }}
-              className={`w-full px-3 py-2 text-left text-sm hover:bg-secondary transition-colors ${value === opt ? 'font-semibold text-foreground' : 'text-foreground'}`}
+              className={`w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent transition-colors ${value === opt ? 'font-medium text-foreground bg-accent/60' : 'text-foreground'}`}
             >{opt}</button>
           ))}
         </div>
@@ -428,18 +451,18 @@ function ProseEditor({ label, value, onChange, placeholder, rows = 4 }) {
   const minH = `${rows * 1.75 + 1.5}rem`;
 
   return (
-    <div className="rounded-xl border border-border bg-secondary/20 overflow-hidden focus-within:ring-1 focus-within:ring-ring transition-all">
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border/60 bg-secondary/30">
-        <span className="text-xs text-muted-foreground/60 px-1 mr-1 select-none">{label}</span>
-        <div className="w-px h-3.5 bg-border/60 mx-1" />
+    <div className="rounded-lg border border-input bg-background overflow-hidden transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
+      <div className="flex items-center gap-0.5 px-1.5 h-9 border-b border-border bg-surface">
+        <span className="text-xs font-medium text-muted-foreground px-1.5 mr-1 select-none">{label}</span>
+        <div className="w-px h-4 bg-border mx-1" />
         <ToolbarBtn icon={Bold}      title="Bold (**text**)"  onClick={() => insertAtCaret('**', '**')} />
         <ToolbarBtn icon={Italic}    title="Italic (*text*)"  onClick={() => insertAtCaret('*', '*')} />
         <ToolbarBtn icon={Heading2}  title="Heading (## )"    onClick={() => wrapLine('## ')} />
-        <div className="w-px h-3.5 bg-border/60 mx-1" />
+        <div className="w-px h-4 bg-border mx-1" />
         <ToolbarBtn icon={List}      title="Bullet (• )"      onClick={() => wrapLine('• ')} />
         <ToolbarBtn icon={AlignLeft} title="Indent"           onClick={() => wrapLine('  ')} />
         <div className="flex-1" />
-        <span className="text-xs text-muted-foreground/25 select-none pr-1 hidden md:block">- + space → bullet</span>
+        <span className="text-xs text-muted-foreground/60 select-none pr-1.5 hidden md:block">- + space → bullet</span>
       </div>
       <div
         ref={editorRef}
@@ -453,7 +476,7 @@ function ProseEditor({ label, value, onChange, placeholder, rows = 4 }) {
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
         data-placeholder={placeholder}
-        className="w-full bg-transparent text-sm text-foreground px-4 py-3 focus:outline-none leading-relaxed font-mono-prose"
+        className="w-full bg-transparent text-sm text-foreground px-3.5 py-3 focus:outline-none leading-relaxed font-mono-prose"
         style={{ minHeight: minH, whiteSpace: 'pre-wrap', wordBreak: 'break-word', outline: 'none' }}
       />
     </div>
@@ -466,9 +489,9 @@ function ToolbarBtn({ icon: Icon, title, onClick }) {
       type="button"
       title={title}
       onMouseDown={e => { e.preventDefault(); onClick(); }}
-      className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+      className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
     >
-      <Icon size={12} />
+      <Icon size={14} />
     </button>
   );
 }
@@ -518,7 +541,7 @@ function InfoFieldEditor({ field, value, onChange, values = {} }) {
           value={value || ''}
           onChange={e => onChange(e.target.value)}
           placeholder="—"
-          className={`w-full text-sm text-foreground bg-secondary/50 border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all ${isOver ? 'border-amber-500/50' : 'border-border'}`}
+          className={`input ${isOver ? '!border-amber-500/60' : ''}`}
         />
         {raceData && maxAge && !isAgeless && (
           <p className={`text-[11px] mt-1.5 ${isOver ? 'text-amber-400' : 'text-muted-foreground/60'}`}>
@@ -536,7 +559,7 @@ function InfoFieldEditor({ field, value, onChange, values = {} }) {
       value={value || ''}
       onChange={e => onChange(e.target.value)}
       placeholder="—"
-      className="w-full text-sm text-foreground bg-secondary/50 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
+      className="input"
     />
   );
 }
@@ -551,14 +574,14 @@ function TagEditor({ value = [], onChange }) {
     <div className="space-y-2.5">
       <div className="flex flex-wrap gap-1.5">
         {tags.map(t => (
-          <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary border border-border text-xs text-foreground">
+          <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border text-xs text-foreground">
             {t}
             <button onClick={() => remove(t)} className="text-muted-foreground hover:text-foreground ml-0.5 transition-colors">
               <X size={9} />
             </button>
           </span>
         ))}
-        {tags.length === 0 && <span className="text-xs text-muted-foreground/40 italic">No tags yet</span>}
+        {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags yet</span>}
       </div>
       <div className="flex gap-1.5">
         <input
@@ -566,9 +589,9 @@ function TagEditor({ value = [], onChange }) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(); } }}
           placeholder="Add tag… (Enter or comma)"
-          className="flex-1 text-xs bg-secondary/50 text-foreground rounded-lg px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
+          className="input flex-1"
         />
-        <button onClick={add} className="text-xs px-3 py-2 rounded-lg bg-secondary border border-border text-secondary-foreground hover:bg-secondary/80 transition-colors font-medium">
+        <button onClick={add} className="btn btn-outline">
           Add
         </button>
       </div>
@@ -604,14 +627,14 @@ function CharacterSelectField({ value = [], onChange, readOnly = false }) {
   }, [characters, selected]);
 
   if (readOnly) {
-    if (!selectedChars.length) return <p className="text-sm text-muted-foreground/40 italic">No members assigned</p>;
+    if (!selectedChars.length) return <p className="text-sm text-muted-foreground">No members assigned</p>;
     return (
       <div className="flex flex-wrap gap-1.5">
         {selectedChars.map(c => (
           <button
             key={c.id}
             onClick={() => navigate(`/characters/${c.id}`)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 hover:bg-blue-500/20 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-xs font-medium text-foreground hover:bg-accent transition-colors"
           >
             {c.name || 'Unnamed'}
           </button>
@@ -625,9 +648,9 @@ function CharacterSelectField({ value = [], onChange, readOnly = false }) {
       {selectedChars.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedChars.map(c => (
-            <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400">
+            <span key={c.id} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-xs font-medium text-foreground">
               {c.name || 'Unnamed'}
-              <button onClick={() => toggle(c.id)} className="text-blue-400/60 hover:text-blue-300 ml-0.5 transition-colors">
+              <button onClick={() => toggle(c.id)} className="text-muted-foreground hover:text-foreground ml-0.5 transition-colors">
                 <X size={9} />
               </button>
             </span>
@@ -650,20 +673,20 @@ function CharacterSelectField({ value = [], onChange, readOnly = false }) {
             }
             setOpen(o => !o);
           }}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+          className="btn btn-outline btn-sm"
         >
           <Plus size={11} /> Add character
         </button>
         {open && (
-          <div style={{ ...dropdownStyle, zIndex: 9999 }} className="bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+          <div style={{ ...dropdownStyle, zIndex: 9999 }} className="bg-popover rounded-lg shadow-md ring-1 ring-foreground/10 p-1 overflow-hidden animate-menu">
             <div className="max-h-52 overflow-y-auto">
               {unselected.length === 0
-                ? <p className="text-xs text-muted-foreground/50 px-3 py-2 italic">All characters added</p>
+                ? <p className="text-xs text-muted-foreground px-2 py-1.5">All characters added</p>
                 : unselected.map(c => (
                   <button
                     key={c.id}
                     onClick={() => { toggle(c.id); setOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary transition-colors"
+                    className="w-full text-left rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
                   >
                     {c.name || 'Unnamed'}
                   </button>
@@ -705,14 +728,14 @@ function ThingSelectField({ value = [], onChange, readOnly = false }) {
   }, [things, selected]);
 
   if (readOnly) {
-    if (!selectedThings.length) return <p className="text-sm text-muted-foreground/40 italic">No items assigned</p>;
+    if (!selectedThings.length) return <p className="text-sm text-muted-foreground">No items assigned</p>;
     return (
       <div className="flex flex-wrap gap-1.5">
         {selectedThings.map(t => (
           <button
             key={t.id}
             onClick={() => navigate(`/things/${t.id}`)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 hover:bg-amber-500/20 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-xs font-medium text-foreground hover:bg-accent transition-colors"
           >
             {t.name || 'Unnamed'}
           </button>
@@ -726,9 +749,9 @@ function ThingSelectField({ value = [], onChange, readOnly = false }) {
       {selectedThings.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedThings.map(t => (
-            <span key={t.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+            <span key={t.id} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border text-xs font-medium text-foreground">
               {t.name || 'Unnamed'}
-              <button onClick={() => toggle(t.id)} className="text-amber-400/60 hover:text-amber-300 ml-0.5 transition-colors">
+              <button onClick={() => toggle(t.id)} className="text-muted-foreground hover:text-foreground ml-0.5 transition-colors">
                 <X size={9} />
               </button>
             </span>
@@ -751,20 +774,20 @@ function ThingSelectField({ value = [], onChange, readOnly = false }) {
             }
             setOpen(o => !o);
           }}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+          className="btn btn-outline btn-sm"
         >
           <Plus size={11} /> Add thing
         </button>
         {open && (
-          <div style={{ ...dropdownStyle, zIndex: 9999 }} className="bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+          <div style={{ ...dropdownStyle, zIndex: 9999 }} className="bg-popover rounded-lg shadow-md ring-1 ring-foreground/10 p-1 overflow-hidden animate-menu">
             <div className="max-h-52 overflow-y-auto">
               {unselected.length === 0
-                ? <p className="text-xs text-muted-foreground/50 px-3 py-2 italic">All things added</p>
+                ? <p className="text-xs text-muted-foreground px-2 py-1.5">All things added</p>
                 : unselected.map(t => (
                   <button
                     key={t.id}
                     onClick={() => { toggle(t.id); setOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary transition-colors"
+                    className="w-full text-left rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
                   >
                     {t.name || 'Unnamed'}
                   </button>
@@ -829,28 +852,28 @@ function SubracesEditor({ value = [], onChange, readOnly = false }) {
   };
 
   if (readOnly) {
-    if (!levels.length) return <p className="text-sm text-muted-foreground/40 italic">No sub-races defined</p>;
+    if (!levels.length) return <p className="text-sm text-muted-foreground">No sub-races defined</p>;
     return (
       <div className="space-y-3">
         {levels.map((level, idx) => (
-          <div key={level.id || idx} className="rounded-lg border border-border bg-secondary/20 overflow-hidden">
-            <div className="px-3 py-2 bg-secondary/30 border-b border-border/60">
-              <span className="text-sm font-bold text-foreground uppercase tracking-wide">{level.title || 'Untitled Sub-race'}</span>
+          <div key={level.id || idx} className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-3 py-2 bg-surface border-b border-border">
+              <span className="text-sm font-semibold text-foreground">{level.title || 'Untitled Sub-race'}</span>
             </div>
             <div className="px-3 py-2.5 space-y-3">
               {level.description && (
                 <div>
-                  <p className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-wrap">{level.description}</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{level.description}</p>
                 </div>
               )}
               {level.traits && (
-                <div className="pt-2 border-t border-border/40">
-                  <p className="text-xs font-semibold text-foreground mb-1 uppercase tracking-wider">Traits & Abilities</p>
-                  <p className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-wrap">{level.traits}</p>
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Traits & Abilities</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{level.traits}</p>
                 </div>
               )}
               {!level.description && !level.traits && (
-                <p className="text-xs text-muted-foreground/30 italic">No details</p>
+                <p className="text-xs text-muted-foreground/70">No details</p>
               )}
             </div>
           </div>
@@ -864,14 +887,14 @@ function SubracesEditor({ value = [], onChange, readOnly = false }) {
       {levels.map((level, idx) => (
         <div 
           key={level.id || idx} 
-          className="rounded-lg border border-border bg-secondary/20 overflow-hidden"
+          className="rounded-lg border border-border bg-card overflow-hidden"
           draggable
           onDragStart={(e) => handleDragStart(e, idx)}
           onDragEnter={(e) => handleDragEnter(e, idx)}
           onDragEnd={handleDragEnd}
           onDragOver={(e) => e.preventDefault()}
         >
-          <div className="flex items-center gap-2 px-3 py-2 bg-secondary/30 border-b border-border/60">
+          <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-border">
             <input
               value={level.title}
               onChange={e => updateLevel(idx, { title: e.target.value })}
@@ -879,33 +902,33 @@ function SubracesEditor({ value = [], onChange, readOnly = false }) {
               className="flex-1 text-sm font-semibold bg-transparent text-foreground focus:outline-none placeholder:text-muted-foreground/40 placeholder:font-normal"
             />
             <div className="flex items-center gap-1 shrink-0">
-              <div className="cursor-grab text-muted-foreground/30 hover:text-foreground/50 transition-colors px-1" title="Drag to reorder">
+              <div className="cursor-grab text-muted-foreground/60 hover:text-foreground transition-colors px-1" title="Drag to reorder">
                 <GripVertical size={14} />
               </div>
-              <button onClick={() => removeLevel(idx)} className="text-muted-foreground/40 hover:text-red-400 transition-colors ml-1">
+              <button onClick={() => removeLevel(idx)} className="text-muted-foreground hover:text-destructive transition-colors ml-1">
                 <X size={14} />
               </button>
             </div>
           </div>
           <div className="px-3 py-2.5 space-y-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Description</p>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Description</p>
               <TextareaAutosize
                 value={level.description || ''}
                 onChange={e => updateLevel(idx, { description: e.target.value })}
                 placeholder="Describe the culture, appearance, or lore of this variant..."
                 minRows={3}
-                className="w-full text-sm text-foreground bg-secondary/40 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
+                className="input h-auto py-2 leading-relaxed resize-none"
               />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Traits & Abilities</p>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Traits & Abilities</p>
               <TextareaAutosize
                 value={level.traits || ''}
                 onChange={e => updateLevel(idx, { traits: e.target.value })}
                 placeholder="Specific mechanics or innate abilities..."
                 minRows={2}
-                className="w-full text-sm text-foreground bg-secondary/40 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
+                className="input h-auto py-2 leading-relaxed resize-none"
               />
             </div>
           </div>
@@ -913,7 +936,7 @@ function SubracesEditor({ value = [], onChange, readOnly = false }) {
       ))}
       <button
         onClick={addLevel}
-        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors w-full justify-center"
+        className="btn btn-outline btn-sm w-full"
       >
         <Plus size={14} /> Add Sub-race
       </button>
@@ -982,32 +1005,32 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
   };
 
   if (readOnly) {
-    if (!levels.length) return <p className="text-sm text-muted-foreground/40 italic">No membership levels defined</p>;
+    if (!levels.length) return <p className="text-sm text-muted-foreground">No membership levels defined</p>;
     return (
       <div className="space-y-3">
         {levels.map((level, idx) => {
           const memberChars = characters.filter(c => (level.members || []).includes(c.id));
           return (
-            <div key={level.id || idx} className="rounded-lg border border-border bg-secondary/20 overflow-hidden">
-              <div className="px-3 py-2 bg-secondary/30 border-b border-border/60">
-                <span className="text-xs font-bold text-foreground uppercase tracking-wide">{level.title || 'Untitled Level'}</span>
+            <div key={level.id || idx} className="rounded-lg border border-border bg-card overflow-hidden">
+              <div className="px-3 py-2 bg-surface border-b border-border">
+                <span className="text-[0.8125rem] font-semibold text-foreground">{level.title || 'Untitled Level'}</span>
               </div>
               <div className="px-3 py-2.5 space-y-2">
                 {memberChars.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {memberChars.map(c => (
                       <button key={c.id} onClick={() => navigate(`/characters/${c.id}`)}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 hover:bg-blue-500/20 transition-colors">
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border text-xs font-medium text-foreground hover:bg-accent transition-colors">
                         {c.name || 'Unnamed'}
                       </button>
                     ))}
                   </div>
                 )}
                 {level.benefits && (
-                  <p className="text-xs text-muted-foreground/80 leading-relaxed whitespace-pre-wrap">{level.benefits}</p>
+                  <p className="text-[0.8125rem] text-foreground/90 leading-relaxed whitespace-pre-wrap">{level.benefits}</p>
                 )}
                 {!memberChars.length && !level.benefits && (
-                  <p className="text-xs text-muted-foreground/30 italic">No details</p>
+                  <p className="text-xs text-muted-foreground/70">No details</p>
                 )}
               </div>
             </div>
@@ -1025,14 +1048,14 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
         return (
           <div 
             key={level.id || idx} 
-            className="rounded-lg border border-border bg-secondary/20 overflow-hidden"
+            className="rounded-lg border border-border bg-card overflow-hidden"
             draggable
             onDragStart={(e) => handleDragStart(e, idx)}
             onDragEnter={(e) => handleDragEnter(e, idx)}
             onDragEnd={handleDragEnd}
             onDragOver={(e) => e.preventDefault()}
           >
-            <div className="flex items-center gap-2 px-3 py-2 bg-secondary/30 border-b border-border/60">
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-border">
               <input
                 value={level.title}
                 onChange={e => updateLevel(idx, { title: e.target.value })}
@@ -1040,30 +1063,30 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
                 className="flex-1 text-xs font-semibold bg-transparent text-foreground focus:outline-none placeholder:text-muted-foreground/40 placeholder:font-normal"
               />
               <div className="flex items-center gap-1 shrink-0">
-                <div className="cursor-grab text-muted-foreground/30 hover:text-foreground/50 transition-colors px-1" title="Drag to reorder">
+                <div className="cursor-grab text-muted-foreground/60 hover:text-foreground transition-colors px-1" title="Drag to reorder">
                   <GripVertical size={14} />
                 </div>
-                <button onClick={() => removeLevel(idx)} className="text-muted-foreground/40 hover:text-red-400 transition-colors ml-1">
+                <button onClick={() => removeLevel(idx)} className="text-muted-foreground hover:text-destructive transition-colors ml-1">
                   <X size={14} />
                 </button>
               </div>
             </div>
             <div className="px-3 py-2.5 space-y-2.5">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Members at this rank</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">Members at this rank</p>
                 <CharacterSelectField
                   value={level.members || []}
                   onChange={members => updateLevel(idx, { members })}
                 />
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Benefits & privileges</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">Benefits & privileges</p>
                 <TextareaAutosize
                   value={level.benefits || ''}
                   onChange={e => updateLevel(idx, { benefits: e.target.value })}
                   placeholder="What does this rank grant?"
                   minRows={2}
-                  className="w-full text-xs text-foreground bg-secondary/40 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
+                  className="input h-auto py-2 leading-relaxed resize-none"
                 />
               </div>
             </div>
@@ -1072,7 +1095,7 @@ function MembershipLevelsEditor({ value = [], onChange, readOnly = false }) {
       })}
       <button
         onClick={addLevel}
-        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors w-full justify-center"
+        className="btn btn-outline btn-sm w-full"
       >
         <Plus size={11} /> Add membership level
       </button>
@@ -1135,34 +1158,34 @@ function RelationshipsPanel({ entityId, entityType }) {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Connections</h3>
+    <div className="card overflow-hidden">
+      <div className="px-4 h-10 border-b border-border flex items-center justify-between">
+        <h3 className="text-[0.8125rem] font-semibold text-foreground">Connections</h3>
         <div className="flex items-center gap-1">
-          <button onClick={handleCreateVariant} title="Create a variant of this entity" className="px-2 py-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
+          <button onClick={handleCreateVariant} title="Create a variant of this entity" className="btn btn-ghost btn-sm">
             <Plus size={11} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Variant</span>
+            <span>Variant</span>
           </button>
-          <button onClick={() => setAdding(a => !a)} title="Link existing entity" className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => setAdding(a => !a)} title="Link existing entity" className="btn btn-ghost btn-icon btn-sm">
             <Link2 size={13} />
           </button>
         </div>
       </div>
 
       {adding && (
-        <div className="px-4 py-3 border-b border-border space-y-2.5 bg-secondary/20">
+        <div className="px-4 py-3 border-b border-border space-y-2 bg-surface">
           <input
             autoFocus
             value={label}
             onChange={e => setLabel(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
             placeholder="Describe the connection…"
-            className="w-full bg-background text-sm text-foreground rounded-lg px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 transition-all"
+            className="input"
           />
           <select
             value={targetId}
             onChange={e => setTargetId(e.target.value)}
-            className="w-full bg-background text-sm text-foreground rounded-lg px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+            className="input pr-8"
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '2rem' }}
           >
             <option value="">Select entity…</option>
@@ -1171,14 +1194,14 @@ function RelationshipsPanel({ entityId, entityType }) {
             ))}
           </select>
           <div className="flex gap-2">
-            <button onClick={handleAdd} className="flex-1 text-sm py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-colors">Add</button>
-            <button onClick={() => { setAdding(false); setLabel(''); setTargetId(''); }} className="flex-1 text-sm py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 font-medium transition-colors">Cancel</button>
+            <button onClick={handleAdd} className="btn btn-primary flex-1">Add</button>
+            <button onClick={() => { setAdding(false); setLabel(''); setTargetId(''); }} className="btn btn-outline flex-1">Cancel</button>
           </div>
         </div>
       )}
 
       {myRels.length === 0 && !adding ? (
-        <button onClick={() => setAdding(true)} className="w-full px-4 py-4 text-xs text-muted-foreground/40 italic hover:text-muted-foreground transition-colors text-center">
+        <button onClick={() => setAdding(true)} className="w-full px-4 py-4 text-[0.8125rem] text-muted-foreground hover:bg-accent/40 transition-colors text-center">
           No connections yet — click + to add one
         </button>
       ) : (
@@ -1191,14 +1214,14 @@ function RelationshipsPanel({ entityId, entityType }) {
             if (!other) return null;
             return (
               <div key={rel.id} className="flex items-center gap-2 px-4 py-2.5 group">
-                <Link2 size={11} className="text-muted-foreground/50 shrink-0" />
+                <Link2 size={13} className="text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs text-muted-foreground italic">{rel.label} </span>
-                  <button onClick={() => navigate(`/${otherType}/${otherId}`)} className={`text-xs font-semibold ${TYPE_COLORS[otherType].split(' ')[0]} hover:underline`}>
+                  <span className="text-[0.8125rem] text-muted-foreground">{rel.label} </span>
+                  <button onClick={() => navigate(`/${otherType}/${otherId}`)} className="text-[0.8125rem] font-medium text-foreground hover:underline">
                     {other.name}
                   </button>
                 </div>
-                <button onClick={() => deleteRelationship(rel.id)} className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-400 transition-all rounded hover:bg-red-500/10">
+                <button onClick={() => deleteRelationship(rel.id)} className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all rounded hover:bg-destructive/10">
                   <Trash2 size={11} />
                 </button>
               </div>
@@ -1232,22 +1255,22 @@ function AppearsIn({ entityName }) {
   }, [stories, entityName]);
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Appears In</h3>
+    <div className="card overflow-hidden">
+      <div className="px-4 h-10 border-b border-border flex items-center justify-between">
+        <h3 className="text-[0.8125rem] font-semibold text-foreground">Appears In</h3>
         {mentions.length > 0 && (
-          <span className="text-xs text-muted-foreground/60">{mentions.length} {mentions.length === 1 ? 'story' : 'stories'}</span>
+          <span className="text-xs text-muted-foreground">{mentions.length} {mentions.length === 1 ? 'story' : 'stories'}</span>
         )}
       </div>
       {mentions.length === 0 ? (
-        <p className="px-4 py-4 text-xs text-muted-foreground/40 italic text-center">Not mentioned in any stories yet.</p>
+        <p className="px-4 py-4 text-[0.8125rem] text-muted-foreground text-center">Not mentioned in any stories yet.</p>
       ) : (
         <div className="divide-y divide-border">
           {mentions.map(s => (
-            <button key={s.id} onClick={() => navigate(`/stories/${s.id}`)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/40 transition-colors group">
-              <BookOpen size={13} className="text-purple-400 shrink-0" />
-              <span className="flex-1 text-xs font-medium text-foreground truncate">{s.name}</span>
-              <span className="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">{s._count}×</span>
+            <button key={s.id} onClick={() => navigate(`/stories/${s.id}`)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/60 transition-colors group">
+              <BookOpen size={14} className="text-muted-foreground shrink-0" />
+              <span className="flex-1 text-[0.8125rem] font-medium text-foreground truncate">{s.name}</span>
+              <span className="shrink-0 text-xs px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground tabular-nums">{s._count}×</span>
               <ExternalLink size={11} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
             </button>
           ))}
@@ -1271,7 +1294,7 @@ const BACKLINK_TYPE_COLORS = {
   lore:       'text-purple-400',
   factions:   'text-indigo-400',
   creatures:  'text-orange-400',
-  stories:    'text-violet-400',
+  stories:    'text-brand',
   maps:       'text-emerald-400',
 };
 
@@ -1330,10 +1353,10 @@ function Backlinks({ entityId, entityName, entityType }) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mentioned in</h3>
-        <p className="text-[10px] text-muted-foreground/60 mt-0.5">Wiki text, chapters, and map pins referencing <strong className="text-foreground/80">{entityName}</strong></p>
+    <div className="card overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-border">
+        <h3 className="text-[0.8125rem] font-semibold text-foreground">Mentioned in</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">Wiki text, chapters, and map pins referencing <strong className="font-medium text-foreground">{entityName}</strong></p>
       </div>
       <div className="divide-y divide-border max-h-64 overflow-y-auto">
         {rows.map(r => (
@@ -1344,10 +1367,10 @@ function Backlinks({ entityId, entityName, entityType }) {
               else if (r.mapId) navigate(`/maps/${r.mapId}`);
               else navigate(`/${r.type}/${r.entityId}`);
             }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-secondary/40 transition-colors group"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-accent/60 transition-colors group"
           >
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${BACKLINK_TYPE_COLORS[r.type] || 'text-muted-foreground'}`}>{r.kindLabel}</span>
-            <span className="flex-1 text-xs font-medium text-foreground truncate">{r.name}</span>
+            <span className={`w-16 shrink-0 text-xs font-medium ${BACKLINK_TYPE_COLORS[r.type] || 'text-muted-foreground'}`}>{r.kindLabel}</span>
+            <span className="flex-1 text-[0.8125rem] font-medium text-foreground truncate">{r.name}</span>
             <ExternalLink size={11} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
           </button>
         ))}
@@ -1413,9 +1436,9 @@ function MiniGraph({ entityId, entityType, entityName, allEntities }) {
   });
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+    <div className="card overflow-hidden">
+      <div className="px-4 h-10 border-b border-border flex items-center justify-between">
+        <h3 className="text-[0.8125rem] font-semibold text-foreground flex items-center gap-1.5">
           <Network size={11} /> Connections
         </h3>
       </div>
@@ -1529,31 +1552,31 @@ function ItemNameInput({ value, onChange, onSelectThing, onCreateThing, things }
         onFocus={handleFocus}
         onKeyDown={e => { if (e.key === 'Escape') setOpen(false); }}
         placeholder="Item name…"
-        className="w-full bg-background text-sm text-foreground rounded-lg px-3 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 transition-all"
+        className="input"
       />
       {showDropdown && (
-        <div style={dropdownStyle} className="bg-popover border border-border rounded-xl shadow-2xl overflow-y-auto max-h-52">
+        <div style={dropdownStyle} className="bg-popover rounded-lg shadow-md ring-1 ring-foreground/10 p-1 overflow-y-auto max-h-52 animate-menu">
           {filtered.slice(0, 8).map(t => (
             <button
               key={t.id}
               onMouseDown={e => { e.preventDefault(); onSelectThing(t); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-secondary transition-colors"
+              className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-accent transition-colors"
             >
               <span className="text-xs font-medium text-foreground flex-1 truncate">{t.name}</span>
               {t.rarity && t.rarity !== 'Common' && (
-                <span className={`text-[9px] font-bold uppercase tracking-wider border rounded px-1 ${RARITY_STYLES[t.rarity] || ''}`}>{t.rarity}</span>
+                <span className={`text-[0.65rem] font-medium border rounded px-1 ${RARITY_STYLES[t.rarity] || ''}`}>{t.rarity}</span>
               )}
-              {t.type && <span className="text-[10px] text-muted-foreground/60 shrink-0">{t.type}</span>}
+              {t.type && <span className="text-xs text-muted-foreground shrink-0">{t.type}</span>}
             </button>
           ))}
           {!exactMatch && value.trim() && (
             <button
               onMouseDown={e => { e.preventDefault(); handleCreate(); }}
               disabled={creating}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-secondary transition-colors border-t border-border/60"
+              className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent transition-colors"
             >
-              <Plus size={11} className="text-amber-400 shrink-0" />
-              <span className="text-xs text-amber-400 font-medium">Create "{value.trim()}" as a Thing</span>
+              <Plus size={13} className="text-brand shrink-0" />
+              <span className="text-xs text-brand font-medium">Create "{value.trim()}" as a Thing</span>
             </button>
           )}
         </div>
@@ -1637,24 +1660,24 @@ function InventoryPanel({ inventory = [], onChange }) {
   const tabCount   = tabItems.length;
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="card overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+      <div className="px-4 h-10 border-b border-border flex items-center justify-between">
         <button
           onClick={() => setCollapsed(c => !c)}
           className="flex items-center gap-2 text-left flex-1 min-w-0"
         >
-          <Package size={13} className="text-muted-foreground shrink-0" />
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inventory</h3>
+          <Package size={14} className="text-muted-foreground shrink-0" />
+          <h3 className="text-[0.8125rem] font-semibold text-foreground">Inventory</h3>
           {totalCount > 0 && (
-            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-secondary border border-border text-muted-foreground/70">{totalCount}</span>
+            <span className="ml-0.5 text-xs px-1.5 rounded-md bg-muted text-muted-foreground tabular-nums">{totalCount}</span>
           )}
           <ChevronDown size={11} className={`ml-auto text-muted-foreground shrink-0 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
         </button>
         {!collapsed && (
           <button
             onClick={() => { setAdding(a => !a); setEditingId(null); resetForm(activeTab); }}
-            className="ml-2 p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+            className="btn btn-ghost btn-icon btn-sm ml-1"
             title="Add item"
           >
             <Plus size={13} />
@@ -1667,21 +1690,19 @@ function InventoryPanel({ inventory = [], onChange }) {
           {/* Location tabs */}
           <div className="flex border-b border-border">
             {INVENTORY_LOCATIONS.map(loc => {
-              const Icon = loc.icon;
               const cnt  = items.filter(it => it.location === loc.key).length;
               return (
                 <button
                   key={loc.key}
                   onClick={() => { setActiveTab(loc.key); setAdding(false); setEditingId(null); }}
-                  className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[9px] font-bold uppercase tracking-wider transition-colors border-b-2 ${
+                  className={`flex-1 flex items-center justify-center gap-1 h-9 px-1 text-xs font-medium transition-colors border-b-2 -mb-px ${
                     activeTab === loc.key
-                      ? `${loc.color} border-current bg-secondary/30`
-                      : 'text-muted-foreground/50 border-transparent hover:text-muted-foreground hover:bg-secondary/20'
+                      ? 'text-foreground border-foreground'
+                      : 'text-muted-foreground border-transparent hover:text-foreground'
                   }`}
                 >
-                  <Icon size={13} />
-                  <span>{loc.label}</span>
-                  {cnt > 0 && <span className={`px-1 rounded-full text-[8px] ${activeTab === loc.key ? `${loc.bg} ${loc.color} ${loc.border} border` : 'bg-secondary text-muted-foreground/60'}`}>{cnt}</span>}
+                  <span className="whitespace-nowrap">{loc.label}</span>
+                  {cnt > 0 && <span className="px-1 rounded bg-muted text-[0.65rem] tabular-nums text-muted-foreground">{cnt}</span>}
                 </button>
               );
             })}
@@ -1689,7 +1710,7 @@ function InventoryPanel({ inventory = [], onChange }) {
 
           {/* Add / Edit form */}
           {(adding || editingId) && (
-            <div className="px-3 py-3 border-b border-border bg-secondary/20 space-y-2">
+            <div className="px-3 py-3 border-b border-border bg-surface space-y-2">
               <ItemNameInput
                 value={form.name}
                 onChange={v => setForm(f => ({ ...f, name: v, thingId: null }))}
@@ -1701,11 +1722,11 @@ function InventoryPanel({ inventory = [], onChange }) {
                 const linked = things.find(t => t.id === form.thingId);
                 return linked ? (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-muted-foreground/60">Linked to</span>
+                    <span className="text-xs text-muted-foreground">Linked to</span>
                     <button
                       type="button"
                       onClick={() => navigate(`/things/${form.thingId}`)}
-                      className="text-[10px] text-amber-400 hover:underline font-medium flex items-center gap-0.5"
+                      className="text-xs text-brand hover:underline font-medium flex items-center gap-0.5"
                     >
                       {linked.name} <ExternalLink size={9} className="inline" />
                     </button>
@@ -1719,7 +1740,7 @@ function InventoryPanel({ inventory = [], onChange }) {
                 ) : null;
               })()}
               <div className="flex gap-2">
-                <div className="flex items-center gap-1.5 bg-background border border-border rounded-lg px-2 py-1.5">
+                <div className="flex h-8 items-center gap-1.5 bg-background border border-input rounded-md px-2">
                   <Hash size={10} className="text-muted-foreground" />
                   <input
                     type="number" min="0"
@@ -1731,14 +1752,14 @@ function InventoryPanel({ inventory = [], onChange }) {
                 <select
                   value={form.rarity}
                   onChange={e => setForm(f => ({ ...f, rarity: e.target.value }))}
-                  className="flex-1 bg-background text-xs text-foreground rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="input flex-1 min-w-0 text-xs px-2"
                 >
                   {Object.keys(RARITY_STYLES).map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
                 <select
                   value={form.location}
                   onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  className="flex-1 bg-background text-xs text-foreground rounded-lg px-2 py-1.5 border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="input flex-1 min-w-0 text-xs px-2"
                 >
                   {INVENTORY_LOCATIONS.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
                 </select>
@@ -1747,18 +1768,18 @@ function InventoryPanel({ inventory = [], onChange }) {
                 value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Notes (optional)…"
-                className="w-full bg-background text-xs text-foreground rounded-lg px-3 py-1.5 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all"
+                className="input text-xs"
               />
               <div className="flex gap-2 pt-0.5">
                 <button
                   onClick={editingId ? handleUpdate : handleAdd}
-                  className="flex-1 text-xs py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-semibold transition-colors"
+                  className="btn btn-primary btn-sm flex-1"
                 >
                   {editingId ? 'Update' : 'Add Item'}
                 </button>
                 <button
                   onClick={() => { setAdding(false); setEditingId(null); resetForm(); }}
-                  className="flex-1 text-xs py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 font-medium transition-colors"
+                  className="btn btn-outline btn-sm flex-1"
                 >
                   Cancel
                 </button>
@@ -1770,30 +1791,30 @@ function InventoryPanel({ inventory = [], onChange }) {
           {tabItems.length === 0 ? (
             <button
               onClick={() => { setAdding(true); setEditingId(null); resetForm(activeTab); }}
-              className="w-full px-4 py-5 text-xs text-muted-foreground/40 italic hover:text-muted-foreground transition-colors text-center"
+              className="w-full px-4 py-4 text-[0.8125rem] text-muted-foreground hover:bg-accent/40 transition-colors text-center"
             >
               Nothing {locMeta?.label === 'On Hand' ? 'on hand' : `at ${locMeta?.label}`} — click + to add
             </button>
           ) : (
-            <div className="divide-y divide-border/60">
+            <div className="divide-y divide-border">
               {tabItems.map(item => {
                 const rarityClass = RARITY_STYLES[item.rarity] || RARITY_STYLES.Common;
                 const isEditing   = editingId === item.id;
                 return (
                   <div
                     key={item.id}
-                    className={`flex items-center gap-2 px-3 py-2.5 group transition-colors hover:bg-secondary/30 ${isEditing ? 'bg-secondary/40' : ''}`}
+                    className={`flex items-center gap-2 px-3 py-2.5 group transition-colors hover:bg-accent/50 ${isEditing ? 'bg-accent/60' : ''}`}
                   >
                     {/* Qty controls */}
                     <div className="flex items-center gap-0.5 shrink-0">
                       <button
                         onClick={() => handleQtyChange(item.id, -1)}
-                        className="w-4 h-4 rounded text-muted-foreground/50 hover:text-foreground hover:bg-secondary transition-colors text-xs leading-none flex items-center justify-center"
+                        className="w-4 h-4 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors text-xs leading-none flex items-center justify-center"
                       >−</button>
-                      <span className="text-xs font-mono text-muted-foreground w-5 text-center">{item.qty ?? 1}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground w-5 text-center">{item.qty ?? 1}</span>
                       <button
                         onClick={() => handleQtyChange(item.id, 1)}
-                        className="w-4 h-4 rounded text-muted-foreground/50 hover:text-foreground hover:bg-secondary transition-colors text-xs leading-none flex items-center justify-center"
+                        className="w-4 h-4 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors text-xs leading-none flex items-center justify-center"
                       >+</button>
                     </div>
 
@@ -1809,11 +1830,11 @@ function InventoryPanel({ inventory = [], onChange }) {
                           <span className={`text-xs font-medium truncate ${RARITY_NAME_COLOR[item.rarity] || 'text-foreground'}`}>{item.name}</span>
                         )}
                         {item.rarity && item.rarity !== 'Common' && (
-                          <span className={`text-[9px] font-bold uppercase tracking-wider border rounded px-1 py-0 ${rarityClass}`}>{item.rarity}</span>
+                          <span className={`text-[0.65rem] font-medium border rounded px-1 py-0 ${rarityClass}`}>{item.rarity}</span>
                         )}
                       </div>
                       {item.notes && (
-                        <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{item.notes}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{item.notes}</p>
                       )}
                     </div>
 
@@ -1821,14 +1842,14 @@ function InventoryPanel({ inventory = [], onChange }) {
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
                         onClick={() => handleEdit(item)}
-                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                         title="Edit"
                       >
                         <Pencil size={10} />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                         title="Remove"
                       >
                         <Trash2 size={10} />
@@ -1842,8 +1863,8 @@ function InventoryPanel({ inventory = [], onChange }) {
 
           {/* Footer summary */}
           {items.length > 0 && (
-            <div className="px-4 py-2 border-t border-border/40 flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground/50">
+            <div className="px-4 py-2 border-t border-border bg-surface flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
                 {items.reduce((sum, it) => sum + (it.qty || 1), 0)} total items across all locations
               </span>
             </div>
@@ -1855,47 +1876,35 @@ function InventoryPanel({ inventory = [], onChange }) {
 }
 
 // ── Sidebar — view mode info display ─────────────────────────────────────────
-function InfoView({ infoFields, values, c, memberCount = null }) {
+function InfoView({ infoFields, values, memberCount = null }) {
   const filled = infoFields.filter(f => values[f.key]);
   if (filled.length === 0 && memberCount === null) return null;
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className={`px-4 py-2.5 border-b border-border bg-gradient-to-r ${c.header} to-transparent`}>
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Info</p>
+    <div className="card overflow-hidden">
+      <div className="px-4 h-10 flex items-center border-b border-border">
+        <p className="text-[0.8125rem] font-semibold text-foreground">Properties</p>
       </div>
-      <div className="divide-y divide-border/60">
+      <dl className="px-4 py-2">
         {memberCount !== null && (
-          <div className="flex gap-3 px-4 py-2.5 items-center">
-            <span className="text-xs text-muted-foreground/60 w-20 shrink-0">Members</span>
-            <div className="flex items-center gap-1.5">
-              <Users size={11} className="text-muted-foreground/50" />
-              <span className="text-xs text-foreground font-medium">{memberCount}</span>
-            </div>
-          </div>
+          <PropertyRow label="Members">
+            <span className="inline-flex items-center gap-1.5">
+              <Users size={13} className="text-muted-foreground" />
+              {memberCount}
+            </span>
+          </PropertyRow>
         )}
         {filled.map(f => (
-          <div key={f.key} className="flex gap-3 px-4 py-2.5">
-            <span className="text-xs text-muted-foreground/60 w-20 shrink-0 pt-0.5">{f.label}</span>
-            <div className="flex-1 min-w-0">
-              {['Status', 'Rarity', 'Danger', 'Danger Level', 'Condition'].includes(f.label) ? (
-                <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${getBadgeStyle(values[f.key], c.badge)}`}>
-                  <span className="opacity-50 mr-1 uppercase">
-                    {f.label === 'Danger Level' ? 'DNG' : f.label === 'Status' ? 'STAT' : f.label.slice(0, 3)}
-                  </span>
-                  {String(values[f.key])}
-                </span>
-              ) : (
-                <span className="text-xs text-foreground font-medium">{String(values[f.key])}</span>
-              )}
-            </div>
-          </div>
+          <PropertyRow key={f.key} label={f.label}>
+            {BADGE_FIELDS.includes(f.label)
+              ? <StatusBadge value={String(values[f.key])} />
+              : String(values[f.key])}
+          </PropertyRow>
         ))}
-      </div>
+      </dl>
     </div>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export function EntityWikiContent() {
   const dndEnabled = useAppSettings(s => s.dndTools?.enabled);
   const location     = useLocation();
@@ -2154,163 +2163,150 @@ export function EntityWikiContent() {
   return (
     <div className="flex flex-col bg-background">
 
-        {/* ── Top bar (Sticky) ── */}
-        <header className="sticky top-0 z-50 flex items-center gap-3 px-5 py-3 border-b border-border bg-card/90 backdrop-blur-md shrink-0 min-w-0" style={{ WebkitAppRegion: 'no-drag' }}>
+      {/* ── Page header bar (sticky) ── */}
+      <header className="sticky top-0 z-30 flex h-12 items-center gap-2 px-3 md:px-4 border-b border-border bg-background/95 backdrop-blur-md shrink-0 min-w-0" style={{ WebkitAppRegion: 'no-drag' }}>
         <button
           onClick={() => navigate(`/${entityType}`)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium shrink-0"
+          className="btn btn-ghost btn-icon sm:hidden"
+          aria-label={`Back to ${template.label}s`}
         >
-          <ArrowLeft size={15} />
-          <span className="hidden sm:inline">{template.label}s</span>
+          <ArrowLeft />
         </button>
-        <span className="text-border shrink-0">/</span>
-        <span className="text-sm text-foreground font-medium truncate min-w-0">{values.name || entity.name}</span>
+        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
+          <button
+            onClick={() => navigate(`/${entityType}`)}
+            className="hidden sm:block shrink-0 rounded-md px-1.5 py-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            {template.label}s
+          </button>
+          <ChevronRight size={14} className="hidden sm:block shrink-0 text-muted-foreground/60" />
+          <span className="truncate font-medium text-foreground">{values.name || entity.name}</span>
+        </nav>
 
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        <div className="ml-auto flex items-center gap-1 shrink-0">
           {/* Save state — only shown in edit mode */}
-          {isEdit && saveState === 'saving'  && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Saving…</span>}
-          {isEdit && saveState === 'unsaved' && <span className="text-xs text-amber-400/70">Unsaved</span>}
-          {isEdit && saveState === 'saved'   && <span className="hidden sm:flex text-xs text-muted-foreground/60 items-center gap-1"><CheckCircle2 size={11} className="text-green-400" /> Saved</span>}
+          {isEdit && saveState === 'saving'  && <span className="mr-1 text-xs text-muted-foreground flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Saving…</span>}
+          {isEdit && saveState === 'unsaved' && <span className="mr-1 text-xs text-muted-foreground">Unsaved</span>}
+          {isEdit && saveState === 'saved'   && <span className="mr-1 hidden sm:flex text-xs text-muted-foreground items-center gap-1"><CheckCircle2 size={12} className="text-green-500" /> Saved</span>}
 
           {/* Edit / View toggle */}
-          <div className="flex items-center rounded-lg border border-border bg-secondary/50 p-0.5 gap-0.5">
-            <button
-              onClick={() => setMode('view')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                !isEdit ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Eye size={12} /> View
+          <div className="tabs mr-1" role="tablist" aria-label="Mode">
+            <button role="tab" aria-selected={!isEdit} onClick={() => setMode('view')} className="tab inline-flex items-center gap-1.5">
+              <Eye size={13} /> <span className="hidden sm:inline">View</span>
             </button>
-            <button
-              onClick={() => setMode('edit')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                isEdit ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Edit3 size={12} /> Edit
+            <button role="tab" aria-selected={isEdit} onClick={() => setMode('edit')} className="tab inline-flex items-center gap-1.5">
+              <Edit3 size={13} /> <span className="hidden sm:inline">Edit</span>
             </button>
           </div>
 
-          <button
-            onClick={exportMarkdown}
-            title="Export as Markdown"
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <FileDown size={14} />
+          <button onClick={exportMarkdown} title="Export as Markdown" aria-label="Export as Markdown" className="btn btn-ghost btn-icon">
+            <FileDown />
           </button>
 
           <button
             type="button"
             onClick={() => setFavoriteOn(toggleFavorite(activeWorld, entityType, id))}
             title={favoriteOn ? 'Remove from favorites' : 'Add to favorites'}
-            className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg transition-colors ${
-              favoriteOn ? 'text-amber-400 bg-amber-500/15' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-            }`}
+            aria-label={favoriteOn ? 'Remove from favorites' : 'Add to favorites'}
+            aria-pressed={favoriteOn}
+            className={`btn btn-ghost btn-icon ${favoriteOn ? '!text-amber-500' : ''}`}
           >
-            <Star size={14} className={favoriteOn ? 'fill-current' : ''} />
+            <Star className={favoriteOn ? 'fill-current' : ''} />
           </button>
 
           <button
             onClick={() => setConfirmDelete(true)}
             title="Delete entry"
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            aria-label="Delete entry"
+            className="btn btn-ghost btn-icon hover:!text-destructive hover:!bg-destructive/10"
           >
-            <Trash2 size={14} />
+            <Trash2 />
           </button>
 
           {isEdit && (
-            <button
-              onClick={() => doSave(values)}
-              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-secondary border border-border text-sm font-medium hover:bg-secondary/80 transition-colors"
-            >
-              <Save size={13} /> Save
+            <button onClick={() => doSave(values)} className="btn btn-outline ml-1">
+              <Save /> Save
             </button>
           )}
         </div>
       </header>
 
-      {/* ── Hero / title area ── */}
-        <div className={`px-4 md:px-8 py-6 border-b border-border bg-gradient-to-b ${c.header} to-transparent`}>
-          <div className="flex gap-5 items-start max-w-5xl">
-            {values.image && (
-              <div className="shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden border border-border shadow-md">
-                <img src={assetUrl(values.image)} alt={values.name} className="w-full h-full object-cover"
-                  onError={e => { e.target.parentElement.style.display = 'none'; }} />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className={`w-2 h-2 rounded-full ${c.dot} shrink-0`} />
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${c.badge}`}>
-                  <span className="opacity-50 mr-1 uppercase">TYPE</span>
-                  {template.label}
-                </span>
-                {values.type && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${c.badge}`}>
-                    <span className="opacity-50 mr-1 uppercase">CAT</span>
-                    {values.type}
-                  </span>
-                )}
-                {values.status && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getBadgeStyle(values.status, c.badge)}`}>
-                    <span className="opacity-50 mr-1 uppercase">STAT</span>
-                    {values.status}
-                  </span>
-                )}
-                {!isEdit && <span className="text-xs text-muted-foreground/30 ml-auto hidden sm:block">⌘E to edit</span>}
-              </div>
-
-              {isEdit ? (
-                <>
-                  <input
-                    value={values.name || ''}
-                    onChange={e => set('name', e.target.value)}
-                    className="text-2xl md:text-3xl font-bold text-foreground bg-transparent border-none focus:outline-none w-full placeholder:text-muted-foreground/40 leading-tight"
-                    placeholder="Untitled"
-                  />
-                  {template.sections.flatMap(s => s.fields).some(f => f.key === 'alias') && (
-                    <input
-                      value={values.alias || ''}
-                      onChange={e => set('alias', e.target.value)}
-                      className="text-sm italic text-muted-foreground bg-transparent border-none focus:outline-none mt-1 w-full placeholder:text-muted-foreground/30"
-                      placeholder="Alias or title…"
-                    />
-                  )}
-                </>
-              ) : (
-                <>
-                  <h1 className="text-2xl md:text-3xl font-bold text-foreground leading-tight">
-                    {values.name || <span className="text-muted-foreground/40 italic">Untitled</span>}
-                  </h1>
-                  {values.alias && <p className="text-sm italic text-muted-foreground mt-1">"{values.alias}"</p>}
-                </>
-              )}
+      {/* ── Title area ── */}
+      <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-5 sm:px-8 md:pt-12">
+        <div className="flex gap-5 items-start">
+          {values.image && (
+            <div className="shrink-0 size-20 md:size-24 rounded-xl overflow-hidden border border-border">
+              <img src={assetUrl(values.image)} alt={values.name} className="w-full h-full object-cover"
+                onError={e => { e.target.parentElement.style.display = 'none'; }} />
             </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap text-xs text-muted-foreground">
+              <span className={`size-1.5 rounded-full ${c.dot} shrink-0`} />
+              <span className="font-medium">{template.label}</span>
+              {values.type && <><span aria-hidden>·</span><span>{values.type}</span></>}
+              {values.status && <StatusBadge value={values.status} />}
+              {!isEdit && <span className="ml-auto hidden sm:flex items-center gap-1">Press <kbd className="kbd">⌘E</kbd> to edit</span>}
+            </div>
+
+            {isEdit ? (
+              <>
+                <input
+                  value={values.name || ''}
+                  onChange={e => set('name', e.target.value)}
+                  className="text-[1.75rem] md:text-[2rem] font-bold tracking-[-0.02em] text-foreground bg-transparent border-none focus:outline-none w-full placeholder:text-muted-foreground/40 leading-tight"
+                  placeholder="Untitled"
+                />
+                {template.sections.flatMap(s => s.fields).some(f => f.key === 'alias') && (
+                  <input
+                    value={values.alias || ''}
+                    onChange={e => set('alias', e.target.value)}
+                    className="text-[0.9375rem] text-muted-foreground bg-transparent border-none focus:outline-none mt-1 w-full placeholder:text-muted-foreground/50"
+                    placeholder="Alias or title…"
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <h1 className="text-[1.75rem] md:text-[2rem] font-bold tracking-[-0.02em] text-foreground leading-tight">
+                  {values.name || <span className="text-muted-foreground/50">Untitled</span>}
+                </h1>
+                {values.alias && <p className="text-[0.9375rem] text-muted-foreground mt-1">{values.alias}</p>}
+              </>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* ── Tabs for Characters/Creatures ── */}
-        {dndEnabled && (entityType === 'characters' || entityType === 'creatures') && (
-          <div className="px-4 md:px-8 pt-4 flex gap-6 border-b border-border bg-card/40">
-            <button onClick={() => setMainTab('lore')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'lore' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Lore & Details</button>
-            <button onClick={() => setMainTab('statblock')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'statblock' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>D&D Stat Block</button>
+      {/* ── Tabs for Characters/Creatures and Factions ── */}
+      {((dndEnabled && (entityType === 'characters' || entityType === 'creatures')) || entityType === 'factions') && (
+        <div className="border-b border-border">
+          <div className="mx-auto w-full max-w-6xl px-4 sm:px-8 flex gap-5" role="tablist">
+            {[
+              { key: 'lore', label: 'Lore & Details' },
+              entityType === 'factions'
+                ? { key: 'orgchart', label: 'Org Chart' }
+                : { key: 'statblock', label: 'D&D Stat Block' },
+            ].map(t => (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={mainTab === t.key}
+                onClick={() => setMainTab(t.key)}
+                className={`-mb-px h-10 text-sm font-medium border-b-2 transition-colors ${mainTab === t.key ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-        )}
-
-        {/* ── Tabs for Factions ── */}
-        {entityType === 'factions' && (
-          <div className="px-4 md:px-8 pt-4 flex gap-6 border-b border-border bg-card/40">
-            <button onClick={() => setMainTab('lore')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'lore' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Lore & Details</button>
-            <button onClick={() => setMainTab('orgchart')} className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'orgchart' ? 'border-violet-500 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>Org Chart</button>
-          </div>
-        )}
+        </div>
+      )}
 
         {/* ── Two-column layout ── */}
-        <div className="flex flex-col lg:flex-row min-h-0">
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-8 pt-6 pb-12 flex flex-col lg:flex-row gap-8 lg:gap-12 min-h-0">
 
           {/* ── Main column ── */}
-          <div className="flex-1 min-w-0 flex flex-col lg:border-r lg:border-border">
+          <div className="flex-1 min-w-0 flex flex-col">
 
             {mainTab === 'statblock' && (
               <StatBlockEditor values={values} onChange={set} isEdit={isEdit} />
@@ -2321,7 +2317,7 @@ export function EntityWikiContent() {
             )}
 
             {/* Prose content */}
-            <div className={`px-4 md:px-8 py-6 space-y-10 ${mainTab !== 'lore' ? 'hidden' : ''}`}>
+            <div className={`space-y-10 ${mainTab !== 'lore' ? 'hidden' : ''}`}>
               {proseSections.map((section, idx) => {
                 const textFields = section.fields.filter(f => f.type === 'textarea');
                 const hasImageField = isEdit && section.fields.some(f => f.key === 'image');
@@ -2330,13 +2326,13 @@ export function EntityWikiContent() {
 
                 return (
                   <div key={idx} className="space-y-6">
-                    <div className="sticky top-[56px] z-40 bg-background/95 backdrop-blur-md pt-4 pb-2 border-b border-border/40 mb-4 -mt-4">
-                      <h2 className="text-lg font-bold text-foreground">
+                    <div className="sticky top-12 z-20 bg-background/95 backdrop-blur-md pt-3 pb-2 border-b border-border mb-3 -mt-3">
+                      <h2 className="text-lg font-semibold tracking-[-0.01em] text-foreground">
                         {section.title}
                       </h2>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="space-y-5">
                       {textFields.map(f => isEdit ? (
                         <ProseEditor
                           key={f.key}
@@ -2359,7 +2355,7 @@ export function EntityWikiContent() {
 
                       {hasImageField && (
                         <div>
-                          <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                             Portrait / Image URL
                           </label>
                           <div className="flex gap-2">
@@ -2367,7 +2363,7 @@ export function EntityWikiContent() {
                               value={values.image || ''}
                               onChange={e => set('image', e.target.value)}
                               placeholder="https://… or asset://…"
-                              className="flex-1 text-sm bg-secondary/50 text-foreground rounded-xl px-4 py-3 border border-border focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all min-w-0"
+                              className="input flex-1 min-w-0"
                             />
                             <button
                               type="button"
@@ -2379,7 +2375,7 @@ export function EntityWikiContent() {
                                   }
                                 } catch (err) { console.error(err); }
                               }}
-                              className="px-4 py-3 bg-secondary border border-border text-foreground text-sm font-medium rounded-xl hover:bg-secondary/80 whitespace-nowrap"
+                              className="btn btn-outline"
                             >
                               Browse
                             </button>
@@ -2394,14 +2390,14 @@ export function EntityWikiContent() {
               {/* Custom field sections (character-select, membership-levels) */}
               {customSections.map((section, idx) => (
                 <div key={`custom-${idx}`} className="space-y-6">
-                  <div className="sticky top-[56px] z-40 bg-background/95 backdrop-blur-md pt-4 pb-2 border-b border-border/40 mb-4 -mt-4">
-                    <h2 className="text-lg font-bold text-foreground">{section.title}</h2>
+                  <div className="sticky top-12 z-20 bg-background/95 backdrop-blur-md pt-3 pb-2 border-b border-border mb-3 -mt-3">
+                    <h2 className="text-lg font-semibold tracking-[-0.01em] text-foreground">{section.title}</h2>
                   </div>
                   <div className="space-y-6">
                     {section.fields.filter(f => CUSTOM_FIELD_TYPES.includes(f.type)).map(f => (
-                      <div key={f.key} className="rounded-xl border border-border/60 bg-secondary/10 overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-2 border-b border-border/40 bg-secondary/20">
-                          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">{f.label}</span>
+                      <div key={f.key} className="card overflow-hidden">
+                        <div className="flex items-center justify-between px-4 h-10 border-b border-border">
+                          <span className="text-[0.8125rem] font-semibold text-foreground">{f.label}</span>
                         </div>
                         <div className="px-4 py-4">
                           {f.type === 'character-select' && (
@@ -2442,29 +2438,29 @@ export function EntityWikiContent() {
           </div>
 
           {/* ── Sidebar ── */}
-          <div className="lg:w-[35%] lg:shrink-0 px-4 py-5 space-y-4 border-t lg:border-t-0 border-border lg:overflow-y-auto">
+          <aside className="lg:w-80 lg:shrink-0 space-y-4 pt-6 lg:pt-0 border-t lg:border-t-0 border-border">
 
             {isEdit ? (
               /* Edit mode sidebar: all fields editable */
               <>
                 {(infoFields.length > 0 || factionMemberCount !== null) && (
-                  <div className="rounded-xl border border-border bg-card">
-                    <div className={`px-4 py-2.5 border-b border-border bg-gradient-to-r ${c.header} to-transparent rounded-t-xl`}>
-                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Info</p>
+                  <div className="card">
+                    <div className="px-4 h-10 flex items-center border-b border-border">
+                      <p className="text-[0.8125rem] font-semibold text-foreground">Properties</p>
                     </div>
-                    <div className="divide-y divide-border/60">
+                    <div className="divide-y divide-border">
                       {factionMemberCount !== null && (
                         <div className="flex items-center gap-3 px-4 py-2.5">
-                          <span className="text-xs text-muted-foreground/60 w-20 shrink-0">Members</span>
+                          <span className="text-xs font-medium text-muted-foreground w-20 shrink-0">Members</span>
                           <div className="flex items-center gap-1.5">
-                            <Users size={11} className="text-muted-foreground/50" />
-                            <span className="text-xs text-foreground font-medium">{factionMemberCount}</span>
+                            <Users size={13} className="text-muted-foreground" />
+                            <span className="text-[0.8125rem] text-foreground font-medium">{factionMemberCount}</span>
                           </div>
                         </div>
                       )}
                       {infoFields.map(f => (
                         <div key={f.key} className="px-4 py-3">
-                          <label className="block text-xs text-muted-foreground mb-1.5 font-medium">{f.label}</label>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">{f.label}</label>
                           <InfoFieldEditor field={f} value={values[f.key]} onChange={v => set(f.key, v)} values={values} />
                         </div>
                       ))}
@@ -2473,20 +2469,20 @@ export function EntityWikiContent() {
                 )}
 
                 {sidebarProseSections.map((section, idx) => (
-                  <div key={idx} className="rounded-xl border border-border bg-card">
-                    <div className={`px-4 py-2.5 border-b border-border bg-gradient-to-r ${c.header} to-transparent rounded-t-xl`}>
-                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{section.title}</p>
+                  <div key={idx} className="card">
+                    <div className="px-4 h-10 flex items-center border-b border-border">
+                      <p className="text-[0.8125rem] font-semibold text-foreground">{section.title}</p>
                     </div>
-                    <div className="divide-y divide-border/60">
+                    <div className="divide-y divide-border">
                       {section.fields.filter(f => f.type === 'textarea').map(f => (
                         <div key={f.key} className="px-4 py-3">
-                          <label className="block text-xs text-muted-foreground mb-1.5 font-medium">{f.label}</label>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">{f.label}</label>
                           <TextareaAutosize
                             value={values[f.key] || ''}
                             onChange={e => set(f.key, e.target.value)}
                             placeholder={f.placeholder || '—'}
                             minRows={f.rows || 3}
-                            className="w-full text-sm text-foreground bg-secondary/50 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 transition-all resize-none"
+                            className="input h-auto py-2 leading-relaxed resize-none"
                           />
                         </div>
                       ))}
@@ -2496,9 +2492,9 @@ export function EntityWikiContent() {
 
                 {/* Sidebar template sections (e.g. Notable Members for factions) */}
                 {sidebarTemplateSections.map((section, idx) => (
-                  <div key={`sts-edit-${idx}`} className="rounded-xl border border-border bg-card overflow-hidden">
-                    <div className={`px-4 py-2.5 border-b border-border bg-gradient-to-r ${c.header} to-transparent rounded-t-xl`}>
-                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{section.title}</p>
+                  <div key={`sts-edit-${idx}`} className="card overflow-hidden">
+                    <div className="px-4 h-10 flex items-center border-b border-border">
+                      <p className="text-[0.8125rem] font-semibold text-foreground">{section.title}</p>
                     </div>
                     <div className="px-4 py-3.5">
                       {section.fields.filter(f => f.type === 'character-select').map(f => (
@@ -2514,17 +2510,17 @@ export function EntityWikiContent() {
             ) : (
               /* View mode sidebar: read-only */
               <>
-                <InfoView infoFields={infoFields} values={values} c={c} memberCount={factionMemberCount} />
+                <InfoView infoFields={infoFields} values={values} memberCount={factionMemberCount} />
 
                 {sidebarProseSections.map((section, idx) => {
                   const hasContent = section.fields.some(f => f.type === 'textarea' && values[f.key]);
                   if (!hasContent) return null;
                   return (
-                    <div key={idx} className="rounded-xl border border-border bg-card">
-                      <div className={`px-4 py-2.5 border-b border-border bg-gradient-to-r ${c.header} to-transparent rounded-t-xl`}>
-                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{section.title}</p>
+                    <div key={idx} className="card">
+                      <div className="px-4 h-10 flex items-center border-b border-border">
+                        <p className="text-[0.8125rem] font-semibold text-foreground">{section.title}</p>
                       </div>
-                      <div className="divide-y divide-border/60">
+                      <div className="divide-y divide-border">
                         {section.fields.filter(f => f.type === 'textarea' && values[f.key]).map(f => (
                           <div key={f.key} className="px-4 py-3">
                             <ProseViewer
@@ -2543,9 +2539,9 @@ export function EntityWikiContent() {
 
                 {/* Sidebar template sections (e.g. Notable Members for factions) */}
                 {sidebarTemplateSections.map((section, idx) => (
-                  <div key={`sts-view-${idx}`} className="rounded-xl border border-border bg-card overflow-hidden">
-                    <div className={`px-4 py-2.5 border-b border-border bg-gradient-to-r ${c.header} to-transparent rounded-t-xl`}>
-                      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{section.title}</p>
+                  <div key={`sts-view-${idx}`} className="card overflow-hidden">
+                    <div className="px-4 h-10 flex items-center border-b border-border">
+                      <p className="text-[0.8125rem] font-semibold text-foreground">{section.title}</p>
                     </div>
                     <div className="px-4 py-3.5">
                       {section.fields.filter(f => f.type === 'character-select').map(f => (
@@ -2571,7 +2567,7 @@ export function EntityWikiContent() {
             <AppearsIn entityName={values.name || entity.name} />
             <Backlinks entityId={id} entityName={values.name || entity.name} entityType={entityType} />
             <MiniGraph entityId={id} entityType={entityType} entityName={values.name || entity.name} allEntities={allEntities} />
-          </div>
+          </aside>
         </div>
       {confirmDelete && (
         <ConfirmModal

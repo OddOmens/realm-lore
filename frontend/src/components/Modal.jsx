@@ -26,7 +26,7 @@ export default function Modal({ title, children, onClose, size = 'md' }) {
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-backdrop-in"
       onMouseDown={(e) => { if (e.target === overlayRef.current) dismiss(); }}
     >
       <div
@@ -34,22 +34,22 @@ export default function Modal({ title, children, onClose, size = 'md' }) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative w-full ${sizeClass} sm:mx-4 bg-card border border-border border-b-0 sm:border-b rounded-t-[14px] sm:rounded-xl shadow-2xl max-h-[calc(100%-env(safe-area-inset-top)-12px)] sm:max-h-[90vh] flex flex-col animate-sheet`}
+        className={`relative w-full ${sizeClass} sm:mx-4 bg-popover text-popover-foreground sm:ring-1 sm:ring-foreground/10 rounded-t-[14px] sm:rounded-xl shadow-lg max-h-[calc(100%-env(safe-area-inset-top)-12px)] sm:max-h-[90vh] flex flex-col animate-sheet`}
       >
         <div {...dragHandlers} className="sm:hidden flex justify-center pt-[6px] pb-1 shrink-0 touch-none">
           <div className="h-[5px] w-9 rounded-full bg-muted-foreground/40" />
         </div>
-        <div {...dragHandlers} className="flex items-center justify-between px-6 pt-1 pb-3 sm:py-4 border-b border-border shrink-0 touch-none sm:touch-auto">
-          <h2 className="text-[17px] sm:text-base font-semibold text-foreground">{title}</h2>
+        <div {...dragHandlers} className="flex items-center justify-between gap-4 px-6 pt-1 pb-3 sm:pt-5 sm:pb-1 shrink-0 touch-none sm:touch-auto">
+          <h2 className="text-[17px] sm:text-base font-semibold tracking-[-0.01em] text-foreground">{title}</h2>
           <button
             onClick={dismiss}
             aria-label="Close"
-            className="p-1.5 sm:p-1 rounded-full sm:rounded-md bg-secondary sm:bg-transparent text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            className="-mr-1.5 p-1.5 rounded-full sm:rounded-md bg-secondary sm:bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
             <X size={16} />
           </button>
         </div>
-        <div className="px-6 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5 overflow-y-auto overscroll-contain">{children}</div>
+        <div className="px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>
   );

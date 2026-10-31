@@ -1,16 +1,15 @@
-import { useEffect, useState } from 'react';
+import { Children, isValidElement, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
 import { useAppSettings } from '../store/useAppSettings';
 import { api } from '../lib/api';
 import {
   Download, Upload, CheckCircle2, AlertCircle, Trash2,
-  Sliders, Database, Eye, Keyboard, ChevronRight,
-  Globe, Users, Map, Library, Box, TrendingUp, MapPin,
+  Sliders, Database, Eye, Keyboard, ChevronDown,
+  Globe, Users, Map, Library, Box, TrendingUp, MapPin, Info,
   PawPrint, Wand2, Dna, Flag, FlaskConical,
-  Info,
   Plus, Layers, Edit2, Zap, Car, Skull, Sparkles, Ghost, 
-  Gamepad2, Rocket, Cloud, Compass
+  Gamepad2, Rocket, Cloud, Compass, LogOut
 } from 'lucide-react';
 
 const ICON_OPTIONS = [
@@ -28,39 +27,46 @@ const ICON_OPTIONS = [
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
 
+// A settings section in Quire's layout: the SectionHeader sits in a left
+// column, the controls on the right. Sections in a tab are divided by rules.
 function SectionCard({ children, className = '' }) {
+  const items = Children.toArray(children);
+  const header = isValidElement(items[0]) && items[0].type === SectionHeader ? items[0] : null;
+  const body = header ? items.slice(1) : items;
   return (
-    <div className={`rounded-xl border border-border bg-card p-6 flex flex-col gap-4 ${className}`}>
-      {children}
-    </div>
+    <section className={`grid gap-4 py-8 first:pt-6 md:grid-cols-[14rem_minmax(0,1fr)] md:gap-10 ${className}`}>
+      {header ? <div>{header}</div> : null}
+      <div className={`min-w-0 flex flex-col gap-4 ${header ? '' : 'md:col-span-2'}`}>{body}</div>
+    </section>
   );
 }
 
-function SectionHeader({ title, description }) {
+function SectionHeader({ title, description, tone, children }) {
   return (
     <div>
-      <h3 className="font-semibold text-base text-foreground">{title}</h3>
-      {description && <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{description}</p>}
+      <h2 className={`section-title ${tone === 'danger' ? '!text-destructive' : ''}`}>{title}</h2>
+      {description && <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">{description}</p>}
+      {children}
     </div>
   );
 }
 
 function Toggle({ checked, onChange, label, description }) {
   return (
-    <label className="flex items-center justify-between gap-4 py-2 cursor-pointer group">
-      <div>
-        <p className="text-sm font-medium text-foreground group-hover:text-foreground/90">{label}</p>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+    <label className="flex items-center justify-between gap-4 py-2.5 cursor-pointer group">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {description && <p className="text-[0.8125rem] text-muted-foreground mt-0.5">{description}</p>}
       </div>
       <button
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative shrink-0 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500/40 ${checked ? 'bg-green-500' : 'bg-secondary border border-border'}`}
-        style={{ height: '22px', width: '40px' }}
+        className={`relative shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 ${checked ? 'bg-brand' : 'bg-input'}`}
+        style={{ height: '20px', width: '36px' }}
       >
         <span
-          className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0'}`}
+          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`}
         />
       </button>
     </label>
@@ -71,12 +77,12 @@ function SegmentedControl({ value, onChange, options, label }) {
   return (
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-foreground">{label}</label>}
-      <div className="flex rounded-lg border border-border bg-secondary p-0.5 gap-0.5">
+      <div className="tabs flex w-full">
         {options.map(opt => (
           <button
             key={opt.value}
             onClick={() => onChange(opt.value)}
-            className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors ${value === opt.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`tab flex-1 ${value === opt.value ? 'is-active' : ''}`}
           >
             {opt.label}
           </button>
@@ -90,16 +96,60 @@ function SelectField({ value, onChange, options, label, description }) {
   return (
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-foreground">{label}</label>}
-      {description && <p className="text-xs text-muted-foreground">{description}</p>}
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-      >
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
+      {description && <p className="text-[0.8125rem] text-muted-foreground">{description}</p>}
+      <div className="relative">
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="input pr-8"
+        >
+          {options.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+// Swatches for the theme picker: background, text and accent.
+const THEMES = [
+  { value: 'system',    label: 'System',    swatch: ['#ffffff', '#1a1b1e', '#3b5bdb'] },
+  { value: 'light',     label: 'Light',     swatch: ['#ffffff', '#1f2328', '#3b5bdb'] },
+  { value: 'dark',      label: 'Dark',      swatch: ['#1a1b1e', '#e3e5e8', '#748ffc'] },
+  { value: 'parchment', label: 'Parchment', swatch: ['hsl(42 35% 90%)', 'hsl(25 20% 20%)', 'hsl(18 55% 38%)'] },
+  { value: 'scifi',     label: 'Sci-Fi',    swatch: ['hsl(220 40% 5%)', 'hsl(200 60% 90%)', 'hsl(190 90% 50%)'] },
+  { value: 'grimdark',  label: 'Grimdark',  swatch: ['hsl(0 0% 0%)', 'hsl(0 0% 85%)', 'hsl(0 80% 45%)'] },
+  { value: 'purple',    label: 'Purple',    swatch: ['hsl(260 20% 6%)', 'hsl(260 10% 90%)', 'hsl(265 80% 65%)'] },
+  { value: 'green',     label: 'Green',     swatch: ['hsl(140 20% 6%)', 'hsl(140 10% 90%)', 'hsl(142 70% 45%)'] },
+];
+
+function ThemePicker({ value, onChange }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {THEMES.map(t => {
+        const active = value === t.value;
+        return (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => onChange(t.value)}
+            aria-pressed={active}
+            className={`rounded-lg border p-1.5 text-left transition-colors ${active ? 'border-brand ring-2 ring-brand/25' : 'border-border hover:border-foreground/20'}`}
+          >
+            <span className="flex h-12 overflow-hidden rounded-md ring-1 ring-inset ring-foreground/10">
+              {(t.value === 'system' ? [THEMES[1].swatch, THEMES[2].swatch] : [t.swatch]).map(([sbg, sfg, saccent], k) => (
+                <span key={k} className="flex flex-1 flex-col justify-end gap-1 p-2" style={{ background: sbg }}>
+                  <span className="block h-1.5 w-3/4 rounded-full" style={{ background: sfg, opacity: 0.85 }} />
+                  <span className="block h-1.5 w-1/3 rounded-full" style={{ background: saccent }} />
+                </span>
+              ))}
+            </span>
+            <span className={`mt-1.5 block px-0.5 text-xs font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{t.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -146,11 +196,11 @@ function VersionHistoryPanel() {
         title="About & Version History"
         description="Release notes and updates for Realm Lore."
       />
-      <div className="flex flex-col gap-4 mt-2">
+      <div className="flex flex-col gap-5">
         {versions.map((v, i) => (
-          <div key={i} className="flex flex-col gap-1 p-3 bg-secondary/30 rounded-lg border border-border">
+          <div key={i} className="flex flex-col gap-1 border-l-2 border-border pl-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-primary">v{v.version}</span>
+              <span className="text-sm font-semibold text-foreground">v{v.version}</span>
               <span className="text-xs text-muted-foreground">{v.date}</span>
             </div>
             <ul className="list-disc list-inside text-xs text-muted-foreground mt-1 space-y-1">
@@ -167,17 +217,30 @@ function VersionHistoryPanel() {
 
 function AboutTab() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col divide-y divide-border">
       <SectionCard>
-        <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Info size={28} className="text-primary" />
-          </div>
+        <div className="flex items-center gap-4">
+          <img src="/icon-192.png" alt="" aria-hidden className="size-14 rounded-xl" />
           <div>
-            <h3 className="text-lg font-bold text-foreground">Realm Lore</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">Your personal worldbuilding companion.</p>
-            <span className="inline-block mt-2 text-xs font-mono text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">v2026.5.4</span>
+            <h2 className="text-base font-semibold text-foreground">Realm Lore</h2>
+            <p className="text-sm text-muted-foreground">Your personal worldbuilding companion.</p>
+            <span className="badge mt-1.5 font-mono">v2026.5.4</span>
           </div>
+        </div>
+      </SectionCard>
+      <SectionCard>
+        <SectionHeader title="Sign out" description="Signs this device out. To sign out every device, change the server's password." />
+        <div>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={async () => {
+              await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+              window.location.reload();
+            }}
+          >
+            <LogOut /> Sign out
+          </button>
         </div>
       </SectionCard>
       <VersionHistoryPanel />
@@ -192,13 +255,13 @@ function GeneralTab() {
   const setDndTool = useAppSettings(s => s.setDndTool);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col divide-y divide-border">
       <SectionCard>
         <SectionHeader
           title="Navigation"
           description="Choose which sections appear in the sidebar. Hidden sections are still accessible via direct URL."
         />
-        <div className="divide-y divide-border -my-1">
+        <div className="divide-y divide-border -my-2.5">
           {NAV_ITEMS.map(item => (
             <Toggle
               key={item.path}
@@ -211,16 +274,15 @@ function GeneralTab() {
       </SectionCard>
 
       <SectionCard>
-        <div className="flex items-center gap-2">
-          <SectionHeader
-            title="D&D / TTRPG Tools"
-            description="Optional tabletop RPG utilities. When enabled, tools appear as individual sidebar entries below the main navigation."
-          />
-          <span className="shrink-0 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400 border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 rounded-full ml-auto">
-            <FlaskConical size={10} /> Beta
+        <SectionHeader
+          title="D&D / TTRPG Tools"
+          description="Optional tabletop RPG utilities. When enabled, tools appear as individual sidebar entries below the main navigation."
+        >
+          <span className="badge mt-2 text-amber-400 border-amber-400/40">
+            <FlaskConical size={11} /> Beta
           </span>
-        </div>
-        <div className="divide-y divide-border -my-1">
+        </SectionHeader>
+        <div className="divide-y divide-border -my-2.5">
           <Toggle
             checked={dndTools.enabled}
             onChange={val => setDndTool('enabled', val)}
@@ -285,21 +347,10 @@ function AppearanceTab() {
   const { theme, fontSize, density, showAppTitle, update } = useAppSettings();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col divide-y divide-border">
       <SectionCard>
-        <SectionHeader title="Theme" description="Choose a color palette for the interface." />
-        <SegmentedControl
-          value={theme}
-          onChange={val => update({ theme: val })}
-          options={[
-            { value: 'dark', label: 'Dark Mode' },
-            { value: 'parchment', label: 'Parchment' },
-            { value: 'scifi', label: 'Sci-Fi' },
-            { value: 'grimdark', label: 'Grimdark' },
-            { value: 'purple', label: 'Purple' },
-            { value: 'green', label: 'Green' },
-          ]}
-        />
+        <SectionHeader title="Theme" description="Choose a color palette for the interface. System follows your device's light or dark mode." />
+        <ThemePicker value={theme} onChange={val => update({ theme: val })} />
       </SectionCard>
 
       <SectionCard>
@@ -330,12 +381,12 @@ function AppearanceTab() {
 
       <SectionCard>
         <SectionHeader title="Interface Options" />
-        <div className="divide-y divide-border -my-1">
+        <div className="divide-y divide-border -my-2.5">
           <Toggle
             checked={showAppTitle}
             onChange={val => update({ showAppTitle: val })}
             label="Show App Title"
-            description="Display the 'Realm Lore' title and 'by Odd Omens' subtitle at the top of the sidebar."
+            description="Show the 'Realm Lore' name next to the logo in the top bar."
           />
         </div>
       </SectionCard>
@@ -349,7 +400,7 @@ function EditorTab() {
   const { autosaveDelay, defaultListView, showWordCount, showEntityCounts, update } = useAppSettings();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col divide-y divide-border">
       <SectionCard>
         <SectionHeader title="Autosave" />
         <SelectField
@@ -382,7 +433,7 @@ function EditorTab() {
 
       <SectionCard>
         <SectionHeader title="Display" />
-        <div className="divide-y divide-border -my-1">
+        <div className="divide-y divide-border -my-2.5">
           <Toggle
             checked={showWordCount}
             onChange={val => update({ showWordCount: val })}
@@ -498,30 +549,30 @@ function ExportPanel({ activeWorld, characters, locations, things, lore, faction
                await api.exportWorld(activeWorld);
              } catch (e) { alert('Export failed: ' + e.message); }
           }}
-          className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+          className="btn btn-primary"
           title="Exports the complete world folder as a ZIP archive"
         >
-          <Download size={14} /> Export ZIP Archive
+          <Download /> Export ZIP Archive
         </button>
         <button
           onClick={handleExportFullBackup}
-          className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+          className="btn btn-outline"
           title="Includes every collection — restorable round-trip"
         >
-          <Download size={14} /> Full Backup (.json)
+          <Download /> Full Backup (.json)
         </button>
         <button
           onClick={handleExportJSON}
-          className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="btn btn-outline"
           title="Excludes map images for a smaller, human-readable file"
         >
-          <Download size={14} /> Export JSON (slim)
+          <Download /> Export JSON (slim)
         </button>
         <button
           onClick={handleExportMarkdown}
-          className="flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 transition-colors"
+          className="btn btn-outline"
         >
-          <Download size={14} /> Export Markdown
+          <Download /> Export Markdown
         </button>
       </div>
     </SectionCard>
@@ -549,12 +600,12 @@ function ImportPanel() {
         title="Import World Folder"
         description="Upload a world's folder of Markdown files from your computer — the same format Realm Lore saves on the server."
       />
-      <div className="flex gap-2 flex-wrap mt-2">
+      <div className="flex gap-2 flex-wrap">
         <button
           onClick={handleImport}
-          className="self-start flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors border border-border"
+          className="btn btn-outline"
         >
-          <Upload size={14} /> Upload World Folder…
+          <Upload /> Upload World Folder…
         </button>
         <button
           onClick={async () => {
@@ -568,9 +619,9 @@ function ImportPanel() {
               setStatus(`Error: ${err.message}`);
             }
           }}
-          className="self-start flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 transition-colors border border-transparent"
+          className="btn btn-outline"
         >
-          <Upload size={14} /> Import ZIP Archive…
+          <Upload /> Import ZIP Archive…
         </button>
       </div>
       {status && status !== 'reading' && (
@@ -636,27 +687,26 @@ function AutomatedBackupPanel() {
 
   return (
     <SectionCard>
-      <div>
-        <SectionHeader
-          title="Automated Backups"
-          description="The server backs up all of your worlds on a schedule, even while no one has Realm Lore open. Backups are organized by world → date → time."
-        />
+      <SectionHeader
+        title="Automated Backups"
+        description="The server backs up all of your worlds on a schedule, even while no one has Realm Lore open. Backups are organized by world → date → time."
+      >
         {lastBackupRel && (
-          <p className="text-xs text-muted-foreground/80 mt-2 flex items-center gap-1.5">
-            <CheckCircle2 size={11} className="text-green-400" />
-            Last backup: <strong className="text-foreground">{lastBackupRel}</strong>
+          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
+            <CheckCircle2 size={12} className="text-green-400" />
+            Last backup: <strong className="font-medium text-foreground">{lastBackupRel}</strong>
           </p>
         )}
-      </div>
+      </SectionHeader>
 
       <div className="flex flex-col gap-3">
         <div>
-          <label className="text-sm font-medium text-foreground mb-1 block">Backup Location</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Backup location</label>
           <input
             type="text"
             value={location}
             onChange={e => setLocation(e.target.value)}
-            className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+            className="input font-mono"
             placeholder="Backups"
           />
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
@@ -665,19 +715,19 @@ function AutomatedBackupPanel() {
                 key={preset}
                 type="button"
                 onClick={() => setLocation(preset)}
-                className="text-xs px-2 py-0.5 rounded bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors font-mono"
+                className="badge font-mono hover:bg-accent hover:text-foreground transition-colors"
               >
                 {preset}
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground/60 mt-1.5">
-            A plain folder name is created inside the server's data folder. An absolute path (starting with <code className="bg-secondary px-1 rounded">/</code>) must be a folder mounted into the server's container.
-            Each backup ends up at <code className="bg-secondary px-1 rounded">{location || 'Backups'}/{activeWorld}/YYYY-MM-DD/HH-MM-SS/</code>.
+          <p className="text-xs leading-relaxed text-muted-foreground mt-1.5">
+            A plain folder name is created inside the server's data folder. An absolute path (starting with <code className="bg-muted px-1 rounded">/</code>) must be a folder mounted into the server's container.
+            Each backup ends up at <code className="bg-muted px-1 rounded">{location || 'Backups'}/{activeWorld}/YYYY-MM-DD/HH-MM-SS/</code>.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <SelectField
             label="Frequency"
             value={frequency}
@@ -709,23 +759,23 @@ function AutomatedBackupPanel() {
         <div className="flex items-center gap-2 mt-1">
           <button
             onClick={handleSave}
-            className="flex-1 h-9 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="btn btn-primary"
           >
-            Save Settings
+            Save settings
           </button>
           <button
             onClick={handleForce}
             title={`Back up ${activeWorld} right away`}
-            className="flex-1 h-9 rounded-md text-sm font-medium bg-secondary text-foreground border border-border hover:bg-secondary/80 transition-colors"
+            className="btn btn-outline"
           >
-            Back Up Now
+            Back up now
           </button>
         </div>
-        <p className="text-xs text-muted-foreground/60">
-          Back Up Now saves a copy of <strong className="text-muted-foreground">{activeWorld}</strong> immediately; scheduled backups cover every world.
+        <p className="text-xs text-muted-foreground">
+          Back up now saves a copy of <strong className="text-muted-foreground">{activeWorld}</strong> immediately; scheduled backups cover every world.
         </p>
         {status && (
-          <p className={`text-xs font-medium ${status.startsWith('Error') ? 'text-red-400' : status.includes('saved') || status.includes('Saved') ? 'text-green-500' : 'text-blue-500'}`}>
+          <p className={`text-xs font-medium ${status.startsWith('Error') ? 'text-destructive' : status.includes('saved') || status.includes('Saved') ? 'text-green-400' : 'text-muted-foreground'}`}>
             {status}
           </p>
         )}
@@ -747,11 +797,11 @@ function StorageInfoPanel({ activeWorld, characters, locations, things, lore, st
         description="Your worlds live as Markdown files in this folder on the server. Back it up or keep it in a Git repo like any other folder."
       />
       {worldsPath && (
-        <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2">
           <code className="text-xs text-muted-foreground font-mono flex-1 truncate">{worldsPath}</code>
         </div>
       )}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {[
           { label: 'Characters', val: characters.length },
           { label: 'Locations',  val: locations.length },
@@ -759,16 +809,16 @@ function StorageInfoPanel({ activeWorld, characters, locations, things, lore, st
           { label: 'Lore',       val: lore.length },
           { label: 'Stories',    val: stories.length },
         ].map(({ label, val }) => (
-          <div key={label} className="rounded-lg bg-secondary/50 px-3 py-2">
+          <div key={label} className="card px-3 py-2">
             <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="text-lg font-bold text-foreground">{val}</p>
+            <p className="text-base font-semibold text-foreground">{val}</p>
           </div>
         ))}
       </div>
       <p className="text-sm text-muted-foreground leading-relaxed">
-        Files are saved to <code className="bg-secondary px-1 py-0.5 rounded text-xs">Worlds/{activeWorld}/</code> and are editable in any text editor or Obsidian.
+        Files are saved to <code className="bg-muted px-1 py-0.5 rounded text-xs">Worlds/{activeWorld}/</code> and are editable in any text editor or Obsidian.
         Deleted entries move to{' '}
-        <Link to="/trash" className="text-primary font-medium underline-offset-2 hover:underline">Trash</Link>
+        <Link to="/trash" className="text-brand font-medium underline-offset-2 hover:underline">Trash</Link>
         {' '}until restored or purged.
       </p>
     </SectionCard>
@@ -815,46 +865,42 @@ function CustomTypesPanel() {
 
   return (
     <SectionCard>
-      <div className="flex items-center justify-between">
-        <SectionHeader
-          title="Custom Entity Types"
-          description="Create custom categories to organize your world beyond the defaults."
-        />
+      <SectionHeader
+        title="Custom Entity Types"
+        description="Create custom categories to organize your world beyond the defaults."
+      >
         {!isEditing && (
-          <button
-            onClick={handleAddClick}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={14} /> Add Type
+          <button onClick={handleAddClick} className="btn btn-outline btn-sm mt-3">
+            <Plus /> Add type
           </button>
         )}
-      </div>
+      </SectionHeader>
 
       {isEditing ? (
-        <div className="bg-secondary/30 p-4 rounded-xl border border-border mt-2 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="card bg-surface p-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-foreground mb-1 block">Plural Name (e.g. Spells)</label>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">Plural Name (e.g. Spells)</label>
               <input
                 type="text"
                 value={form.label}
                 onChange={e => setForm({ ...form, label: e.target.value })}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="input"
                 autoFocus
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-foreground mb-1 block">Singular Name (e.g. Spell)</label>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">Singular Name (e.g. Spell)</label>
               <input
                 type="text"
                 value={form.singular}
                 onChange={e => setForm({ ...form, singular: e.target.value })}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="input"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-foreground mb-2 block">Icon</label>
+            <label className="text-xs font-medium text-foreground mb-1.5 block">Icon</label>
             <div className="flex gap-2 flex-wrap">
               {ICON_OPTIONS.map(opt => {
                 const Icon = opt.icon;
@@ -864,9 +910,9 @@ function CustomTypesPanel() {
                     key={opt.value}
                     onClick={() => setForm({ ...form, icon: opt.value })}
                     title={opt.label}
-                    className={`p-2 rounded-lg border transition-colors ${isSelected ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:border-primary/50'}`}
+                    className={`btn btn-icon border ${isSelected ? 'border-brand bg-brand-soft text-brand' : 'border-input bg-background text-muted-foreground hover:text-foreground'}`}
                   >
-                    <Icon size={18} />
+                    <Icon />
                   </button>
                 );
               })}
@@ -875,33 +921,33 @@ function CustomTypesPanel() {
           <div className="flex gap-2 justify-end pt-2">
             <button
               onClick={() => setIsEditing(false)}
-              className="h-8 px-4 rounded-md text-sm font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+              className="btn btn-ghost"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="h-8 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="btn btn-primary"
             >
-              Save Custom Type
+              Save custom type
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2 mt-2">
+        <div className="flex flex-col">
           {customTypes.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-6 border border-dashed border-border rounded-lg text-center">
               <Layers size={24} className="text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">No custom types defined yet.</p>
             </div>
           ) : (
-            customTypes.map(type => {
+            <div className="divide-y divide-border rounded-lg border border-border">{customTypes.map(type => {
               const IconData = ICON_OPTIONS.find(o => o.value === type.icon) || ICON_OPTIONS[0];
               const Icon = IconData.icon;
               return (
-                <div key={type.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg border border-border">
+                <div key={type.id} className="flex items-center justify-between px-3 py-2.5">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-background border border-border flex items-center justify-center text-muted-foreground">
+                    <div className="size-8 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
                       <Icon size={16} />
                     </div>
                     <div>
@@ -910,16 +956,16 @@ function CustomTypesPanel() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => handleEditClick(type)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded">
+                    <button onClick={() => handleEditClick(type)} className="btn btn-ghost btn-icon btn-sm" aria-label="Edit type">
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={() => handleDelete(type.id)} className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded">
+                    <button onClick={() => handleDelete(type.id)} className="btn btn-ghost btn-icon btn-sm !text-destructive hover:!bg-destructive/10" aria-label="Delete type">
                       <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
               );
-            })
+            })}</div>
           )}
         </div>
       )}
@@ -941,41 +987,31 @@ function DeleteWorldPanel({ activeWorld, deleteWorld }) {
   };
 
   return (
-    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6 flex flex-col gap-3">
-      <h3 className="font-semibold text-base text-red-500 flex items-center gap-2">
-        <Trash2 size={16} /> Delete World
-      </h3>
-      <p className="text-sm text-red-500/80">
-        Permanently delete <strong>{activeWorld}</strong> and all of its entities. This cannot be undone.
-      </p>
+    <SectionCard>
+      <SectionHeader
+        title="Delete world"
+        tone="danger"
+        description="Permanently delete this world and all of its entities. This cannot be undone."
+      />
       {!confirming ? (
-        <button
-          onClick={() => setConfirming(true)}
-          className="self-start h-9 px-4 rounded-md text-sm font-medium bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
-        >
-          Delete World…
+        <button onClick={() => setConfirming(true)} className="btn btn-destructive self-start">
+          <Trash2 /> Delete {activeWorld}…
         </button>
       ) : (
-        <div className="flex flex-col gap-3 mt-1 bg-background/50 p-4 rounded-lg border border-red-500/20">
-          <p className="text-sm font-medium text-foreground">Are you sure? This cannot be undone.</p>
-          {error && <p className="text-xs text-red-500">{error}</p>}
+        <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <p className="text-sm font-medium text-foreground">Delete <strong>{activeWorld}</strong>? This cannot be undone.</p>
+          {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2">
-            <button
-              onClick={() => { setConfirming(false); setError(null); }}
-              className="flex-1 h-9 rounded-md text-sm font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
-            >
+            <button onClick={() => { setConfirming(false); setError(null); }} className="btn btn-outline">
               Cancel
             </button>
-            <button
-              onClick={handleDelete}
-              className="flex-1 h-9 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-500 transition-colors"
-            >
-              Confirm Delete
+            <button onClick={handleDelete} className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Confirm delete
             </button>
           </div>
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -987,9 +1023,9 @@ function ResetAppSettings() {
       <SectionHeader title="Reset Preferences" description="Restore all appearance, navigation, and editor settings to their defaults. Your world data is not affected." />
       <button
         onClick={() => { reset(); setDone(true); setTimeout(() => setDone(false), 2000); }}
-        className="self-start flex items-center gap-2 h-9 px-4 rounded-md text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 transition-colors"
+        className="btn btn-outline self-start"
       >
-        {done ? <><CheckCircle2 size={14} className="text-green-400" /> Reset applied</> : 'Reset to Defaults'}
+        {done ? <><CheckCircle2 className="text-green-400" /> Reset applied</> : 'Reset to defaults'}
       </button>
     </SectionCard>
   );
@@ -997,7 +1033,7 @@ function ResetAppSettings() {
 
 function DataTab({ activeWorld, characters, locations, things, lore, factions, creatures, stories, relationships, books, maps, deleteWorld }) {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col divide-y divide-border">
       <StorageInfoPanel activeWorld={activeWorld} characters={characters} locations={locations} things={things} lore={lore} stories={stories} />
       <CustomTypesPanel />
       <AutomatedBackupPanel />
@@ -1027,82 +1063,58 @@ export default function Settings() {
   const deleteWorld     = useWorldStore(state => state.deleteWorld);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden h-full">
-      {/* Page header — sticky */}
-      <header className="shrink-0 flex items-center gap-3 px-6 py-5 border-b border-border bg-card">
-        <Sliders size={18} className="text-muted-foreground" />
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">Settings</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Customize your Realm Lore experience.</p>
+    <div className="flex-1 overflow-y-auto">
+      <div className="page-narrow">
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Customize your Realm Lore experience.</p>
+
+        {/* Tabs — a quiet underline row that scrolls sideways on phones */}
+        <div className="mt-6 -mx-4 overflow-x-auto scrollbar-none border-b border-border px-4 sm:mx-0 sm:px-0" role="tablist">
+          <div className="flex gap-1">
+            {TABS.map(tab => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 pb-2.5 pt-1 text-sm font-medium transition-colors ${active ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                >
+                  <Icon size={15} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </header>
 
-      {/* Mobile tab bar — full-width, scrolls horizontally, shown below header on small screens */}
-      <div className="md:hidden shrink-0 flex border-b border-border bg-card/50 w-full overflow-x-auto">
-        {TABS.map(tab => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-medium whitespace-nowrap border-b-2 transition-colors shrink-0 ${active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              <Icon size={13} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar tabs — desktop only, vertical */}
-        <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card/50 p-3 gap-0.5 overflow-y-auto">
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors text-left w-full ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
-              >
-                <Icon size={15} />
-                {tab.label}
-                {active && <ChevronRight size={13} className="ml-auto opacity-60" />}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Tab content — scrolls independently */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 max-w-2xl">
-          {activeTab === 'general' && <GeneralTab />}
-          {activeTab === 'appearance' && (
-            <div className="flex flex-col gap-6">
-              <AppearanceTab />
-              <ResetAppSettings />
-            </div>
-          )}
-          {activeTab === 'editor' && <EditorTab />}
-          {activeTab === 'data' && (
-            <DataTab
-              activeWorld={activeWorld}
-              characters={characters}
-              locations={locations}
-              things={things}
-              lore={lore}
-              factions={factions}
-              creatures={creatures}
-              stories={stories}
-              relationships={relationships}
-              books={books}
-              maps={maps}
-              deleteWorld={deleteWorld}
-            />
-          )}
-          {activeTab === 'about' && <AboutTab />}
-        </div>
+        {activeTab === 'general' && <GeneralTab />}
+        {activeTab === 'appearance' && (
+          <div className="flex flex-col divide-y divide-border">
+            <AppearanceTab />
+            <ResetAppSettings />
+          </div>
+        )}
+        {activeTab === 'editor' && <EditorTab />}
+        {activeTab === 'data' && (
+          <DataTab
+            activeWorld={activeWorld}
+            characters={characters}
+            locations={locations}
+            things={things}
+            lore={lore}
+            factions={factions}
+            creatures={creatures}
+            stories={stories}
+            relationships={relationships}
+            books={books}
+            maps={maps}
+            deleteWorld={deleteWorld}
+          />
+        )}
+        {activeTab === 'about' && <AboutTab />}
       </div>
     </div>
   );
