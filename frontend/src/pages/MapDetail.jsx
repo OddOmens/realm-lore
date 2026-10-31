@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } fr
 import { useParams, useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  ArrowLeft, MousePointer2, Hand, Paintbrush, PaintBucket, Route, Castle, Type, Stamp as StampIcon, Pin,
+  ArrowLeft, MousePointer2, Hand, Paintbrush, PaintBucket, Fence, Castle, Type, Stamp as StampIcon, Pin,
   Undo2, Redo2, Sparkles, Download, MoreHorizontal, Layers, Check, ZoomIn, ZoomOut, Maximize,
   Trash2, Image as ImageIcon, Keyboard, X, Star, Dices, Link2, Upload, FlipHorizontal, ChevronUp,
   Map as MapIcon, ExternalLink, Eye, Pencil, Search, Ruler,
@@ -12,7 +12,7 @@ import { api, assetUrl } from '../lib/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Menu, { MenuItem, MenuLabel, MenuSeparator } from '../components/Menu';
-import { Terrain, BIOMES, BIOME, CELL, isWater } from '../maps/terrain';
+import { Terrain, BIOMES, BIOME, CELL, CHUNK_SIZE, chunkKey, isWater } from '../maps/terrain';
 import { applyWorldTransform, applyScreenTransform, screenToWorld, zoomAt, fitRect, visibleRect } from '../maps/view';
 import { createTerrainRenderer, PAPER } from '../maps/terrainRender';
 import {
@@ -33,9 +33,9 @@ import CustomStampUploadModal from '../maps/CustomStampUploadModal';
 const TOOLS = [
   { id: 'select', label: 'Select & move', key: 'V', icon: MousePointer2 },
   { id: 'hand',   label: 'Pan',           key: 'H', icon: Hand },
-  { id: 'paint',  label: 'Paint terrain', key: 'B', icon: Paintbrush },
+  { id: 'paint',  label: 'Brush',         key: 'B', icon: Paintbrush },
   { id: 'fill',   label: 'Fill area',     key: 'G', icon: PaintBucket },
-  { id: 'path',   label: 'Rivers & roads', key: 'R', icon: Route },
+  { id: 'border', label: 'Borders',       key: 'R', icon: Fence },
   { id: 'place',  label: 'Places',        key: 'P', icon: Castle },
   { id: 'label',  label: 'Labels',        key: 'T', icon: Type },
   { id: 'stamp',  label: 'Stamps',        key: 'S', icon: StampIcon },
@@ -49,7 +49,7 @@ const DEFAULT_OPTS = {
   brush: 180,
   rough: 0.5,
   mask: false,
-  pathKind: 'river',
+  brushMode: 'terrain', // or a line kind from BRUSH_LINES
   pathPx: {},
   inkColor: '#4a3b2a',
   placeKind: 'town',
@@ -65,6 +65,19 @@ function loadOpts() {
   try { return { ...DEFAULT_OPTS, ...JSON.parse(localStorage.getItem(OPTS_KEY) || '{}') }; }
   catch { return DEFAULT_OPTS; }
 }
+
+// Lines the Brush can draw instead of terrain; borders have their own tool.
+const BRUSH_LINES = ['river', 'road', 'trail', 'ink'];
+// The kind of line a tool draws with these options, or null.
+const lineKind = (tool, o) => tool === 'border' ? 'border'
+  : tool === 'paint' && BRUSH_LINES.includes(o.brushMode) ? o.brushMode : null;
+// The Brush's eraser removes whole lines it passes over.
+const isErasing = (tool, o) => tool === 'paint' && o.brushMode === 'erase';
+const isPaintingTerrain = (tool, o) => tool === 'paint' && !lineKind(tool, o) && !isErasing(tool, o);
+const ERASER_PX = 8; // the eraser's reach on screen (hitTest's tolerance)
+
+// Terrains in palette order (newer ones can slot in beside their kin).
+const PALETTE = [...BIOMES].sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
 
 const INK_COLORS = ['#4a3b2a', '#1f2328', '#b42318', '#2f6f3a', '#1d4e89', '#6b3fa0'];
 
@@ -83,6 +96,22 @@ const DEFAULT_LABEL_TEXT = { realm: 'Realm', region: 'Region', sea: 'Sea', place
 const PATH_LAYER = { river: 'rivers', road: 'roads', trail: 'roads', border: 'roads', ink: 'ink' };
 
 const isTyping = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+
+// Collections in the map document by selection type.
+const DOC_KEY = { place: 'places', label: 'labels', path: 'paths', stamp: 'stamps', pin: 'pins' };
+
+// The document with one item moved by (dx, dy) world units.
+function translateItem(d, type, id, dx, dy) {
+  if (type === 'protagonist') return { ...d, protagonist: d.protagonist ? { ...d.protagonist, x: d.protagonist.x + dx, y: d.protagonist.y + dy } : null };
+  const key = DOC_KEY[type];
+  if (!key) return d;
+  return {
+    ...d,
+    [key]: d[key].map(x => x.id !== id ? x
+      : type === 'path' ? { ...x, points: x.points.map(([px, py]) => [px + dx, py + dy]) }
+      : { ...x, x: x.x + dx, y: x.y + dy }),
+  };
+}
 
 function biomeColor(id) {
   return PAPER.biome?.[id] || '#d8cfa8';
@@ -253,7 +282,7 @@ function GenerateModal({ onGenerate, onClose, firstTime }) {
   return (
     <Modal title={firstTime ? 'Start with some land' : 'Generate land'} onClose={onClose} size="md">
       <p className="text-sm text-muted-foreground">
-        Make a landmass in the middle of the view, then paint over it to make it yours. You can undo it.
+        Make a landmass in the middle of the view, then paint over it to make it yours. Rivers, roads and trails already in that area are replaced. You can undo it.
       </p>
       <Field label="Shape">
         <div className="tabs w-full">
@@ -296,7 +325,11 @@ function ShortcutsModal({ onClose }) {
     ['/', 'Find a place (View mode)'],
     ['Space + drag', 'Pan with any tool'],
     ['Scroll / pinch', 'Zoom'],
-    ['[ and ]', 'Brush smaller / bigger'],
+    ['[ and ]', 'Brush or line smaller / bigger'],
+    ['Shift+click', 'Paint a straight line from the last stroke'],
+    ['Alt+click', 'Pick up the terrain under the cursor'],
+    ['Ctrl+D', 'Duplicate the selection'],
+    ['Arrow keys', 'Nudge the selection (Shift: further)'],
     ['0', 'Fit the map'],
     ['Delete', 'Remove the selection'],
     ['Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'],
@@ -414,6 +447,8 @@ function MapEditor({ map }) {
   const gestureRef = useRef(null);
   const pointersRef = useRef(new Map());
   const cursorRef = useRef(null); // world point under the mouse, for the brush outline
+  const lastPaintRef = useRef(null); // where the last brush stroke ended, for Shift-click lines
+  const shiftRef = useRef(false);
   const previewRef = useRef(null); // path being drawn
   const spaceRef = useRef(false);
   const undoRef = useRef([]);
@@ -524,7 +559,7 @@ function MapEditor({ map }) {
     if (!hidden.grid) drawGrid(ctx, view);
 
     const paths = d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']);
-    drawPaths(ctx, previewRef.current ? [...paths, previewRef.current] : paths, view, { selectedId: sel?.type === 'path' ? sel.id : null });
+    drawPaths(ctx, previewRef.current ? [...paths, previewRef.current] : paths, view, { selectedId: sel?.type === 'path' ? sel.id : null, terrain: terrainRef.current });
     if (!hidden.stamps && stampImagesRef.current) drawStamps(ctx, d.stamps, stampImagesRef.current, view, { selectedId: sel?.type === 'stamp' ? sel.id : null });
     if (!hidden.places) drawPlaces(ctx, d.places, view, { selectedId: sel?.type === 'place' ? sel.id : null });
     if (!hidden.labels) drawLabels(ctx, d.labels, view, { selectedId: sel?.type === 'label' ? sel.id : null });
@@ -536,14 +571,21 @@ function MapEditor({ map }) {
 
     // Brush outline
     const t = toolRef.current;
-    if ((t === 'paint') && cursorRef.current) {
+    const erasing = isErasing(t, optsRef.current);
+    if ((erasing || isPaintingTerrain(t, optsRef.current)) && cursorRef.current) {
       const [cx, cy] = cursorRef.current;
       ctx.save();
       ctx.lineWidth = 1.5 / view.zoom;
       ctx.strokeStyle = 'rgba(30,25,20,0.7)';
       ctx.setLineDash([5 / view.zoom, 4 / view.zoom]);
       ctx.beginPath();
-      ctx.arc(cx, cy, optsRef.current.brush, 0, Math.PI * 2);
+      ctx.arc(cx, cy, erasing ? ERASER_PX / view.zoom : optsRef.current.brush, 0, Math.PI * 2);
+      // Shift held: where a Shift-click would draw its straight line
+      const from = lastPaintRef.current;
+      if (!erasing && shiftRef.current && from && !gestureRef.current) {
+        ctx.moveTo(from[0], from[1]);
+        ctx.lineTo(cx, cy);
+      }
       ctx.stroke();
       ctx.restore();
     }
@@ -650,7 +692,7 @@ function MapEditor({ map }) {
   // and the thumbnail on the Maps page.
   // With decor (PNG export), the rect grows to fit a frame and title band and
   // the frame, compass rose, scale bar and title are drawn over the map.
-  const renderComposite = useCallback((rectIn, scale, { decor = false, title = '' } = {}) => {
+  const renderComposite = useCallback((rectIn, scale, { decor = false, title = '', reuse = false } = {}) => {
     let rect = rectIn;
     let space = null;
     if (decor) {
@@ -658,7 +700,7 @@ function MapEditor({ map }) {
       const m = space.margin / scale;
       rect = { minX: rectIn.minX - m, minY: rectIn.minY - m - space.titleBand / scale, maxX: rectIn.maxX + m, maxY: rectIn.maxY + m };
     }
-    const canvas = rendererRef.current.renderRegion(rect, scale, { symbols: !docRef.current.hidden?.symbols });
+    const canvas = rendererRef.current.renderRegion(rect, scale, { symbols: !docRef.current.hidden?.symbols, reuse });
     const ctx = canvas.getContext('2d');
     const d = docRef.current;
     const hidden = d.hidden || {};
@@ -668,7 +710,7 @@ function MapEditor({ map }) {
     // is viewed shrunk, so size those as if for a screen of proportional size.
     const k = decor ? Math.max(1, Math.max(canvas.width, canvas.height) / 1800) : 1;
     const fview = { ...view, zoom: scale / k };
-    drawPaths(ctx, d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']), fview, {});
+    drawPaths(ctx, d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']), fview, { terrain: terrainRef.current });
     if (!hidden.stamps && stampImagesRef.current) drawStamps(ctx, d.stamps, stampImagesRef.current, fview, {});
     if (!hidden.places) drawPlaces(ctx, d.places, fview, {});
     if (!hidden.labels) drawLabels(ctx, d.labels, fview, {});
@@ -680,15 +722,17 @@ function MapEditor({ map }) {
   }, []);
 
   const saveRef = useRef(null);
-  // The thumbnail is rendered on the main thread, so it's refreshed at most
-  // every 20 s while editing, and always when leaving the map.
+  // The thumbnail is rendered on the main thread (from the bitmaps on screen
+  // where it can), so it's refreshed at most every 20 s while editing, and
+  // always when leaving the map.
   const thumbStaleRef = useRef(false);
   const lastThumbRef = useRef(0);
   const save = useCallback(async ({ final = false } = {}) => {
     if (savingRef.current) { saveTimerRef.current = setTimeout(() => saveRef.current({ final }), 400); return; }
     const dirty = dirtyRef.current;
     if (dirty.doc || dirty.terrain) thumbStaleRef.current = true;
-    const wantThumb = thumbStaleRef.current && (final || Date.now() - lastThumbRef.current > 20000);
+    // Wait for the workers so the thumbnail can reuse their bitmaps.
+    const wantThumb = thumbStaleRef.current && (final || (Date.now() - lastThumbRef.current > 20000 && !rendererRef.current?.busy()));
     if (!dirty.doc && !dirty.terrain && !wantThumb) return;
     savingRef.current = true;
     dirtyRef.current = { doc: false, terrain: false };
@@ -704,7 +748,7 @@ function MapEditor({ map }) {
         const pad = Math.max(b.maxX - b.minX, b.maxY - b.minY) * 0.06 + 40;
         const rect = { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
         const scale = 640 / Math.max(rect.maxX - rect.minX, rect.maxY - rect.minY);
-        const thumb = renderComposite(rect, scale).toDataURL('image/jpeg', 0.85);
+        const thumb = renderComposite(rect, scale, { reuse: true }).toDataURL('image/jpeg', 0.85);
         await api.fsWrite(`${base}.thumb.img`, thumb);
         meta.thumbAt = Date.now();
         thumbStaleRef.current = false;
@@ -851,7 +895,7 @@ function MapEditor({ map }) {
     tilesRef.current = createFeatureTiles((ctx, view) => {
       const d = docRef.current;
       const hidden = d.hidden || {};
-      drawPaths(ctx, d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']), view, {});
+      drawPaths(ctx, d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']), view, { terrain: terrainRef.current });
       if (!hidden.stamps && stampImagesRef.current) drawStamps(ctx, d.stamps, stampImagesRef.current, view, {});
       if (!hidden.places) drawPlaces(ctx, d.places, view, {});
       if (!hidden.labels) drawLabels(ctx, d.labels, view, {});
@@ -940,7 +984,16 @@ function MapEditor({ map }) {
       res = generateLand(terrain, cx, cy, { shape, climate, rivers, seed });
     } finally {
       const edit = terrain.endEdit();
-      const after = res?.paths?.length ? { ...before, paths: [...before.paths, ...res.paths], places: [...before.places, ...(res.places || [])] } : before;
+      // The new land replaces what was there, so rivers, roads and trails
+      // running over it go too (borders and ink are kept).
+      const changed = new Set(edit ? edit.after.keys() : []);
+      const stale = (p) => (p.kind === 'river' || p.kind === 'road' || p.kind === 'trail')
+        && p.points.some(([x, y]) => changed.has(chunkKey(Math.floor(x / CHUNK_SIZE), Math.floor(y / CHUNK_SIZE))));
+      const kept = before.paths.filter(p => !stale(p));
+      const added = res?.paths || [], addedPlaces = res?.places || [];
+      const after = kept.length !== before.paths.length || added.length || addedPlaces.length
+        ? { ...before, paths: [...kept, ...added], places: [...before.places, ...addedPlaces] }
+        : before;
       if (edit || after !== before) {
         pushHistory({ terrain: edit || undefined, doc: after !== before ? { before, after } : undefined });
         if (edit) { rendererRef.current.invalidate(edit.after.keys()); scheduleSave('terrain'); }
@@ -965,6 +1018,46 @@ function MapEditor({ map }) {
     select(null);
     commitDoc(next, d);
   }, [commitDoc, select]);
+
+  // Copies the selected place, label, stamp or path a little down and to the
+  // right, and selects the copy. A copied place isn't linked to an entry.
+  const duplicateSelection = useCallback(() => {
+    const sel = selectionRef.current;
+    const key = sel && { place: 'places', label: 'labels', path: 'paths', stamp: 'stamps' }[sel.type];
+    if (!key) return;
+    const d = docRef.current;
+    const item = d[key].find(x => x.id === sel.id);
+    if (!item) return;
+    const off = 16 / viewRef.current.zoom;
+    const copy = { ...item, id: uuidv4() };
+    if (sel.type === 'place') { delete copy.entityId; delete copy.entityType; }
+    const next = translateItem({ ...d, [key]: [...d[key], copy] }, sel.type, copy.id, off, off);
+    commitDoc(next, d);
+    select({ type: sel.type, id: copy.id });
+  }, [commitDoc, select]);
+
+  // Arrow keys move the selection by a screen pixel (10 with Shift). Holding
+  // a key makes one undo step, recorded when it's released.
+  const nudgeStartRef = useRef(null);
+  const nudgeSelection = useCallback((dx, dy) => {
+    const sel = selectionRef.current;
+    if (!sel) return false;
+    const d = docRef.current;
+    const z = viewRef.current.zoom;
+    const next = translateItem(d, sel.type, sel.id, dx / z, dy / z);
+    if (next === d) return false;
+    if (!nudgeStartRef.current) nudgeStartRef.current = d;
+    setDoc(next);
+    return true;
+  }, [setDoc]);
+  const endNudge = useCallback(() => {
+    const before = nudgeStartRef.current;
+    nudgeStartRef.current = null;
+    if (before && before !== docRef.current) {
+      pushHistory({ doc: { before, after: docRef.current } });
+      scheduleSave('doc');
+    }
+  }, [pushHistory, scheduleSave]);
 
   const updateSelected = useCallback((patch, { history = true } = {}) => {
     const sel = selectionRef.current;
@@ -1086,6 +1179,8 @@ function MapEditor({ map }) {
     if (g.kind === 'paint') {
       const edit = terrainRef.current.endEdit();
       if (edit) { pushHistory({ terrain: edit }); scheduleSave('terrain'); }
+      // the renderer held the art under the brush until now
+      requestDraw();
     } else if (g.kind === 'path') {
       const pts = previewRef.current?.points || [];
       previewRef.current = null;
@@ -1095,14 +1190,19 @@ function MapEditor({ map }) {
         const o = optsRef.current;
         const path = {
           id: uuidv4(),
-          kind: o.pathKind,
+          kind: g.line,
           points: simplifyPoints(pts, 1.2 / viewRef.current.zoom),
-          width: pathPx(o, o.pathKind) / viewRef.current.zoom,
+          width: pathPx(o, g.line) / viewRef.current.zoom,
         };
-        if (o.pathKind === 'ink') path.color = o.inkColor;
+        if (g.line === 'ink') path.color = o.inkColor;
         commitDoc({ ...docRef.current, paths: [...docRef.current.paths, path] });
       }
       requestDraw();
+    } else if (g.kind === 'erase') {
+      if (docRef.current !== g.startDoc) {
+        pushHistory({ doc: { before: g.startDoc, after: docRef.current } });
+        scheduleSave('doc');
+      }
     } else if (g.kind === 'move') {
       if (g.moved && !cancel) {
         pushHistory({ doc: { before: g.startDoc, after: docRef.current } });
@@ -1112,6 +1212,22 @@ function MapEditor({ map }) {
       if (!g.moved && g.type === 'protagonist') select({ type: 'protagonist', id: 'protagonist' });
     }
   }, [pushHistory, scheduleSave, commitDoc, requestDraw, setDoc, select]);
+
+  // Removes every visible line within the eraser's reach of the segment a→b.
+  const eraseAlong = useCallback((a, b) => {
+    const d = docRef.current, view = viewRef.current, hidden = d.hidden || {};
+    let paths = d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']);
+    const gone = new Set();
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * view.zoom / 4));
+    for (let i = 0; i <= n; i++) {
+      const x = a[0] + (b[0] - a[0]) * i / n, y = a[1] + (b[1] - a[1]) * i / n;
+      for (let hit = hitTest({ paths }, x, y, view); hit; hit = hitTest({ paths }, x, y, view)) {
+        gone.add(hit.id);
+        paths = paths.filter(p => p.id !== hit.id);
+      }
+    }
+    if (gone.size) setDoc({ ...d, paths: d.paths.filter(p => !gone.has(p.id)) });
+  }, [setDoc]);
 
   const startMove = useCallback((type, itemId, w, sx, sy) => {
     gestureRef.current = { kind: 'move', type, id: itemId, last: w, startDoc: docRef.current, sx, sy, moved: false };
@@ -1160,8 +1276,14 @@ function MapEditor({ map }) {
     const d = docRef.current;
     const view = viewRef.current;
     // On a phone the options sheet covers the map; tuck it away once drawing starts.
-    if (isPhone && (t === 'paint' || t === 'path')) setOptionsOpen(false);
-    switch (t) {
+    if (isPhone && (t === 'paint' || t === 'border')) setOptionsOpen(false);
+    // Alt-click with a terrain tool picks up the terrain under the cursor.
+    if ((t === 'paint' || t === 'fill') && e.altKey) {
+      setOpts({ biome: terrainRef.current.at(w[0], w[1]), ...(t === 'paint' ? { brushMode: 'terrain' } : {}) });
+      return;
+    }
+    const line = lineKind(t, o);
+    switch (line ? 'line' : isErasing(t, o) ? 'erase' : t) {
       case 'select': {
         const hidden = d.hidden || {};
         const hit = hitTest({
@@ -1181,9 +1303,12 @@ function MapEditor({ map }) {
         break;
       }
       case 'paint': {
+        // Shift-click paints a straight line from where the last stroke ended.
+        const from = e.shiftKey && lastPaintRef.current ? lastPaintRef.current : w;
         terrainRef.current.beginEdit();
-        const dirty = terrainRef.current.paint(w[0], w[1], o.brush, o.biome, { rough: o.rough, mask: o.mask && !isWater(o.biome) ? 'land' : null });
+        const dirty = terrainRef.current.stroke(from[0], from[1], w[0], w[1], o.brush, o.biome, { rough: o.rough, mask: o.mask && !isWater(o.biome) ? 'land' : null });
         rendererRef.current.invalidate(dirty);
+        lastPaintRef.current = w;
         gestureRef.current = { kind: 'paint', last: w };
         requestDraw();
         break;
@@ -1202,13 +1327,18 @@ function MapEditor({ map }) {
         }
         break;
       }
-      case 'path': {
+      case 'erase': {
+        gestureRef.current = { kind: 'erase', last: w, startDoc: d };
+        eraseAlong(w, w);
+        break;
+      }
+      case 'line': {
         previewRef.current = {
-          id: 'preview', kind: o.pathKind, points: [w],
-          width: pathPx(o, o.pathKind) / view.zoom,
-          color: o.pathKind === 'ink' ? o.inkColor : undefined,
+          id: 'preview', kind: line, points: [w],
+          width: pathPx(o, line) / view.zoom,
+          color: line === 'ink' ? o.inkColor : undefined,
         };
-        gestureRef.current = { kind: 'path' };
+        gestureRef.current = { kind: 'path', line };
         break;
       }
       case 'place': {
@@ -1282,7 +1412,13 @@ function MapEditor({ map }) {
       case 'paint': {
         const dirty = terrainRef.current.stroke(g.last[0], g.last[1], w[0], w[1], o.brush, o.biome, { rough: o.rough, mask: o.mask && !isWater(o.biome) ? 'land' : null });
         g.last = w;
+        lastPaintRef.current = w;
         if (dirty.size) { rendererRef.current.invalidate(dirty); requestDraw(); }
+        break;
+      }
+      case 'erase': {
+        eraseAlong(g.last, w);
+        g.last = w;
         break;
       }
       case 'path': {
@@ -1301,15 +1437,7 @@ function MapEditor({ map }) {
         g.moved = true;
         const dx = w[0] - g.last[0], dy = w[1] - g.last[1];
         g.last = w;
-        const d = docRef.current;
-        let next;
-        if (g.type === 'path') next = { ...d, paths: d.paths.map(p => p.id === g.id ? { ...p, points: p.points.map(([x, y]) => [x + dx, y + dy]) } : p) };
-        else if (g.type === 'protagonist') next = { ...d, protagonist: d.protagonist ? { ...d.protagonist, x: d.protagonist.x + dx, y: d.protagonist.y + dy } : null };
-        else {
-          const key = { place: 'places', label: 'labels', stamp: 'stamps', pin: 'pins' }[g.type];
-          next = { ...d, [key]: d[key].map(x => x.id === g.id ? { ...x, x: x.x + dx, y: x.y + dy } : x) };
-        }
-        setDoc(next);
+        setDoc(translateItem(docRef.current, g.type, g.id, dx, dy));
         break;
       }
       default:
@@ -1379,9 +1507,11 @@ function MapEditor({ map }) {
   // Keyboard
   useEffect(() => {
     const onKey = (e) => {
+      if (e.key === 'Shift') { shiftRef.current = true; if (toolRef.current === 'paint') requestDraw(); }
       if (isTyping(document.activeElement) || document.querySelector('[role="dialog"]')) return;
       const k = e.key.toLowerCase();
-      if ((e.metaKey || e.ctrlKey) && k === 'z' && modeRef.current === 'edit') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+      if ((e.metaKey || e.ctrlKey) && k === 'z' && modeRef.current === 'edit') { e.preventDefault(); endNudge(); if (e.shiftKey) redo(); else undo(); return; }
+      if ((e.metaKey || e.ctrlKey) && k === 'd' && modeRef.current === 'edit') { e.preventDefault(); duplicateSelection(); return; }
       if ((e.metaKey || e.ctrlKey) && k === 'y') { e.preventDefault(); redo(); return; }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (k === 'e') { setMode(modeRef.current === 'view' ? 'edit' : 'view'); return; }
@@ -1397,18 +1527,33 @@ function MapEditor({ map }) {
       if (k === ' ') { spaceRef.current = true; e.preventDefault(); return; }
       if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSelection(); return; }
       if (k === 'escape') { select(null); if (toolRef.current !== 'select') setTool('select'); return; }
-      if (k === '[') { setOpts({ brush: Math.max(BRUSH_MIN, Math.round(optsRef.current.brush / 1.25)) }); return; }
-      if (k === ']') { setOpts({ brush: Math.min(BRUSH_MAX, Math.round(optsRef.current.brush * 1.25)) }); return; }
+      const arrow = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[k];
+      if (arrow) {
+        const step = e.shiftKey ? 10 : 1;
+        if (nudgeSelection(arrow[0] * step, arrow[1] * step)) e.preventDefault();
+        return;
+      }
+      if (k === '[' || k === ']') {
+        const o = optsRef.current, f = k === ']' ? 1.25 : 1 / 1.25;
+        const line = lineKind(toolRef.current, o);
+        if (line) setOpts({ pathPx: { ...o.pathPx, [line]: Math.min(24, Math.max(1, Math.round(pathPx(o, line) * f * 2) / 2)) } });
+        else setOpts({ brush: Math.min(BRUSH_MAX, Math.max(BRUSH_MIN, Math.round(o.brush * f))) });
+        return;
+      }
       if (k === '0') { fitMap(); return; }
       if (k === '=' || k === '+') { zoomBy(1.25); return; }
       if (k === '-') { zoomBy(0.8); return; }
       if (TOOL_BY_KEY[k]) setTool(TOOL_BY_KEY[k]);
     };
-    const onKeyUp = (e) => { if (e.key === ' ') spaceRef.current = false; };
+    const onKeyUp = (e) => {
+      if (e.key === ' ') spaceRef.current = false;
+      if (e.key === 'Shift') { shiftRef.current = false; if (toolRef.current === 'paint') requestDraw(); }
+      if (e.key.startsWith('Arrow')) endNudge();
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', onKeyUp);
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); };
-  }, [undo, redo, deleteSelection, select, setTool, setOpts, fitMap, zoomBy, setMode, showCard, setMeasuring]);
+  }, [undo, redo, deleteSelection, duplicateSelection, nudgeSelection, endNudge, select, setTool, setOpts, fitMap, zoomBy, setMode, showCard, setMeasuring, requestDraw]);
 
   // ── Pins (DOM, so they can link to entities) ────────────────────────────────
 
@@ -1500,9 +1645,10 @@ function MapEditor({ map }) {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   const toolDef = TOOLS.find(t => t.id === tool);
-  const cursor = measuring ? 'crosshair' : mode === 'view' || tool === 'hand' ? 'grab' : tool === 'select' ? 'default' : tool === 'paint' ? 'none' : 'crosshair';
+  const cursor = measuring ? 'crosshair' : mode === 'view' || tool === 'hand' ? 'grab' : tool === 'select' ? 'default' : isPaintingTerrain(tool, opts) || isErasing(tool, opts) ? 'none' : 'crosshair';
   const saveLabel = { saved: 'Saved', saving: 'Saving…', unsaved: 'Unsaved', error: 'Not saved' }[saveState];
-  const hasOptions = ['paint', 'fill', 'path', 'place', 'label', 'stamp', 'pin'].includes(tool);
+  const panelLine = lineKind(tool, opts);
+  const hasOptions = ['paint', 'fill', 'border', 'place', 'label', 'stamp', 'pin'].includes(tool);
 
   const optionsPanel = hasOptions && (
     <Panel
@@ -1510,10 +1656,24 @@ function MapEditor({ map }) {
       onClose={isPhone ? () => setOptionsOpen(false) : undefined}
       className={isPhone ? '' : 'w-64'}
     >
-      {(tool === 'paint' || tool === 'fill') && (
+      {tool === 'paint' && (
+        <div className="mb-3 grid grid-cols-3 gap-1">
+          {['terrain', ...BRUSH_LINES, 'erase'].map(m => (
+            <button key={m} type="button" onClick={() => setOpts({ brushMode: m })} className={`btn btn-sm px-0 text-xs ${(opts.brushMode || 'terrain') === m ? 'btn-primary' : 'btn-outline'}`}>
+              {m === 'terrain' ? 'Terrain' : m === 'erase' ? 'Erase' : PATH_BY_KIND[m].label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tool === 'paint' && isErasing(tool, opts) && (
+        <p className="text-xs leading-relaxed text-muted-foreground">Drag over rivers, roads, trails, borders or ink lines to remove them. You can also pick a line with Select and press Delete.</p>
+      )}
+
+      {(tool === 'fill' || isPaintingTerrain(tool, opts)) && (
         <>
           <div className="grid grid-cols-4 gap-1.5">
-            {BIOMES.map(b => (
+            {PALETTE.map(b => (
               <button
                 key={b.id}
                 type="button"
@@ -1540,31 +1700,26 @@ function MapEditor({ map }) {
               <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                 {opts.biome === BIOME.CITY || opts.biome === BIOME.TOWN
                   ? <>Paint the city's footprint; cities get streets and a wall. Name it with the Places tool set to "Name only".</>
-                  : <>Paint Grassland to make land, Ocean to erase it. <kbd className="kbd">[</kbd> <kbd className="kbd">]</kbd> change the size.</>}
+                  : <>Paint Grassland to make land, Ocean to erase it. <kbd className="kbd">[</kbd> <kbd className="kbd">]</kbd> change the size, Shift-click paints a straight line and Alt-click picks up a terrain.</>}
               </p>
             </>
           )}
           {tool === 'fill' && (
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Click an area to fill everything connected to it with the chosen terrain.</p>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Click an area to fill everything connected to it with the chosen terrain. Alt-click picks up a terrain.</p>
           )}
         </>
       )}
 
-      {tool === 'path' && (
+      {panelLine && (
         <>
-          <div className="flex flex-wrap gap-1">
-            {PATH_KINDS.map(k => (
-              <button key={k.kind} type="button" onClick={() => setOpts({ pathKind: k.kind })} className={`btn btn-sm ${opts.pathKind === k.kind ? 'btn-primary' : 'btn-outline'}`}>{k.label}</button>
-            ))}
-          </div>
-          <Field label="Width on screen" value={`${pathPx(opts, opts.pathKind)} px`}>
+          <Field label="Width on screen" value={`${pathPx(opts, panelLine)} px`}>
             <Slider
-              value={pathPx(opts, opts.pathKind)}
+              value={pathPx(opts, panelLine)}
               min={1} max={24} step={0.5}
-              onChange={v => setOpts({ pathPx: { ...opts.pathPx, [opts.pathKind]: v } })}
+              onChange={v => setOpts({ pathPx: { ...opts.pathPx, [panelLine]: v } })}
             />
           </Field>
-          {opts.pathKind === 'ink' && (
+          {panelLine === 'ink' && (
             <Field label="Colour">
               <div className="flex gap-1.5">
                 {INK_COLORS.map(c => (
@@ -1573,7 +1728,12 @@ function MapEditor({ map }) {
               </div>
             </Field>
           )}
-          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Drag to draw. Rivers widen toward the end you finish at, so start at the source.</p>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            {{
+              river: 'Drag to draw a river. It widens toward the end you finish at, so start at the source. Its banks stop where it meets a lake or the sea.',
+              border: 'Drag to draw a realm border. The tint goes on the left side of the direction you draw.',
+            }[panelLine] || 'Drag to draw.'} <kbd className="kbd">[</kbd> <kbd className="kbd">]</kbd> change the width.
+          </p>
         </>
       )}
 

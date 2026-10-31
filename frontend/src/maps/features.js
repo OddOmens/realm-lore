@@ -4,14 +4,15 @@
 // space (see view.js); sizes that should stay readable on screen are clamped
 // in screen pixels and divided by view.zoom.
 
+import { CELL, isWater } from './terrain';
+
 export const INK = '#4a3b2a';
 export const PAPER = '#f1e7cc';      // halo behind text, fill inside glyphs
 const PAPER_SHADE = '#d8c69c';       // shaded faces of glyphs
 const ROOF = '#a14f35';
 const ROOF_SHADE = '#7e3b27';
 const BANNER = '#a8332b';
-const WATER = '#93b6bc';             // river water: a touch deeper than the sea
-const WATER_LIGHT = '#b8d1d0';
+const WATER = '#abc8c6';             // river water: the lake colour (terrainCore PAPER.lake)
 const WATER_INK = '#47667a';
 const SHADOW = 'rgba(58, 44, 28, 0.18)';
 const BRAND = '#3b5bdb';
@@ -179,7 +180,7 @@ const ribbonCache = new WeakMap(); // points array → { key, path }
 function riverRibbon(points, w0, w1) {
   const key = `${w0.toFixed(3)}|${w1.toFixed(3)}`;
   const hit = ribbonCache.get(points);
-  if (hit && hit.key === key) return hit.path;
+  if (hit && hit.key === key) return hit.rib;
   const d = densePoints(points);
   if (d.length < 2) return null;
   const left = [], right = [];
@@ -207,7 +208,46 @@ function riverRibbon(points, w0, w1) {
     Math.atan2(right[right.length - 1][1] - e[1], right[right.length - 1][0] - e[0]), true);
   for (let i = right.length - 1; i >= 0; i--) p.lineTo(right[i][0], right[i][1]);
   p.closePath();
-  ribbonCache.set(points, { key, path: p });
+  const rib = { path: p, left, right };
+  ribbonCache.set(points, { key, rib });
+  return rib;
+}
+
+// How watery the terrain is at a world point, 0..1, blended between cell
+// centres so it crosses 0.5 about where the drawn shore runs.
+function waterAt(terrain, x, y) {
+  const gx = x / CELL - 0.5, gy = y / CELL - 0.5;
+  const i = Math.floor(gx), j = Math.floor(gy), fx = gx - i, fy = gy - j;
+  const w = (a, b) => (isWater(terrain.cell(a, b)) ? 1 : 0);
+  return (w(i, j) * (1 - fx) + w(i + 1, j) * fx) * (1 - fy) + (w(i, j + 1) * (1 - fx) + w(i + 1, j + 1) * fx) * fy;
+}
+
+// The river's two banks as open lines, broken wherever they run into a lake
+// or the sea so the river flows into it without an inked mouth.
+const bankCache = new WeakMap(); // ribbon → { rev, path }
+function riverBanks(rib, terrain) {
+  const rev = terrain ? terrain.revision : -1;
+  const hit = bankCache.get(rib);
+  if (hit && hit.rev === rev) return hit.path;
+  const p = new Path2D();
+  for (const side of [rib.left, rib.right]) {
+    let open = false, prev = null, pw = 0;
+    for (const pt of side) {
+      const w = terrain ? waterAt(terrain, pt[0], pt[1]) : 0;
+      if (prev && (w < 0.5) !== (pw < 0.5)) {
+        // cut the line where it crosses the shore
+        const t = (0.5 - pw) / (w - pw);
+        const x = prev[0] + (pt[0] - prev[0]) * t, y = prev[1] + (pt[1] - prev[1]) * t;
+        if (open) p.lineTo(x, y); else p.moveTo(x, y);
+        open = !open;
+      }
+      if (w < 0.5) {
+        if (open) p.lineTo(pt[0], pt[1]); else { p.moveTo(pt[0], pt[1]); open = true; }
+      }
+      prev = pt; pw = w;
+    }
+  }
+  bankCache.set(rib, { rev, path: p });
   return p;
 }
 
@@ -249,33 +289,6 @@ function drawPath(ctx, path, zoom, selected) {
   }
 
   switch (path.kind) {
-    case 'river': {
-      // Source starts as a hairline and the mouth reaches the river's width,
-      // never thinner on screen than ~0.8 px / ~1.8 px so it reads at any zoom.
-      const w1 = Math.max(width, 1.8 * px), w0 = Math.max(width * 0.22, 0.8 * px);
-      const ribbon = riverRibbon(pts, w0, w1);
-      if (!ribbon) break;
-      if (width * zoom < 3) {
-        // Far out: a solid tapered ink-blue line.
-        ctx.fillStyle = WATER_INK;
-        ctx.fill(ribbon);
-        break;
-      }
-      ctx.fillStyle = path.color || WATER;
-      ctx.fill(ribbon);
-      // A paler current down the middle, then crisp inked banks.
-      if (width * zoom > 7) {
-        ctx.strokeStyle = WATER_LIGHT;
-        ctx.globalAlpha = 0.55;
-        ctx.lineWidth = width * 0.18;
-        ctx.stroke(curve);
-        ctx.globalAlpha = 1;
-      }
-      ctx.strokeStyle = WATER_INK;
-      ctx.lineWidth = clamp(width * 0.1, 0.9 * px, 1.8 * px);
-      ctx.stroke(ribbon);
-      break;
-    }
     case 'road': {
       // A pale bed under a dashed ink line: the classic atlas road.
       const w = Math.max(width * 0.42, 1.3 * px);
@@ -329,17 +342,70 @@ function drawPath(ctx, path, zoom, selected) {
   ctx.lineCap = 'round';
 }
 
-/** Draws paths in atlas order: borders, rivers, roads, trails, ink. */
-export function drawPaths(ctx, paths, view, { selectedId, kinds } = {}) {
+// Rivers are drawn together in three passes (a darker land rim, inked banks,
+// then the water) so where rivers meet, the water covers the banks between them.
+function drawRivers(ctx, rivers, zoom, selectedId, terrain) {
+  const px = 1 / zoom;
+  const items = [];
+  for (const path of rivers) {
+    const width = path.width || PATH_BY_KIND.river.defaultWidth;
+    // Source starts as a hairline and the mouth reaches the river's width,
+    // never thinner on screen than ~1 px / ~2.6 px so water shows between the
+    // banks at any zoom.
+    const rib = riverRibbon(path.points, Math.max(width * 0.22, 1 * px), Math.max(width, 2.6 * px));
+    if (!rib) continue;
+    items.push({ path, width, rib, banks: riverBanks(rib, terrain) });
+  }
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([]);
+  for (const it of items) {
+    if (it.path.id !== selectedId) continue;
+    ctx.strokeStyle = 'rgba(59, 91, 219, 0.28)';
+    ctx.lineWidth = Math.max(it.width + 10 * px, 10 * px);
+    ctx.stroke(smoothPath(it.path.points));
+  }
+  ctx.strokeStyle = INK;
+  for (const it of items) {
+    const rim = clamp(it.width * 0.5, 2 * px, 8 * px);
+    ctx.globalAlpha = 0.05;
+    ctx.lineWidth = rim * 2;
+    ctx.stroke(it.banks);
+    ctx.lineWidth = rim;
+    ctx.stroke(it.banks);
+  }
+  // Half of each bank line is under the water, so it is drawn twice as wide.
+  ctx.globalAlpha = 0.9;
+  for (const it of items) {
+    ctx.lineWidth = 2 * clamp(it.width * 0.09, 0.55 * px, 1.6 * px);
+    ctx.stroke(it.banks);
+  }
+  ctx.globalAlpha = 1;
+  for (const it of items) {
+    ctx.fillStyle = it.path.color || WATER;
+    ctx.fill(it.rib.path);
+  }
+}
+
+/**
+ * Draws paths in atlas order: borders, rivers, roads, trails, ink. With a
+ * terrain, river banks stop where the river runs into a lake or the sea.
+ */
+export function drawPaths(ctx, paths, view, { selectedId, kinds, terrain } = {}) {
   if (!paths?.length) return;
   const allow = kinds ? new Set(kinds) : null;
   const list = paths
     .filter(p => p.points?.length && (!allow || allow.has(p.kind)))
+    .filter(p => visible(cachedBounds(p.points), view, (p.width || 8) * 4))
     .sort((a, b) => (PATH_ORDER[a.kind] ?? 9) - (PATH_ORDER[b.kind] ?? 9));
   ctx.save();
+  let riversDone = false;
   for (const p of list) {
-    const pad = (p.width || 8) * 4;
-    if (!visible(cachedBounds(p.points), view, pad)) continue;
+    if (p.kind === 'river') {
+      if (!riversDone) drawRivers(ctx, list.filter(r => r.kind === 'river'), view.zoom, selectedId, terrain);
+      riversDone = true;
+      continue;
+    }
     drawPath(ctx, p, view.zoom, p.id === selectedId);
   }
   ctx.restore();
