@@ -40,7 +40,7 @@ function highlight(text, query) {
   const parts = text.split(re);
   return parts.map((p, i) =>
     p.toLowerCase() === query.toLowerCase()
-      ? <mark key={i} className="bg-primary/30 text-foreground rounded-sm px-0.5">{p}</mark>
+      ? <mark key={i} className="bg-brand/20 text-foreground rounded-sm px-0.5">{p}</mark>
       : p
   );
 }
@@ -137,13 +137,13 @@ export default function GlobalSearch({ onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center sm:pt-[12vh] bg-black/70 backdrop-blur-sm animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-start justify-center sm:pt-[14vh] bg-black/50 animate-backdrop-in"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Search" className="w-full h-full sm:h-auto sm:max-w-2xl sm:mx-4 bg-card sm:border border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:max-h-[70vh] pt-[env(safe-area-inset-top)] sm:pt-0">
+      <div role="dialog" aria-modal="true" aria-label="Search" className="w-full h-full sm:h-auto sm:max-w-xl sm:mx-4 bg-popover text-popover-foreground sm:ring-1 sm:ring-foreground/10 sm:rounded-xl shadow-lg overflow-hidden flex flex-col sm:max-h-[65vh] pt-[env(safe-area-inset-top)] sm:pt-0 animate-menu">
         {/* Search bar */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <Search size={17} className="text-muted-foreground shrink-0" />
+        <div className="flex items-center gap-2.5 px-3.5 h-12 border-b border-border">
+          <Search size={16} className="text-muted-foreground shrink-0" />
           <input
             ref={inputRef}
             value={query}
@@ -157,34 +157,34 @@ export default function GlobalSearch({ onClose }) {
               <X size={15} />
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border text-xs text-muted-foreground font-mono">
+          <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 rounded border border-border bg-background text-[0.7rem] text-muted-foreground font-sans">
             Esc
           </kbd>
-          <button onClick={onClose} className="sm:hidden shrink-0 text-[17px] text-primary">
+          <button onClick={onClose} className="sm:hidden shrink-0 text-[17px] text-brand">
             Cancel
           </button>
         </div>
 
         {/* Filter pills */}
-        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border overflow-x-auto scrollbar-none">
           {FILTERS.map(f => (
             <button
               key={f.value}
               onClick={() => { setFilter(f.value); setCursor(0); }}
-              className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`shrink-0 h-7 px-2.5 rounded-md text-xs font-medium transition-colors ${
                 filter === f.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               }`}
             >
               {f.label}
             </button>
           ))}
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{results.length} result{results.length !== 1 ? 's' : ''}</span>
+          <span className="ml-auto shrink-0 pr-1.5 text-xs text-muted-foreground">{results.length} result{results.length !== 1 ? 's' : ''}</span>
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="overflow-y-auto flex-1 py-2">
+        <div ref={listRef} className="overflow-y-auto flex-1 p-1">
           {flatWithHeaders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Search size={28} className="text-muted-foreground/40 mb-3" />
@@ -198,11 +198,9 @@ export default function GlobalSearch({ onClose }) {
             flatWithHeaders.map((row) => {
               if (row.kind === 'header') {
                 const meta = TYPE_META[row.type];
-                const Icon = meta.icon;
                 return (
-                  <div key={`h-${row.type}`} className="flex items-center gap-2 px-4 pt-3 pb-1">
-                    <Icon size={12} className={meta.color} />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{meta.label}s</span>
+                  <div key={`h-${row.type}`} className="flex items-center gap-2 px-2 pt-2.5 pb-1">
+                    <span className="text-xs font-medium text-muted-foreground">{meta.label}s</span>
                     <span className="text-xs text-muted-foreground/50">{row.count}</span>
                   </div>
                 );
@@ -216,11 +214,9 @@ export default function GlobalSearch({ onClose }) {
                   key={item.id}
                   onClick={() => go(item)}
                   onMouseEnter={() => setCursor(idx)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors group ${isActive ? 'bg-secondary' : 'hover:bg-secondary/50'}`}
+                  className={`w-full flex items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors group ${isActive ? 'bg-accent' : ''}`}
                 >
-                  <span className={`shrink-0 p-1.5 rounded-md border ${meta.bg} ${meta.border}`}>
-                    <Icon size={13} className={meta.color} />
-                  </span>
+                  <Icon size={16} className="shrink-0 text-muted-foreground" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
                       {highlight(item.name, query)}
@@ -232,7 +228,7 @@ export default function GlobalSearch({ onClose }) {
                     )}
                   </div>
                   {item.type && (
-                    <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                    <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {item.type}
                     </span>
                   )}
@@ -244,10 +240,10 @@ export default function GlobalSearch({ onClose }) {
         </div>
 
         {/* Footer hint */}
-        <div className="hidden sm:flex items-center gap-4 px-4 py-2.5 border-t border-border">
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><kbd className="px-1.5 py-0.5 rounded border border-border font-mono text-xs">↑↓</kbd> navigate</span>
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><kbd className="px-1.5 py-0.5 rounded border border-border font-mono text-xs">↵</kbd> open</span>
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><kbd className="px-1.5 py-0.5 rounded border border-border font-mono text-xs">Esc</kbd> close</span>
+        <div className="hidden sm:flex items-center gap-4 px-3.5 py-2 border-t border-border bg-surface">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><kbd className="px-1 rounded border border-border bg-background font-sans text-[0.7rem]">↑↓</kbd> navigate</span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><kbd className="px-1 rounded border border-border bg-background font-sans text-[0.7rem]">↵</kbd> open</span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><kbd className="px-1 rounded border border-border bg-background font-sans text-[0.7rem]">Esc</kbd> close</span>
         </div>
       </div>
     </div>

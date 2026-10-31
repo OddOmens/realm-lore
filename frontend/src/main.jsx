@@ -4,8 +4,11 @@ import './index.css'
 import SignIn from './components/SignIn.jsx'
 import { initPrefs } from './lib/prefs.js'
 import { keepWindowPinned } from './lib/nativeFeel.js'
+import { applyTheme } from './lib/theme.js'
 
 keepWindowPinned()
+// The sign-in screen follows the device until the saved settings load.
+applyTheme('system')
 
 const root = createRoot(document.getElementById('root'))
 

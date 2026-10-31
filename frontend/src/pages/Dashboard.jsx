@@ -2,19 +2,21 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorldStore } from '../store/useWorldStore';
 import { useShallow } from 'zustand/shallow';
-import { Users, Map, Box, BookOpen, BookMarked, Clock, Link2, FileText, TrendingUp, Globe, Feather, Flame } from 'lucide-react';
+import { Users, Map, Box, BookOpen, BookMarked, Link2, FileText, TrendingUp, Feather, Flame, ChevronRight } from 'lucide-react';
 import { getWritingStreak } from '../lib/writingStreak';
+import WorldAvatar from '../components/WorldAvatar';
+import { displayWorldName } from '../lib/worlds';
 
 function wordGoalKey(world) {
   return world ? `wb_world_word_goal_${world}` : '';
 }
 
 const STAT_META = [
-  { key: 'characters', label: 'Characters', icon: Users,      color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   path: '/characters' },
-  { key: 'locations',  label: 'Locations',  icon: Map,        color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  path: '/locations' },
-  { key: 'things',     label: 'Things',     icon: Box,        color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  path: '/things' },
-  { key: 'lore',       label: 'Lore',       icon: BookMarked, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', path: '/lore' },
-  { key: 'stories',    label: 'Stories',    icon: BookOpen,   color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20', path: '/stories' },
+  { key: 'characters', label: 'Characters', icon: Users,      path: '/characters' },
+  { key: 'locations',  label: 'Locations',  icon: Map,        path: '/locations' },
+  { key: 'things',     label: 'Things',     icon: Box,        path: '/things' },
+  { key: 'lore',       label: 'Lore',       icon: BookMarked, path: '/lore' },
+  { key: 'stories',    label: 'Stories',    icon: BookOpen,   path: '/stories' },
 ];
 
 function wordCount(text) {
@@ -27,28 +29,44 @@ function StatCard({ meta, count, navigate }) {
   return (
     <button
       onClick={() => navigate(meta.path)}
-      className={`rounded-xl border ${meta.border} bg-card text-left p-4 hover:bg-secondary/30 transition-all group flex items-center gap-3`}
+      className="card card-hover p-4 text-left flex flex-col gap-3"
     >
-      <div className={`p-2.5 rounded-lg ${meta.bg} shrink-0`}>
-        <Icon size={18} className={meta.color} />
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-foreground leading-none">{count}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{meta.label}</p>
-      </div>
+      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Icon size={16} className="shrink-0" />
+        {meta.label}
+      </span>
+      <span className="text-2xl font-semibold tracking-[-0.02em] text-foreground leading-none">{count}</span>
     </button>
   );
 }
 
+function MiniStat({ icon: Icon, iconClass = 'text-muted-foreground', value, label, onClick }) {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag
+      onClick={onClick}
+      className={`card px-4 py-3 flex items-center gap-3 text-left ${onClick ? 'card-hover' : ''}`}
+    >
+      <Icon size={16} className={`shrink-0 ${iconClass}`} />
+      <div className="min-w-0">
+        <p className="text-base font-semibold text-foreground leading-tight">{value}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+      </div>
+    </Tag>
+  );
+}
+
+const RECENT_META = {
+  characters: { icon: Users,      label: 'Character' },
+  locations:  { icon: Map,        label: 'Location' },
+  things:     { icon: Box,        label: 'Thing' },
+  lore:       { icon: BookMarked, label: 'Lore' },
+  stories:    { icon: BookOpen,   label: 'Story' },
+};
+
 function RecentItem({ entity, type, navigate }) {
-  const TYPE_META = {
-    characters: { color: 'text-blue-400',   dot: 'bg-blue-400',   label: 'character' },
-    locations:  { color: 'text-green-400',  dot: 'bg-green-400',  label: 'location' },
-    things:     { color: 'text-amber-400',  dot: 'bg-amber-400',  label: 'thing' },
-    lore:       { color: 'text-purple-400', dot: 'bg-purple-400', label: 'lore' },
-    stories:    { color: 'text-violet-400', dot: 'bg-violet-400', label: 'story' },
-  };
-  const meta = TYPE_META[type];
+  const meta = RECENT_META[type];
+  const Icon = meta.icon;
   const path = type === 'stories' ? `/stories/${entity.id}` : `/${type}/${entity.id}`;
   const preview = entity.description || entity.background || entity.atmosphere || entity.content?.slice(0, 80) || '';
   const ago = entity.updatedAt ? (() => {
@@ -66,17 +84,15 @@ function RecentItem({ entity, type, navigate }) {
   return (
     <button
       onClick={() => navigate(path)}
-      className="w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-secondary/40 transition-colors rounded-lg group"
+      className="ios-row w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-accent/60"
     >
-      <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
+      <Icon size={16} className="shrink-0 text-muted-foreground" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{entity.name}</p>
-        {preview && <p className="text-xs text-muted-foreground truncate mt-0.5">{preview}</p>}
+        <p className="font-medium text-foreground truncate">{entity.name || 'Untitled'}</p>
+        {preview && <p className="text-xs text-muted-foreground truncate">{preview}</p>}
       </div>
-      <div className="shrink-0 text-right">
-        <span className="text-xs text-muted-foreground/40">{meta.label}</span>
-        {ago && <p className="text-xs text-muted-foreground/30 mt-0.5">{ago}</p>}
-      </div>
+      <span className="hidden sm:block shrink-0 text-xs text-muted-foreground">{meta.label}</span>
+      <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">{ago}</span>
     </button>
   );
 }
@@ -160,149 +176,131 @@ export default function Dashboard() {
     <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading universe…</div>
   );
 
+  const lastStory = [...stories]
+    .filter(st => st.updatedAt)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* World header */}
-      <header className="flex items-center gap-2.5 px-6 py-5 border-b border-border bg-card mb-6">
-        <Globe size={20} className="text-primary shrink-0" />
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">{activeWorld}</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {totalEntities === 0 ? 'Your universe awaits — start building.' : `${totalEntities} world entr${totalEntities === 1 ? 'y' : 'ies'} · ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${totalWords.toLocaleString()} words`}
-          </p>
-        </div>
-      </header>
-      <div className="px-4 pb-6 md:px-8">
-
-      {/* Entity stat cards */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5 mb-6">
-        {STAT_META.map(meta => (
-          <StatCard key={meta.key} meta={meta} count={counts[meta.key]} navigate={navigate} />
-        ))}
-      </div>
-
-      {/* Secondary stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-7">
-        <div className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-3">
-          <FileText size={16} className="text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <p className="text-lg font-bold text-foreground leading-none">{totalWords.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Total words</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-3">
-          <Link2 size={16} className="text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <p className="text-lg font-bold text-foreground leading-none">{relationships.length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Connections</p>
-          </div>
-        </div>
-        <div
-          onClick={() => navigate('/timeline')}
-          className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-secondary/30 transition-colors"
-        >
-          <TrendingUp size={16} className="text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <p className="text-lg font-bold text-foreground leading-none">{lore.filter(e => e._isTimelineEvent).length || '—'}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Timeline events</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border bg-card px-4 py-3 flex items-start gap-3">
-          <Flame size={16} className="text-orange-400 shrink-0 mt-0.5" />
+      <div className="page">
+        {/* World header */}
+        <header className="flex items-start gap-4">
+          {activeWorld && <WorldAvatar name={activeWorld} className="size-12 rounded-xl text-base" />}
           <div className="min-w-0 flex-1">
-            <p className="text-lg font-bold text-foreground leading-none">{streakDays > 0 ? streakDays : '—'}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {streakDays > 0
-                ? `${streakDays}-day streak`
-                : 'Writing streak · save a chapter today'}
+            <h1 className="page-title truncate">{displayWorldName(activeWorld)}</h1>
+            <p className="page-subtitle">
+              {totalEntities === 0 ? 'Your universe awaits — start building.' : `${totalEntities} world entr${totalEntities === 1 ? 'y' : 'ies'} · ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${totalWords.toLocaleString()} words`}
             </p>
           </div>
+        </header>
+
+        {/* Entity stat cards */}
+        <div className="mt-8 grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          {STAT_META.map(meta => (
+            <StatCard key={meta.key} meta={meta} count={counts[meta.key]} navigate={navigate} />
+          ))}
         </div>
-        <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-2 sm:col-span-2 lg:col-span-1 min-h-[76px]">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Story word goal</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="e.g. 50000"
-            value={wordGoalInput}
-            onChange={e => setWordGoalInput(e.target.value)}
-            onBlur={() => persistWordGoal(wordGoalInput)}
-            className="w-full bg-secondary border border-border rounded-md px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+
+        {/* Secondary stats row */}
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <MiniStat icon={FileText} value={totalWords.toLocaleString()} label="Total words" />
+          <MiniStat icon={Link2} value={relationships.length} label="Connections" />
+          <MiniStat
+            icon={TrendingUp}
+            value={lore.filter(e => e._isTimelineEvent).length || '—'}
+            label="Timeline events"
+            onClick={() => navigate('/timeline')}
           />
-          {goalProgress !== null && (
-            <p className="text-[11px] text-muted-foreground">
-              {goalProgress}% · {totalWords.toLocaleString()} / {wordGoalNum.toLocaleString()} words
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
-        {/* Recently Updated */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock size={14} className="text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">Recently Updated</h3>
+          <MiniStat
+            icon={Flame}
+            iconClass="text-orange-400"
+            value={streakDays > 0 ? streakDays : '—'}
+            label={streakDays > 0 ? `${streakDays}-day streak` : 'Writing streak · save a chapter today'}
+          />
+          <div className="card px-4 py-3 flex flex-col gap-1.5 col-span-2 sm:col-span-2 lg:col-span-1">
+            <label htmlFor="word-goal" className="section-label">Story word goal</label>
+            <input
+              id="word-goal"
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 50000"
+              value={wordGoalInput}
+              onChange={e => setWordGoalInput(e.target.value)}
+              onBlur={() => persistWordGoal(wordGoalInput)}
+              className="input h-7"
+            />
+            {goalProgress !== null && (
+              <>
+                <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${goalProgress}%` }} />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {goalProgress}% · {totalWords.toLocaleString()} / {wordGoalNum.toLocaleString()} words
+                </p>
+              </>
+            )}
           </div>
-          {recentItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground/50 italic px-3 py-4 text-center">Nothing yet — start creating!</p>
-          ) : (
-            <div className="space-y-0.5">
-              {recentItems.map(({ entity, type }) => (
-                <RecentItem key={`${type}-${entity.id}`} entity={entity} type={type} navigate={navigate} />
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Continue Writing + Quick Access */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Quick Access</h3>
+        <div className="mt-10 grid gap-8 grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          {/* Recently updated */}
+          <section className="min-w-0">
+            <h2 className="section-title mb-3">Recently updated</h2>
+            {recentItems.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                Nothing yet — start creating!
+              </div>
+            ) : (
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {recentItems.map(({ entity, type }) => (
+                  <RecentItem key={`${type}-${entity.id}`} entity={entity} type={type} navigate={navigate} />
+                ))}
+              </div>
+            )}
+          </section>
 
-          {/* Continue Writing shortcut */}
-          {(() => {
-            const lastStory = [...stories]
-              .filter(s => s.updatedAt)
-              .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
-            if (!lastStory) return null;
-            return (
+          {/* Continue Writing + Quick Access */}
+          <section className="min-w-0">
+            <h2 className="section-title mb-3">Quick access</h2>
+
+            {lastStory && (
               <button
                 onClick={() => navigate(`/stories/${lastStory.id}`)}
-                className="w-full flex items-center gap-3 mb-3 px-4 py-3 rounded-xl border border-violet-500/30 bg-violet-500/8 hover:bg-violet-500/15 transition-all group text-left"
+                className="card card-hover w-full flex items-center gap-3 mb-3 px-4 py-3 text-left"
               >
-                <div className="p-2 rounded-lg bg-violet-500/20 shrink-0">
-                  <Feather size={15} className="text-violet-400" />
-                </div>
+                <span className="grid size-8 shrink-0 place-items-center rounded-md bg-brand-soft text-brand">
+                  <Feather size={16} />
+                </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-violet-300 uppercase tracking-wider mb-0.5">Continue Writing</p>
+                  <p className="section-label">Continue writing</p>
                   <p className="text-sm font-medium text-foreground truncate">{lastStory.name}</p>
                 </div>
-                <span className="text-xs text-muted-foreground/50 shrink-0">{wordCount(lastStory.content || '').toLocaleString()}w</span>
+                <span className="text-xs text-muted-foreground shrink-0">{wordCount(lastStory.content || '').toLocaleString()}w</span>
+                <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
               </button>
-            );
-          })()}
+            )}
 
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { path: '/characters', icon: Users,      label: 'Characters', color: 'text-blue-400' },
-              { path: '/locations',  icon: Map,        label: 'Locations',  color: 'text-green-400' },
-              { path: '/things',     icon: Box,        label: 'Things',     color: 'text-amber-400' },
-              { path: '/lore',       icon: BookMarked, label: 'Lore',       color: 'text-purple-400' },
-              { path: '/stories',    icon: BookOpen,   label: 'Library',    color: 'text-violet-400' },
-              { path: '/timeline',   icon: TrendingUp, label: 'Timeline',   color: 'text-rose-400' },
-            ].map(({ path, icon: Icon, label, color }) => (
-              <button
-                key={path}
-                onClick={() => navigate(path)}
-                className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-secondary/40 hover:bg-secondary transition-colors border border-border group"
-              >
-                <Icon size={18} className={color} />
-                <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">{label}</span>
-              </button>
-            ))}
-          </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { path: '/characters', icon: Users,      label: 'Characters' },
+                { path: '/locations',  icon: Map,        label: 'Locations' },
+                { path: '/things',     icon: Box,        label: 'Things' },
+                { path: '/lore',       icon: BookMarked, label: 'Lore' },
+                { path: '/stories',    icon: BookOpen,   label: 'Library' },
+                { path: '/timeline',   icon: TrendingUp, label: 'Timeline' },
+              ].map(({ path, icon: Icon, label }) => (
+                <button
+                  key={path}
+                  onClick={() => navigate(path)}
+                  className="card card-hover flex items-center gap-2 px-3 h-10 text-sm font-medium text-foreground"
+                >
+                  <Icon size={16} className="shrink-0 text-muted-foreground" />
+                  <span className="truncate">{label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
-      </div>
       </div>
     </div>
   );

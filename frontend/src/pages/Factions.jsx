@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flag } from 'lucide-react';
+import { Flag, MapPin } from 'lucide-react';
 import { useWorldStore } from '../store/useWorldStore';
 import EntityList from '../components/EntityList';
 import EntityCard from '../components/EntityCard';
@@ -53,11 +53,11 @@ export default function Factions() {
           <EntityCard key={faction.id} entity={faction} entityType="factions" viewMode={viewMode}
             listContent={
               <div className="flex items-center gap-3 pr-8 min-w-0">
-                <span className="font-medium text-sm truncate flex-1">{faction.name}</span>
-                {faction.location && <span className="text-xs text-muted-foreground shrink-0 hidden sm:block truncate max-w-[140px]">📍 {faction.location}</span>}
+                <span className="font-medium text-sm text-foreground truncate flex-1">{faction.name}</span>
+                {faction.location && <span className="text-xs text-muted-foreground shrink-0 hidden sm:flex items-center gap-1 truncate max-w-[140px]"><MapPin size={12} className="shrink-0" />{faction.location}</span>}
                 {faction.factionType && (
-                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TYPE_COLORS[faction.factionType] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                    <span className="opacity-50 mr-1 uppercase">TYPE</span>
+                  <span className={`shrink-0 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${TYPE_COLORS[faction.factionType] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <span className="opacity-60 mr-1">Type</span>
                     {faction.factionType}
                   </span>
                 )}
@@ -65,22 +65,22 @@ export default function Factions() {
             }
           >
             {faction.image && (
-              <div className="w-full h-32 rounded-lg overflow-hidden mb-3 -mt-1">
+              <div className="w-full h-32 rounded-md overflow-hidden mb-3">
                 <img src={assetUrl(faction.image)} alt={faction.name} className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
               </div>
             )}
-            <h4 className="font-semibold text-base leading-snug truncate pr-6 mb-1.5">{faction.name}</h4>
+            <h4 className="font-semibold text-[0.9375rem] leading-snug truncate pr-6 mb-1.5">{faction.name}</h4>
             {faction.factionType && (
               <div className="flex flex-wrap gap-1.5 mb-2">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TYPE_COLORS[faction.factionType] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                  <span className="opacity-50 mr-1 uppercase">TYPE</span>
+                <span className={`text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${TYPE_COLORS[faction.factionType] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                  <span className="opacity-60 mr-1">Type</span>
                   {faction.factionType}
                 </span>
               </div>
             )}
             {faction.location && (
-              <p className="text-xs mb-2 font-medium text-muted-foreground">
-                📍 {faction.location}
+              <p className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
+                <MapPin size={12} className="shrink-0" /> {faction.location}
               </p>
             )}
             <p className="text-sm text-muted-foreground line-clamp-2">

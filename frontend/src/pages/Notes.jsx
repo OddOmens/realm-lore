@@ -27,12 +27,12 @@ export default function Notes() {
         <EntityCard key={entry.id} entity={entry} entityType="notes" viewMode={viewMode}
           listContent={
             <div className="flex items-center gap-3 pr-8 min-w-0">
-              <span className="font-medium text-sm truncate flex-1">{entry.name || 'Untitled Note'}</span>
+              <span className="font-medium text-sm text-foreground truncate flex-1">{entry.name || 'Untitled Note'}</span>
             </div>
           }
         >
           <div className="flex items-start justify-between pr-6 mb-2">
-            <h4 className="font-semibold text-base leading-snug truncate">{entry.name || 'Untitled Note'}</h4>
+            <h4 className="font-semibold text-[0.9375rem] leading-snug truncate">{entry.name || 'Untitled Note'}</h4>
           </div>
           <p className="text-sm text-muted-foreground line-clamp-3">
             <PlainTextPreview text={entry.content || 'No content yet.'} />

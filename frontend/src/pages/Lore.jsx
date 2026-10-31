@@ -14,7 +14,7 @@ const SUBTYPE_COLORS = {
   Faction:        'bg-purple-500/10 text-purple-400 border-purple-500/20',
   Class:          'bg-blue-500/10 text-blue-400 border-blue-500/20',
   Religion:       'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'Magic System': 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  'Magic System': 'bg-brand/10 text-brand border-brand/20',
 };
 
 const STATUS_DOT = {
@@ -57,13 +57,13 @@ export default function Lore() {
           listContent={
             <div className="flex items-center gap-3 pr-8 min-w-0">
               {entry.status && <span className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT[entry.status] || 'bg-muted-foreground'}`} title={entry.status} />}
-              <span className="font-medium text-sm truncate flex-1">{entry.name}</span>
-              {entry.subtype && <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full border ${SUBTYPE_COLORS[entry.subtype] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>{entry.subtype}</span>}
+              <span className="font-medium text-sm text-foreground truncate flex-1">{entry.name}</span>
+              {entry.subtype && <span className={`shrink-0 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${SUBTYPE_COLORS[entry.subtype] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>{entry.subtype}</span>}
             </div>
           }
         >
           {entry.image && (
-            <div className="w-full h-32 rounded-lg overflow-hidden mb-3 -mt-1">
+            <div className="w-full h-32 rounded-md overflow-hidden mb-3">
               <img src={assetUrl(entry.image)} alt={entry.name} className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
             </div>
           )}
@@ -72,10 +72,10 @@ export default function Lore() {
               {entry.status && (
                 <span className={`shrink-0 w-2 h-2 rounded-full mt-0.5 ${STATUS_DOT[entry.status] || 'bg-muted-foreground'}`} title={entry.status} />
               )}
-              <h4 className="font-semibold text-base leading-snug truncate">{entry.name}</h4>
+              <h4 className="font-semibold text-[0.9375rem] leading-snug truncate">{entry.name}</h4>
             </div>
             {entry.subtype && (
-              <span className={`shrink-0 ml-2 text-xs font-medium px-2 py-0.5 rounded-full border ${SUBTYPE_COLORS[entry.subtype] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+              <span className={`shrink-0 ml-2 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${SUBTYPE_COLORS[entry.subtype] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
                 {entry.subtype}
               </span>
             )}

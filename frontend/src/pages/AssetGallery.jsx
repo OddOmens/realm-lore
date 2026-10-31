@@ -53,80 +53,78 @@ export default function AssetGallery() {
 
   return (
     <div className="flex-1 overflow-y-auto w-full">
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md px-4 pt-6 pb-3 md:px-8 md:pt-8 mb-5 border-b border-border/40 flex flex-col gap-5 shadow-sm">
-        <header>
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <ImageIcon size={22} className="text-muted-foreground" />
-              <h2 className="text-3xl font-bold tracking-tight text-foreground">Asset Gallery</h2>
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-3 sm:px-8 md:pt-8 flex flex-col gap-4">
+          <header className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2.5">
+                <ImageIcon size={20} className="shrink-0 text-muted-foreground" />
+                <h1 className="page-title truncate">Asset Gallery</h1>
+              </div>
+              <p className="page-subtitle">Manage uploaded images for characters, locations, and more.</p>
             </div>
-            <p className="text-muted-foreground text-sm mt-0.5">Manage uploaded images for characters, locations, and more.</p>
-          </div>
-        </header>
+            <button onClick={handleImport} className="btn btn-primary">
+              <Upload /> Upload image
+            </button>
+          </header>
 
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-          <div className="relative w-full sm:w-72 shrink-0">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <div className="relative w-full sm:w-64 shrink-0">
+            <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search assets..."
-              className="w-full pl-9 pr-9 py-2 text-sm bg-secondary/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+              placeholder="Search assets…"
+              className="input pl-8 pr-8"
             />
             {query && (
               <button
                 onClick={() => setQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X size={13} />
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
-            <button
-              onClick={handleImport}
-              className="shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Upload size={15} /> Upload Image
-            </button>
-          </div>
         </div>
       </div>
 
-      <div className="px-4 md:px-8 pb-8">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-5 pb-8 sm:px-8">
         {loading ? (
           <p className="text-muted-foreground text-sm">Loading assets...</p>
         ) : assets.length === 0 ? (
-          <div className="text-center py-20">
-            <ImageIcon size={48} className="mx-auto text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">No assets uploaded</h3>
-            <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-6">
+          <div className="flex flex-col items-center justify-center px-6 py-14 text-center rounded-lg border border-dashed border-border">
+            <span className="mb-3 grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+              <ImageIcon size={18} />
+            </span>
+            <h3 className="text-sm font-semibold text-foreground">No assets uploaded</h3>
+            <p className="mt-1 text-muted-foreground text-sm max-w-sm mx-auto mb-4">
               Upload character portraits, location maps, and item art to use across your world.
             </p>
             <button
               onClick={handleImport}
-              className="px-4 py-2 rounded-md bg-secondary text-foreground text-sm font-medium border border-border hover:bg-secondary/80 flex items-center gap-2 mx-auto"
+              className="btn btn-primary"
             >
-              <Upload size={14} /> Upload First Image
+              <Upload /> Upload first image
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {(query.trim() ? assets.filter(a => a.label?.toLowerCase().includes(query.trim().toLowerCase())) : assets).map(asset => (
-              <div key={asset.rel} className="group relative rounded-md border border-border bg-card overflow-hidden flex flex-col">
-                <div className="aspect-square bg-secondary/30 relative flex items-center justify-center p-2">
+              <div key={asset.rel} className="group relative card card-hover overflow-hidden flex flex-col">
+                <div className="aspect-square bg-surface relative flex items-center justify-center p-2">
                   <img src={assetUrl(`asset://${activeWorld}/assets/${asset.rel}`)} alt={asset.label} className="max-w-full max-h-full object-contain" />
                   <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                     <button
                       onClick={() => handleDelete(asset.rel)}
-                      className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-full transition-colors"
+                      className="btn btn-icon btn-sm bg-popover text-destructive ring-1 ring-foreground/10 shadow-sm hover:bg-destructive hover:text-destructive-foreground"
                       title="Delete asset"
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
-                <div className="p-2 border-t border-border">
+                <div className="px-2.5 py-2 border-t border-border">
                   <p className="text-xs font-medium text-foreground truncate" title={asset.label}>{asset.label}</p>
                 </div>
               </div>

@@ -13,11 +13,11 @@ const TYPE_COLORS = {
   Village:    'bg-teal-500/10 text-teal-400 border-teal-500/20',
   Dungeon:    'bg-red-500/10 text-red-400 border-red-500/20',
   Forest:     'bg-green-500/10 text-green-400 border-green-500/20',
-  Mountain:   'bg-stone-500/10 text-stone-400 border-stone-500/20',
+  Mountain:   'bg-slate-500/10 text-slate-400 border-slate-500/20',
   Ocean:      'bg-sky-500/10 text-sky-400 border-sky-500/20',
   Ruin:       'bg-orange-500/10 text-orange-400 border-orange-500/20',
   Kingdom:    'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  Plane:      'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  Plane:      'bg-brand/10 text-brand border-brand/20',
 };
 
 const STATUS_STYLES = {
@@ -62,12 +62,12 @@ export default function Locations() {
           <EntityCard key={loc.id} entity={loc} entityType="locations" viewMode={viewMode}
             listContent={
               <div className="flex items-center gap-3 pr-8 min-w-0">
-                <span className="font-medium text-sm truncate flex-1">{loc.name}</span>
+                <span className="font-medium text-sm text-foreground truncate flex-1">{loc.name}</span>
                 {loc.region && <span className="text-xs text-muted-foreground shrink-0 hidden sm:block truncate max-w-[140px]">{loc.region}</span>}
                 {loc.status && <span className={`shrink-0 text-xs font-medium ${STATUS_STYLES[loc.status] || 'text-zinc-400'}`}>{loc.status}</span>}
                 {loc.type && (
-                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TYPE_COLORS[loc.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                    <span className="opacity-50 mr-1 uppercase">TYPE</span>
+                  <span className={`shrink-0 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${TYPE_COLORS[loc.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <span className="opacity-60 mr-1">Type</span>
                     {loc.type}
                   </span>
                 )}
@@ -75,15 +75,15 @@ export default function Locations() {
             }
           >
             {loc.image && (
-              <div className="w-full h-32 rounded-lg overflow-hidden mb-3 -mt-1">
+              <div className="w-full h-32 rounded-md overflow-hidden mb-3">
                 <img src={assetUrl(loc.image)} alt={loc.name} className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
               </div>
             )}
-            <h4 className="font-semibold text-base leading-snug truncate pr-6 mb-1.5">{loc.name}</h4>
+            <h4 className="font-semibold text-[0.9375rem] leading-snug truncate pr-6 mb-1.5">{loc.name}</h4>
             {loc.type && (
               <div className="flex flex-wrap gap-1.5 mb-2">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TYPE_COLORS[loc.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                  <span className="opacity-50 mr-1 uppercase">TYPE</span>
+                <span className={`text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${TYPE_COLORS[loc.type] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                  <span className="opacity-60 mr-1">Type</span>
                   {loc.type}
                 </span>
               </div>

@@ -41,11 +41,11 @@ export default function CustomEntities() {
   if (!customType) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8 text-center">
-        <h2 className="text-xl font-bold mb-2 text-foreground">Custom Type Not Found</h2>
+        <h2 className="text-lg font-semibold mb-1 text-foreground">Custom type not found</h2>
         <p className="text-sm">This custom entity type may have been deleted.</p>
         <button
           onClick={() => navigate('/')}
-          className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="btn btn-primary mt-4"
         >
           Return to Dashboard
         </button>
@@ -71,7 +71,7 @@ export default function CustomEntities() {
           <EntityCard key={entity.id} entity={entity} entityType="customEntities" viewMode={viewMode}
             listContent={
               <div className="flex items-center gap-3 pr-8 min-w-0">
-                <span className="font-medium text-sm truncate flex-1">{entity.name}</span>
+                <span className="font-medium text-sm text-foreground truncate flex-1">{entity.name}</span>
                 {entity.tags && entity.tags.length > 0 && (
                   <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">
                     {entity.tags[0]}
@@ -81,17 +81,17 @@ export default function CustomEntities() {
             }
           >
             {entity.image && (
-              <div className="w-full h-32 rounded-lg overflow-hidden mb-3 -mt-1">
+              <div className="w-full h-32 rounded-md overflow-hidden mb-3">
                 <img src={assetUrl(entity.image)} alt={entity.name} className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
               </div>
             )}
             <div className="flex items-center gap-2 min-w-0 pr-6 mb-1.5">
-              <h4 className="font-semibold text-base leading-snug truncate">{entity.name}</h4>
+              <h4 className="font-semibold text-[0.9375rem] leading-snug truncate">{entity.name}</h4>
             </div>
             {entity.tags && entity.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {entity.tags.map(t => (
-                  <span key={t} className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-zinc-500/10 text-zinc-400 border-zinc-500/20">
+                  <span key={t} className="badge">
                     {t}
                   </span>
                 ))}

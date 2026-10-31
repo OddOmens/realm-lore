@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useWorldStore } from './store/useWorldStore';
 import { useAppSettings, applyAppSettings } from './store/useAppSettings';
-import Sidebar from './components/Sidebar';
+import AppChrome from './components/Sidebar';
 import BottomNav from './components/BottomNav';
 import SaveBanner from './components/SaveBanner';
 import OnboardingModal from './components/OnboardingModal';
@@ -74,49 +74,50 @@ function Shell() {
   }, []);
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
-      <Sidebar />
-      <main ref={pageRef} className="app-safe-area flex-1 flex flex-col overflow-hidden relative bg-background">
-        <div id="app-scroll" ref={scrollRef} className="app-scroll flex-1 flex flex-col overflow-y-auto relative mobile-bottom-pad">
-          <ErrorBoundary>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/characters" element={<Characters />} />
-              <Route path="/characters/:id" element={<EntityWiki />} />
-              <Route path="/locations" element={<Locations />} />
-              <Route path="/locations/:id" element={<EntityWiki />} />
-              <Route path="/things" element={<Things />} />
-              <Route path="/things/:id" element={<EntityWiki />} />
-              <Route path="/lore" element={<Lore />} />
-              <Route path="/lore/:id" element={<EntityWiki />} />
-              <Route path="/notes" element={<Notes />} />
-              <Route path="/notes/:id" element={<EntityWiki />} />
-              <Route path="/factions" element={<Factions />} />
-              <Route path="/factions/:id" element={<EntityWiki />} />
-              <Route path="/creatures" element={<Creatures />} />
-              <Route path="/creatures/:id" element={<EntityWiki />} />
-              <Route path="/races" element={<Races />} />
-              <Route path="/races/:id" element={<EntityWiki />} />
-              <Route path="/stories" element={<Stories />} />
-              <Route path="/stories/:id" element={<StoryEditor />} />
-              <Route path="/books/:bookId" element={<BookDetail />} />
-              <Route path="/timeline" element={<Timeline />} />
-              <Route path="/maps" element={<Maps />} />
-              <Route path="/maps/:id" element={<MapDetail />} />
-              <Route path="/assets" element={<AssetGallery />} />
-              <Route path="/names" element={<NameGenerator />} />
-              <Route path="/custom/:typeId" element={<CustomEntities />} />
-              <Route path="/custom/:typeId/:id" element={<EntityWiki />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/trash" element={<Trash />} />
-              <Route path="/tools/*" element={<DndTools />} />
-              <Route path="/more" element={<More />} />
-            </Routes>
-          </Suspense>
-          </ErrorBoundary>
-        </div>
-      </main>
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
+      <AppChrome>
+        <main ref={pageRef} className="app-safe-area flex-1 flex flex-col overflow-hidden relative bg-background">
+          <div id="app-scroll" ref={scrollRef} className="app-scroll flex-1 flex flex-col overflow-y-auto relative mobile-bottom-pad">
+            <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/characters" element={<Characters />} />
+                <Route path="/characters/:id" element={<EntityWiki />} />
+                <Route path="/locations" element={<Locations />} />
+                <Route path="/locations/:id" element={<EntityWiki />} />
+                <Route path="/things" element={<Things />} />
+                <Route path="/things/:id" element={<EntityWiki />} />
+                <Route path="/lore" element={<Lore />} />
+                <Route path="/lore/:id" element={<EntityWiki />} />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="/notes/:id" element={<EntityWiki />} />
+                <Route path="/factions" element={<Factions />} />
+                <Route path="/factions/:id" element={<EntityWiki />} />
+                <Route path="/creatures" element={<Creatures />} />
+                <Route path="/creatures/:id" element={<EntityWiki />} />
+                <Route path="/races" element={<Races />} />
+                <Route path="/races/:id" element={<EntityWiki />} />
+                <Route path="/stories" element={<Stories />} />
+                <Route path="/stories/:id" element={<StoryEditor />} />
+                <Route path="/books/:bookId" element={<BookDetail />} />
+                <Route path="/timeline" element={<Timeline />} />
+                <Route path="/maps" element={<Maps />} />
+                <Route path="/maps/:id" element={<MapDetail />} />
+                <Route path="/assets" element={<AssetGallery />} />
+                <Route path="/names" element={<NameGenerator />} />
+                <Route path="/custom/:typeId" element={<CustomEntities />} />
+                <Route path="/custom/:typeId/:id" element={<EntityWiki />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/trash" element={<Trash />} />
+                <Route path="/tools/*" element={<DndTools />} />
+                <Route path="/more" element={<More />} />
+              </Routes>
+            </Suspense>
+            </ErrorBoundary>
+          </div>
+        </main>
+      </AppChrome>
       <BottomNav />
       <SaveBanner />
       {showOnboarding && (

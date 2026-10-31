@@ -30,12 +30,12 @@ function EntityTooltip({ entity, entityType, anchorRef }) {
   const preview = entity.appearance || entity.description || entity.background || entity.personality || entity.atmosphere || entity.origin || '';
 
   return (
-    <div ref={ref} style={style} className="z-50 w-72 bg-popover border border-border rounded-xl shadow-2xl p-4 pointer-events-none transition-opacity">
+    <div ref={ref} style={style} className="z-50 w-72 bg-popover text-popover-foreground border border-border rounded-lg shadow-md p-3.5 pointer-events-none transition-opacity">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{entityType.slice(0, -1)}</span>
-          {entity.type && <span className="text-xs px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground">{entity.type}</span>}
+          <span className="text-xs font-medium capitalize text-muted-foreground">{entityType.slice(0, -1)}</span>
+          {entity.type && <span className="badge">{entity.type}</span>}
         </div>
         <span className="text-xs text-muted-foreground flex items-center gap-1 opacity-60"><ExternalLink size={10} /> click</span>
       </div>
@@ -62,7 +62,7 @@ function EntityChip({ entity, entityType, suffix = '' }) {
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           onClick={e => { e.stopPropagation(); navigate(`/${entityType}/${entity.id}`); }}
-          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-sm font-medium transition-all cursor-pointer ${chipClass}`}
+          className={`inline-flex items-center gap-1 px-1.5 py-px rounded-md border text-sm font-medium transition-colors cursor-pointer ${chipClass}`}
         >
           <Icon size={11} />{entity.name}
         </button>
@@ -149,7 +149,7 @@ export default function StoryRenderer({ content, pageMode, pageWidth = 550, page
         </div>
         <div
           className="absolute bottom-6 left-0 right-0 flex items-center justify-between pointer-events-none select-none"
-          style={{ padding: `0 ${padW}px`, color: 'rgba(255,255,255,0.2)', fontSize: '0.65rem', letterSpacing: '0.08em' }}
+          style={{ padding: `0 ${padW}px`, color: 'hsl(var(--muted-foreground) / 0.45)', fontSize: '0.65rem', letterSpacing: '0.08em' }}
         >
           <span />
           <span>{pageIdx + 1} / {totalPages}</span>
@@ -168,7 +168,7 @@ export default function StoryRenderer({ content, pageMode, pageWidth = 550, page
     if (!content?.trim()) {
       return (
         <div className="book-page-dark" style={{ width: pageWidth, minHeight: pageHeight, padding: '72px 60px' }}>
-          <p className="font-story" style={{ fontSize: '15px', lineHeight: '1.625', color: 'rgba(255,255,255,0.2)' }}>
+          <p className="font-story" style={{ fontSize: '15px', lineHeight: '1.625', color: 'hsl(var(--muted-foreground) / 0.6)' }}>
             Nothing written yet. Switch to Edit mode to start your story.
           </p>
         </div>

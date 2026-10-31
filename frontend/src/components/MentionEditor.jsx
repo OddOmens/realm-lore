@@ -189,9 +189,9 @@ export default function MentionEditor({ value, onChange, placeholder, onHeightCh
         <div
           ref={menuRef}
           style={{ ...menuStyle, position: 'fixed' }}
-          className="z-50 w-72 bg-popover border border-border rounded-xl shadow-2xl py-1.5 overflow-hidden"
+          className="z-50 w-72 bg-popover rounded-lg shadow-md ring-1 ring-foreground/10 p-1 overflow-hidden animate-menu"
         >
-          <p className="px-3 pb-1 text-xs text-muted-foreground font-medium">
+          <p className="px-2 py-1.5 text-xs text-muted-foreground font-medium">
             {mention.query ? `Matching "${mention.query}"` : 'All entities'} — Tab or Enter to insert
           </p>
           {mentionSuggestions.map((e, i) => {
@@ -202,11 +202,9 @@ export default function MentionEditor({ value, onChange, placeholder, onHeightCh
                 key={e.id}
                 onMouseDown={(ev) => { ev.preventDefault(); insertMention(e); }}
                 onMouseEnter={() => setMenuCursor(i)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${i === menuCursor ? 'bg-secondary' : 'hover:bg-secondary/50'}`}
+                className={`w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${i === menuCursor ? 'bg-accent' : ''}`}
               >
-                <span className={`shrink-0 p-1.5 rounded-md border ${meta.bg} ${meta.border}`}>
-                  <Icon size={12} className={meta.color} />
-                </span>
+                <Icon size={16} className={`shrink-0 ${meta.color}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{e.name}</p>
                   <p className="text-xs text-muted-foreground truncate">

@@ -13,7 +13,7 @@ function loadState(key, fallback) {
 }
 
 function saveState(key, value) {
-  try { localStorage.setItem(`dndTool_${key}`, JSON.stringify(value)); } catch {}
+  try { localStorage.setItem(`dndTool_${key}`, JSON.stringify(value)); } catch { /* storage full or blocked */ }
 }
 
 const DEFAULT_SPELLS = [
@@ -80,64 +80,65 @@ export default function SpellsList() {
 
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
-      <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Add Spell</h3>
+      <div className="card p-4 flex flex-col gap-3">
+        <h3 className="section-title">Add spell</h3>
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">
             <input
               value={newSpell.name}
               onChange={e => setNewSpell({ ...newSpell, name: e.target.value })}
-              placeholder="Spell Name"
-              className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              placeholder="Spell name"
+              className="input flex-1"
             />
             <input
               value={newSpell.level}
               type="number"
               onChange={e => setNewSpell({ ...newSpell, level: parseInt(e.target.value) || 0 })}
               placeholder="Level"
-              className="w-20 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="input w-20"
             />
             <input
               value={newSpell.school}
               onChange={e => setNewSpell({ ...newSpell, school: e.target.value })}
               placeholder="School"
-              className="w-32 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="input w-32"
             />
           </div>
           <TextareaAutosize
             value={newSpell.description}
             onChange={e => setNewSpell({ ...newSpell, description: e.target.value })}
-            placeholder="Spell Description..."
-            className="w-full h-24 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
+            placeholder="Spell description…"
+            minRows={3}
+            className="input w-full resize-none"
           />
           <button
             onClick={handleAdd}
-            className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-md text-sm font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+            className="btn btn-primary self-start"
           >
-            <Plus size={14} /> Add Spell
+            <Plus /> Add spell
           </button>
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search spells across Local, Realm Lore, and SRD..."
-            className="w-full bg-card border border-border rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="input w-full pl-8"
           />
         </div>
 
         {filteredSpells.map(spell => (
-          <div key={spell.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2 group">
+          <div key={spell.id} className="card p-4 flex flex-col gap-1.5 group">
             <div className="flex justify-between items-start">
               <div>
-                <h4 className="font-semibold text-foreground flex items-center gap-2">
-                  <Wand2 size={14} className={spell.source === 'srd' ? 'text-amber-400' : spell.source === 'realm' ? 'text-green-400' : 'text-violet-400'} /> 
+                <h4 className="font-medium text-sm text-foreground flex items-center gap-2">
+                  <Wand2 size={14} className={spell.source === 'srd' ? 'text-amber-400' : spell.source === 'realm' ? 'text-green-400' : 'text-muted-foreground'} /> 
                   {spell.name}
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground ml-2">
+                  <span className="badge capitalize ml-1">
                     {spell.source}
                   </span>
                 </h4>
@@ -148,19 +149,19 @@ export default function SpellsList() {
                   <>
                     <button
                       onClick={() => populateWorld(spell)}
-                      className="text-xs flex items-center gap-1 text-muted-foreground hover:text-violet-400 transition-colors"
-                      title="Add to World"
+                      className="btn btn-ghost btn-sm"
+                      title="Add to world"
                     >
-                      <ArrowRight size={14} /> To World
+                      <ArrowRight /> To world
                     </button>
-                    <button onClick={() => removeSpell(spell.id)} className="text-muted-foreground hover:text-red-400 transition-colors">
-                      <X size={14} />
+                    <button onClick={() => removeSpell(spell.id)} aria-label="Delete" className="btn btn-ghost btn-icon btn-sm hover:text-destructive">
+                      <X />
                     </button>
                   </>
                 )}
               </div>
             </div>
-            <p className="text-sm text-foreground/80 mt-1 whitespace-pre-wrap">{spell.description}</p>
+            <p className="text-sm leading-relaxed text-foreground/85 mt-1 whitespace-pre-wrap">{spell.description}</p>
           </div>
         ))}
       </div>

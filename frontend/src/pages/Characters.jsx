@@ -58,11 +58,11 @@ export default function Characters() {
             listContent={
               <div className="flex items-center gap-3 pr-8 min-w-0">
                 {char.status && <span className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT[char.status] || 'bg-muted-foreground'}`} title={char.status} />}
-                <span className="font-medium text-sm truncate flex-1">{char.name}</span>
+                <span className="font-medium text-sm text-foreground truncate flex-1">{char.name}</span>
                 {(char.race || char.age) && <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">{[char.race, char.age && `Age ${char.age}`].filter(Boolean).join(' · ')}</span>}
                 {char.role && (
-                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${ROLE_COLORS[char.role] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                    <span className="opacity-50 mr-1 uppercase">ROLE</span>
+                  <span className={`shrink-0 text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${ROLE_COLORS[char.role] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <span className="opacity-60 mr-1">Role</span>
                     {char.role}
                   </span>
                 )}
@@ -70,7 +70,7 @@ export default function Characters() {
             }
           >
             {char.image && (
-              <div className="w-full h-32 rounded-lg overflow-hidden mb-3 -mt-1">
+              <div className="w-full h-32 rounded-md overflow-hidden mb-3">
                 <img src={assetUrl(char.image)} alt={char.name} className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
               </div>
             )}
@@ -78,12 +78,12 @@ export default function Characters() {
               {char.status && (
                 <span className={`shrink-0 w-2 h-2 rounded-full mt-0.5 ${STATUS_DOT[char.status] || 'bg-muted-foreground'}`} title={char.status} />
               )}
-              <h4 className="font-semibold text-base leading-snug truncate">{char.name}</h4>
+              <h4 className="font-semibold text-[0.9375rem] leading-snug truncate">{char.name}</h4>
             </div>
             {char.role && (
               <div className="flex flex-wrap gap-1.5 mb-2">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${ROLE_COLORS[char.role] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
-                  <span className="opacity-50 mr-1 uppercase">ROLE</span>
+                <span className={`text-[0.7rem] font-medium px-1.5 py-px rounded-md border ${ROLE_COLORS[char.role] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                  <span className="opacity-60 mr-1">Role</span>
                   {char.role}
                 </span>
               </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Layers, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 export default function SignIn({ unreachable, onSignedIn }) {
   const [password, setPassword] = useState('');
@@ -27,37 +27,40 @@ export default function SignIn({ unreachable, onSignedIn }) {
   };
 
   return (
-    <div className="dark theme-dark flex h-full w-full items-center justify-center bg-background text-foreground p-4">
-      <form onSubmit={submit} className="w-full max-w-sm flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-3">
-          <Layers size={24} className="text-violet-400" />
-          <h1 className="text-xl font-bold tracking-tight">Realm Lore</h1>
+    <div className="flex h-full w-full items-center justify-center bg-surface text-foreground p-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <img src="/icon-192.png" alt="" aria-hidden className="size-12 rounded-xl" />
+          <h1 className="mt-4 text-xl font-bold tracking-[-0.02em]">Sign in to Realm Lore</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Enter the password set on this server.</p>
         </div>
-        <label className="flex flex-col gap-1.5 text-sm">
-          Password
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            autoFocus
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-          />
-        </label>
-        {error && (
-          <p className="flex items-start gap-2 text-sm text-red-400">
-            <AlertCircle size={14} className="mt-0.5 shrink-0" /> {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={busy || !password}
-          className="h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-        >
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+        <form onSubmit={submit} className="card flex flex-col gap-4 p-6 shadow-sm">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="password" className="text-sm font-medium">Password</label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="input h-9"
+            />
+          </div>
+          {error && (
+            <p className="flex items-start gap-2 text-sm text-destructive">
+              <AlertCircle size={14} className="mt-0.5 shrink-0" /> {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={busy || !password}
+            className="btn btn-primary h-9 w-full"
+          >
+            {busy ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

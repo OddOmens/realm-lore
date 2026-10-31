@@ -32,7 +32,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 z-30 flex items-stretch border-t border-border/70 bg-card/80 backdrop-blur-xl backdrop-saturate-150"
+      className="lg:hidden fixed bottom-0 inset-x-0 z-30 flex items-stretch border-t border-border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       style={{
         paddingBottom: 'env(safe-area-inset-bottom)',
         paddingLeft: 'env(safe-area-inset-left)',
@@ -49,7 +49,7 @@ export default function BottomNav() {
             onClick={onTabClick(path)}
             aria-current={isActive ? 'page' : undefined}
             className={`flex-1 flex flex-col items-center justify-start pt-[7px] gap-[3px] h-[var(--tabbar-h)] text-[10px] font-medium tracking-tight active:!opacity-100 ${
-              isActive ? 'text-primary' : 'text-muted-foreground'
+              isActive ? 'text-brand' : 'text-muted-foreground'
             }`}
           >
             <Icon size={24} strokeWidth={isActive ? 2.25 : 1.75} />

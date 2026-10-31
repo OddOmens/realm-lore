@@ -143,12 +143,12 @@ export function stripBrackets(text) {
 }
 
 export const TYPE_CHIP = {
-  characters: 'bg-blue-500/15 border-blue-500/40 text-blue-300',
-  locations:  'bg-green-500/15 border-green-500/40 text-green-300',
-  things:     'bg-amber-500/15 border-amber-500/40 text-amber-300',
-  lore:       'bg-purple-500/15 border-purple-500/40 text-purple-300',
-  factions:   'bg-indigo-500/15 border-indigo-500/40 text-indigo-300',
-  creatures:  'bg-orange-500/15 border-orange-500/40 text-orange-300',
+  characters: 'bg-blue-500/10 border-blue-500/25 text-blue-300 hover:bg-blue-500/20',
+  locations:  'bg-green-500/10 border-green-500/25 text-green-300 hover:bg-green-500/20',
+  things:     'bg-amber-500/10 border-amber-500/25 text-amber-300 hover:bg-amber-500/20',
+  lore:       'bg-purple-500/10 border-purple-500/25 text-purple-300 hover:bg-purple-500/20',
+  factions:   'bg-indigo-500/10 border-indigo-500/25 text-indigo-300 hover:bg-indigo-500/20',
+  creatures:  'bg-orange-500/10 border-orange-500/25 text-orange-300 hover:bg-orange-500/20',
 };
 
 function escapeHTML(s) {

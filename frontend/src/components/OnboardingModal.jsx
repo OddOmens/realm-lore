@@ -20,32 +20,32 @@ export default function OnboardingModal({ worldsPath, onClose }) {
 
   const steps = [
     {
-      icon: <Layers size={32} className="text-violet-400" />,
+      icon: <Layers size={22} />,
       title: 'Welcome to Realm Lore',
       body: 'A self-hosted worldbuilding tool for writers and game masters. Your data lives on your own server — no third-party cloud, no subscription.',
     },
     {
-      icon: <FileText size={32} className="text-violet-400" />,
+      icon: <FileText size={22} />,
       title: 'Plain Markdown files',
       body: 'Every entry you create is saved as a standard .md file. Open them in Obsidian, VS Code, or any text editor — your world is never locked in.',
     },
     {
-      icon: <FolderOpen size={32} className="text-violet-400" />,
+      icon: <FolderOpen size={22} />,
       title: 'Your worlds, your way',
       body: (
         <div className="flex flex-col gap-4 text-left w-full">
           <p className="text-sm text-muted-foreground leading-relaxed text-center">
-            A default world is ready to go. Or bring an existing one — just upload a folder from your computer with <code className="bg-secondary px-1 rounded text-xs">.md</code> subfolders. No JSON needed.
+            A default world is ready to go. Or bring an existing one — just upload a folder from your computer with <code className="bg-muted px-1 rounded text-xs">.md</code> subfolders. No JSON needed.
           </p>
           <div className="flex flex-col gap-2">
             <button
               onClick={handleImport}
-              className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 transition-colors"
+              className="btn btn-outline h-9 w-full"
             >
-              <Upload size={14} /> Upload existing world folder…
+              <Upload /> Upload existing world folder…
             </button>
             {importStatus && (
-              <p className="text-xs text-red-400 text-center">{importStatus}</p>
+              <p className="text-xs text-destructive text-center">{importStatus}</p>
             )}
             <p className="text-xs text-muted-foreground text-center">
               or just click <strong className="text-foreground">Get started</strong> to begin with a fresh world.
@@ -60,11 +60,12 @@ export default function OnboardingModal({ worldsPath, onClose }) {
   const isLast  = step === steps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-backdrop-in">
-      <div role="dialog" aria-modal="true" className="relative bg-card border border-border rounded-t-[14px] sm:rounded-2xl shadow-2xl w-full sm:max-w-md sm:mx-4 p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:pb-8 flex flex-col gap-6 animate-sheet">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-backdrop-in">
+      <div role="dialog" aria-modal="true" className="relative bg-popover text-popover-foreground sm:ring-1 sm:ring-foreground/10 rounded-t-[14px] sm:rounded-xl shadow-lg w-full sm:max-w-md sm:mx-4 p-7 pb-[calc(1.75rem+env(safe-area-inset-bottom))] sm:pb-7 flex flex-col gap-6 animate-sheet">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+          className="btn btn-ghost btn-icon btn-sm absolute top-3 right-3"
+          aria-label="Close"
         >
           <X size={16} />
         </button>
@@ -75,7 +76,7 @@ export default function OnboardingModal({ worldsPath, onClose }) {
             <div
               key={i}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === step ? 'w-6 bg-violet-500' : 'w-2 bg-border'
+                i === step ? 'w-6 bg-foreground' : 'w-2 bg-border'
               }`}
             />
           ))}
@@ -83,29 +84,29 @@ export default function OnboardingModal({ worldsPath, onClose }) {
 
         {/* Content */}
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+          <div className="grid size-12 place-items-center rounded-xl bg-brand-soft text-brand">
             {current.icon}
           </div>
-          <h2 className="text-xl font-semibold text-foreground">{current.title}</h2>
+          <h2 className="text-lg font-semibold tracking-[-0.01em] text-foreground">{current.title}</h2>
           <div className="text-sm text-muted-foreground leading-relaxed w-full">{current.body}</div>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 mt-2">
+        <div className="flex gap-2">
           {step > 0 && (
             <button
               onClick={() => setStep(s => s - 1)}
-              className="flex-1 text-sm py-2.5 px-4 bg-muted hover:bg-muted/80 text-muted-foreground rounded-xl transition-colors"
+              className="btn btn-outline h-9 flex-1"
             >
               Back
             </button>
           )}
           <button
             onClick={isLast ? onClose : () => setStep(s => s + 1)}
-            className="flex-1 flex items-center justify-center gap-2 text-sm py-2.5 px-4 bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-colors font-medium"
+            className="btn btn-primary h-9 flex-1"
           >
             {isLast ? 'Get started' : (
-              <>Next <ArrowRight size={14} /></>
+              <>Next <ArrowRight /></>
             )}
           </button>
         </div>
