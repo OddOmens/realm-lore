@@ -32,11 +32,11 @@ export const PAPER = {
   // Land fills by biome id (ocean and lake show their water colour).
   biome: [
     '#9ab8b9', // 0 ocean
-    '#ded9a5', // 1 grassland
+    '#b8c389', // 1 grassland: same ground as forest and hills
     '#b8c389', // 2 forest
     '#9fb77a', // 3 jungle
     '#edd498', // 4 desert
-    '#c6cf8e', // 5 hills
+    '#b8c389', // 5 hills
     '#cdbb98', // 6 mountains
     '#f3f1ea', // 7 snow
     '#bcc198', // 8 swamp
@@ -47,6 +47,12 @@ export const PAPER = {
     '#e2d8b2', // 13 town
     '#e4e5df', // 14 snowy mountains
     '#c9c6bd', // 15 ash
+    '#a9b98a', // 16 pine forest
+    '#d9dbcc', // 17 tundra
+    '#e6d494', // 18 savanna
+    '#ab9f95', // 19 volcanic
+    '#c4ba97', // 20 moor
+    '#c6bea4', // 21 deadwood
   ],
   // Fills used inside the ink symbols.
   crown: '#9aae6c',
@@ -64,6 +70,12 @@ export const PAPER = {
   reed: '#6f7f55',
   mesa: '#c98d63',
   mesaShade: '#a96f4c',
+  acacia: '#a3ad66',
+  acaciaShade: '#86904f',
+  volcano: '#8e827a',
+  volcanoShade: '#6e645e',
+  lava: '#d0592b',
+  heather: '#9a6f99',
   ashRock: '#b3afa5',
   ashRockShade: '#8f8b82',
   roof: '#b9886a',
@@ -75,7 +87,7 @@ export const PAPER = {
   wave: '#5d7f84',
 };
 
-const CITY = BIOME.CITY, FARM = BIOME.FARMLAND, MOUNT = BIOME.MOUNTAINS, HILL = BIOME.HILLS, SNOWB = BIOME.SNOW, SNOWPK = BIOME.SNOWPEAKS;
+const CITY = BIOME.CITY, FARM = BIOME.FARMLAND, MOUNT = BIOME.MOUNTAINS, HILL = BIOME.HILLS, SNOWB = BIOME.SNOW, SNOWPK = BIOME.SNOWPEAKS, VOLC = BIOME.VOLCANIC;
 
 // Farm fields: size along and across the furrows (world units) and tints.
 const FIELD_U = 34, FIELD_V = 24;
@@ -220,11 +232,11 @@ function rasterChunk(reader, cx, cy, L) {
         + (valueNoise((gx0 + i) / 41, (gy0 + j) / 41, 913) - 0.5) * 10;
     }
   }
-  if (counts[MOUNT] || counts[HILL] || counts[SNOWB] || counts[SNOWPK]) {
+  if (counts[MOUNT] || counts[HILL] || counts[SNOWB] || counts[SNOWPK] || counts[VOLC]) {
     const rel = new Float32Array(S * S);
     for (let i = 0; i < S * S; i++) {
       const v = g[i];
-      rel[i] = v === MOUNT || v === SNOWPK ? 1 : v === SNOWB ? 0.7 : v === HILL ? 0.45 : 0;
+      rel[i] = v === MOUNT || v === SNOWPK ? 1 : v === VOLC ? 0.8 : v === SNOWB ? 0.7 : v === HILL ? 0.45 : 0;
     }
     const RB = blur(rel, 3, 2);
     for (let j = 1; j < S - 1; j++) {
@@ -740,6 +752,81 @@ function snowSym(ctx, x, y, s, w) {
 }
 
 // Badlands: a flat-topped mesa with banded, shaded sides.
+// A savanna acacia: a forked trunk under a flat, wide crown.
+function acaciaSym(ctx, x, y, s, w, h) {
+  const cx = x + (h - 0.5) * s * 0.12, cy = y - s * 0.52;
+  ctx.lineWidth = w * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x, y - s * 0.26);
+  ctx.lineTo(x - s * 0.16, y - s * 0.46); ctx.moveTo(x, y - s * 0.26); ctx.lineTo(x + s * 0.18, y - s * 0.47);
+  ctx.stroke();
+  const crown = () => { ctx.beginPath(); ctx.ellipse(cx, cy, s * 0.44, s * 0.13, 0, 0, Math.PI * 2); };
+  crown(); ctx.fillStyle = PAPER.acacia; ctx.fill();
+  ctx.save(); crown(); ctx.clip();
+  ctx.beginPath(); ctx.ellipse(cx, cy + s * 0.1, s * 0.46, s * 0.09, 0, 0, Math.PI * 2);
+  ctx.fillStyle = PAPER.acaciaShade; ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = w; crown(); ctx.stroke();
+}
+
+// A volcano: a dark cone with a glowing crater, lava down one flank and smoke.
+function volcanoSym(ctx, x, y, s, w, h) {
+  const top = 0.6 + h * 0.12, rim = 0.12;
+  const body = () => { ctx.beginPath(); ctx.moveTo(x - s * 0.55, y); ctx.lineTo(x - s * rim, y - s * top); ctx.lineTo(x + s * rim, y - s * top); ctx.lineTo(x + s * 0.55, y); };
+  body(); ctx.closePath(); ctx.fillStyle = PAPER.volcano; ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + s * 0.02, y - s * top); ctx.lineTo(x + s * rim, y - s * top); ctx.lineTo(x + s * 0.55, y); ctx.lineTo(x + s * 0.1, y);
+  ctx.closePath(); ctx.fillStyle = PAPER.volcanoShade; ctx.fill();
+  ctx.strokeStyle = PAPER.lava;
+  ctx.lineWidth = w * 1.6;
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.04, y - s * top); ctx.quadraticCurveTo(x - s * 0.14, y - s * top * 0.6, x - s * 0.07, y - s * top * 0.28);
+  ctx.stroke();
+  ctx.strokeStyle = PAPER.ink;
+  ctx.beginPath(); ctx.ellipse(x, y - s * top, s * rim, s * 0.035, 0, 0, Math.PI * 2);
+  ctx.fillStyle = PAPER.lava; ctx.fill();
+  ctx.lineWidth = w * 0.8; ctx.stroke();
+  ctx.lineWidth = w; body(); ctx.stroke();
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = w * 0.7;
+  ctx.beginPath();
+  ctx.arc(x + s * 0.03, y - s * (top + 0.12), s * 0.06, 0, Math.PI * 2);
+  ctx.moveTo(x + s * 0.2, y - s * (top + 0.25));
+  ctx.arc(x + s * 0.11, y - s * (top + 0.25), s * 0.09, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// A tuft of heather on the moor: a few stems tipped with purple.
+function heathSym(ctx, x, y, s, w) {
+  ctx.lineWidth = w * 0.5;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.04, y); ctx.quadraticCurveTo(x - s * 0.1, y - s * 0.14, x - s * 0.17, y - s * 0.25);
+  ctx.moveTo(x, y); ctx.lineTo(x, y - s * 0.3);
+  ctx.moveTo(x + s * 0.04, y); ctx.quadraticCurveTo(x + s * 0.1, y - s * 0.14, x + s * 0.17, y - s * 0.23);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = PAPER.heather;
+  for (const [dx, dy] of [[-0.17, -0.27], [0, -0.33], [0.17, -0.25], [-0.08, -0.19], [0.09, -0.18]]) {
+    ctx.beginPath(); ctx.arc(x + dx * s, y + dy * s, s * 0.05, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// A dead tree: a bare trunk with a few crooked branches.
+function deadTreeSym(ctx, x, y, s, w, h) {
+  const lean = (h - 0.5) * s * 0.1;
+  ctx.lineWidth = w * 1.1;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + lean, y - s * 0.78); ctx.stroke();
+  ctx.lineWidth = w * 0.8;
+  ctx.beginPath();
+  ctx.moveTo(x + lean * 0.45, y - s * 0.35); ctx.lineTo(x - s * 0.2, y - s * 0.56); ctx.lineTo(x - s * 0.28, y - s * 0.7);
+  ctx.moveTo(x - s * 0.2, y - s * 0.56); ctx.lineTo(x - s * 0.12, y - s * 0.72);
+  ctx.moveTo(x + lean * 0.65, y - s * 0.5); ctx.lineTo(x + s * 0.23, y - s * 0.68); ctx.lineTo(x + s * 0.31, y - s * 0.64);
+  ctx.moveTo(x + s * 0.15, y - s * 0.62); ctx.lineTo(x + s * 0.17, y - s * 0.8);
+  ctx.stroke();
+}
+
 // A rocky outcrop on the ash plains: a low jagged crag, shaded on the right.
 function rockSym(ctx, x, y, s, w, h) {
   const peak = 0.42 + h * 0.14;
@@ -858,6 +945,12 @@ const SCATTER = {
   [BIOME.SNOW]:      { step: 3, p: 0.35, size: [14, 18], draw: 'snow' },
   [BIOME.BADLANDS]:  { step: 3, p: 0.5,  size: [17, 22], draw: 'mesa' },
   [BIOME.ASH]:       { step: 3, p: 0.32, size: [13, 18], draw: 'rock' },
+  [BIOME.PINE]:      { step: 1, p: 0.75, size: [12, 16], draw: 'pine', jitter: 0.45 },
+  [BIOME.TUNDRA]:    { step: 2, p: 0.4,  size: [8, 10],  draw: 'grass' },
+  [BIOME.SAVANNA]:   { step: 2, p: 0.5,  size: [15, 19], draw: 'acacia', jitter: 0.45 },
+  [BIOME.VOLCANIC]:  { step: 4, p: 0.45, size: [32, 40], draw: 'volcano', rowShift: true, scale: 3.5 },
+  [BIOME.MOOR]:      { step: 1, p: 0.45, size: [10, 13], draw: 'heath', jitter: 0.45 },
+  [BIOME.DEADWOOD]:  { step: 1, p: 0.45, size: [12, 16], draw: 'deadtree', jitter: 0.45 },
   [BIOME.GRASS]:     { step: 3, p: 0.12, size: [8, 10],  draw: 'grass' },
   // Cities pack roofs on a loose grid, leaving every fifth row and column as a street.
   [BIOME.CITY]:      { step: 1, p: 0.95, size: [9, 11], draw: 'house', streets: 5, jitter: 0.12, scale: 3 },
@@ -865,6 +958,10 @@ const SCATTER = {
 };
 const SYMBOL_SCALE = 5;
 const SCATTER_LIST = Object.entries(SCATTER).map(([b, sc]) => ({ biome: Number(b), ...sc }));
+// Second layers: stones on the tundra, grass on the savanna, rubble on lava fields.
+SCATTER_LIST.push({ biome: BIOME.TUNDRA, step: 3, p: 0.3, size: [9, 12], draw: 'rock' });
+SCATTER_LIST.push({ biome: BIOME.SAVANNA, step: 2, p: 0.22, size: [8, 10], draw: 'grass' });
+SCATTER_LIST.push({ biome: BIOME.VOLCANIC, step: 2, p: 0.18, size: [10, 13], draw: 'rock' });
 // The odd tower over a city's roofs.
 SCATTER_LIST.push({ biome: BIOME.CITY, step: 4, p: 0.2, size: [15, 18], draw: 'tower', streets: 0, scale: 3 });
 
@@ -894,6 +991,11 @@ function drawGlyph(ctx, kind, s, w, h) {
     case 'snow': snowSym(ctx, 0, 0, s, w); break;
     case 'mesa': mesaSym(ctx, 0, 0, s, w, h); break;
     case 'rock': rockSym(ctx, 0, 0, s, w, h); break;
+    case 'pine': treeSym(ctx, 0, 0, s, w, 0.8 + h * 0.2); break;
+    case 'acacia': acaciaSym(ctx, 0, 0, s, w, h); break;
+    case 'volcano': volcanoSym(ctx, 0, 0, s, w, h); break;
+    case 'heath': heathSym(ctx, 0, 0, s, w); break;
+    case 'deadtree': deadTreeSym(ctx, 0, 0, s, w, h); break;
     case 'grass': grassSym(ctx, 0, 0, s, w); break;
     case 'house': houseSym(ctx, 0, 0, s, w, h); break;
     case 'tower': towerSym(ctx, 0, 0, s, w); break;

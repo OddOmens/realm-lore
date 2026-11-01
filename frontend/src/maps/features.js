@@ -43,6 +43,14 @@ export const PLACE_KINDS = [
   { kind: 'dungeon',  label: 'Dungeon',  size: 32, labelSize: 13, minPx: 21, maxPx: 40, minZoom: 0.06 },
   { kind: 'camp',     label: 'Camp',     size: 28, labelSize: 12, minPx: 18, maxPx: 36, minZoom: 0.08 },
   { kind: 'landmark', label: 'Landmark', size: 32, labelSize: 13, minPx: 20, maxPx: 40, minZoom: 0.06 },
+  { kind: 'inn',        label: 'Inn',         size: 28, labelSize: 12, minPx: 18, maxPx: 36, minZoom: 0.08 },
+  { kind: 'farm',       label: 'Farm',        size: 28, labelSize: 12, minPx: 18, maxPx: 36, minZoom: 0.08 },
+  { kind: 'mine',       label: 'Mine',        size: 30, labelSize: 12, minPx: 19, maxPx: 38, minZoom: 0.07 },
+  { kind: 'cave',       label: 'Cave',        size: 28, labelSize: 12, minPx: 18, maxPx: 36, minZoom: 0.07 },
+  { kind: 'shrine',     label: 'Shrine',      size: 26, labelSize: 12, minPx: 17, maxPx: 34, minZoom: 0.07 },
+  { kind: 'lighthouse', label: 'Lighthouse',  size: 32, labelSize: 12, minPx: 20, maxPx: 40, minZoom: 0.06 },
+  { kind: 'bridge',     label: 'Bridge',      size: 30, labelSize: 12, minPx: 19, maxPx: 38, minZoom: 0.07 },
+  { kind: 'battle',     label: 'Battlefield', size: 30, labelSize: 12, minPx: 19, maxPx: 38, minZoom: 0.06 },
 ];
 export const PLACE_BY_KIND = Object.fromEntries(PLACE_KINDS.map(k => [k.kind, k]));
 
@@ -91,6 +99,67 @@ export function simplifyPoints(points, tolerance) {
     if (maxD > t2 && idx > 0) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
   }
   return points.filter((_, i) => keep[i]);
+}
+
+// Cumulative length along a polyline, per point.
+function arcLengths(points) {
+  const acc = [0];
+  for (let i = 1; i < points.length; i++) acc.push(acc[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
+  return acc;
+}
+
+// The point `s` along a polyline.
+function pointAlong(points, acc, s) {
+  let i = 1;
+  while (i < points.length - 1 && acc[i] < s) i++;
+  const t = (s - acc[i - 1]) / ((acc[i] - acc[i - 1]) || 1);
+  return [points[i - 1][0] + (points[i][0] - points[i - 1][0]) * t, points[i - 1][1] + (points[i][1] - points[i - 1][1]) * t];
+}
+
+/**
+ * A line's reshaping handles at this zoom, as { x, y, s } with s the distance
+ * along the line: its ends, its sharper bends, and enough in between that no
+ * stretch is longer than ~90 px on screen (a straight line gets some too).
+ */
+export function pathHandles(points, zoom) {
+  if (!points?.length) return [];
+  const acc = arcLengths(points);
+  const at = new Map(points.map((p, i) => [p, i]));
+  const keys = points.length === 1 ? [0] : simplifyPoints(points, 10 / zoom).map(p => at.get(p));
+  const gap = 90 / zoom;
+  const out = [];
+  keys.forEach((i, n) => {
+    if (n > 0) {
+      const a = acc[keys[n - 1]], b = acc[i], extra = Math.floor((b - a) / gap);
+      for (let e = 1; e <= extra; e++) {
+        const s = a + (b - a) * e / (extra + 1);
+        const [x, y] = pointAlong(points, acc, s);
+        out.push({ x, y, s });
+      }
+    }
+    out.push({ x: points[i][0], y: points[i][1], s: acc[i] });
+  });
+  return out;
+}
+
+/**
+ * The line with handle `k` moved by (dx, dy). The stretch out to the
+ * neighbouring handles is resampled and bends smoothly with it; the rest of
+ * the line keeps its points.
+ */
+export function bendPoints(points, handles, k, dx, dy) {
+  const acc = arcLengths(points);
+  const mid = handles[k].s, lo = handles[Math.max(0, k - 1)].s, hi = handles[Math.min(handles.length - 1, k + 1)].s;
+  const ease = (t) => 0.5 - 0.5 * Math.cos(Math.PI * t);
+  const N = 12;
+  const bent = [];
+  const add = (s, t) => { const [x, y] = pointAlong(points, acc, s); bent.push([x + dx * t, y + dy * t]); };
+  if (mid > lo) for (let j = 0; j < N; j++) add(lo + (mid - lo) * j / N, ease(j / N));
+  add(mid, 1);
+  if (hi > mid) for (let j = N - 1; j >= 0; j--) add(hi - (hi - mid) * j / N, ease(j / N));
+  const before = points.filter((_, i) => acc[i] < lo);
+  const after = points.filter((_, i) => acc[i] > hi);
+  return [...before, ...bent, ...after];
 }
 
 const pathCache = new WeakMap();   // points array → Path2D
@@ -709,6 +778,106 @@ const GLYPHS = {
     poly(ctx, [[-0.2, 0.26], [0.2, 0.26], [0.2, 0.32], [-0.2, 0.32]]); fillStroke(ctx, PAPER);
     poly(ctx, [[-0.28, 0.32], [0.28, 0.32], [0.28, 0.4], [-0.28, 0.4]]); fillStroke(ctx, PAPER_SHADE);
   },
+  inn(ctx) {
+    // A house with a sign hanging from a post.
+    house(ctx, -0.1, 0.5, 0.34, 0.24);
+    ctx.beginPath(); ctx.moveTo(0.3, 0.4); ctx.lineTo(0.3, -0.16); ctx.lineTo(0.46, -0.16); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.36, -0.16); ctx.lineTo(0.36, -0.1); ctx.moveTo(0.44, -0.16); ctx.lineTo(0.44, -0.1); ctx.stroke();
+    poly(ctx, [[0.32, -0.1], [0.48, -0.1], [0.48, 0.04], [0.32, 0.04]]);
+    fillStroke(ctx, '#c9973f');
+    ground(ctx, -0.42, 0.4, 0.4);
+  },
+  farm(ctx) {
+    // A barn beside a ploughed field.
+    poly(ctx, [[-0.46, 0.4], [-0.3, 0.12], [0.06, 0.12], [0.02, 0.4]]); fillStroke(ctx, '#e3d592');
+    ctx.beginPath();
+    for (const x of [-0.34, -0.22, -0.1]) { ctx.moveTo(x - 0.04, 0.4); ctx.lineTo(x + 0.06, 0.12); }
+    ctx.stroke();
+    poly(ctx, [[0.1, 0.4], [0.1, 0.02], [0.44, 0.02], [0.44, 0.4]]); fillStroke(ctx, PAPER);
+    ctx.beginPath(); ctx.rect(0.3, 0.02, 0.14, 0.38); ctx.fillStyle = PAPER_SHADE; ctx.fill();
+    poly(ctx, [[0.1, 0.4], [0.1, 0.02], [0.44, 0.02], [0.44, 0.4]]); ctx.stroke();
+    poly(ctx, [[0.06, 0.04], [0.27, -0.2], [0.48, 0.04]]); fillStroke(ctx, BANNER);
+    poly(ctx, [[0.2, 0.4], [0.2, 0.2], [0.34, 0.2], [0.34, 0.4]]); fillStroke(ctx, ROOF_SHADE);
+    ground(ctx, -0.48, 0.48, 0.4);
+  },
+  mine(ctx) {
+    // A timber-framed shaft in a hillside, with a pick.
+    poly(ctx, [[-0.48, 0.4], [-0.3, 0.02], [-0.06, -0.2], [0.18, -0.12], [0.36, 0.08], [0.48, 0.4]]);
+    fillStroke(ctx, PAPER);
+    poly(ctx, [[0.18, -0.12], [0.36, 0.08], [0.48, 0.4], [0.2, 0.4], [0.16, 0.06]]); ctx.fillStyle = PAPER_SHADE; ctx.fill();
+    poly(ctx, [[-0.48, 0.4], [-0.3, 0.02], [-0.06, -0.2], [0.18, -0.12], [0.36, 0.08], [0.48, 0.4]]); ctx.stroke();
+    poly(ctx, [[-0.16, 0.4], [-0.16, 0.06], [0.12, 0.06], [0.12, 0.4]]); ctx.fillStyle = INK; ctx.fill();
+    ctx.lineWidth *= 1.8; ctx.strokeStyle = '#8a6a44';
+    ctx.beginPath(); ctx.moveTo(-0.16, 0.4); ctx.lineTo(-0.16, 0.04); ctx.lineTo(0.12, 0.04); ctx.lineTo(0.12, 0.4); ctx.stroke();
+    ctx.lineWidth /= 1.8; ctx.strokeStyle = INK;
+    ctx.beginPath(); ctx.moveTo(0.26, 0.38); ctx.lineTo(0.42, 0.12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.33, 0.12); ctx.quadraticCurveTo(0.43, 0.08, 0.5, 0.17); ctx.stroke();
+  },
+  cave(ctx) {
+    // A low boulder with a dark opening.
+    ctx.beginPath();
+    ctx.moveTo(-0.46, 0.4); ctx.quadraticCurveTo(-0.44, -0.1, -0.05, -0.16); ctx.quadraticCurveTo(0.4, -0.18, 0.46, 0.4); ctx.closePath();
+    fillStroke(ctx, PAPER);
+    ctx.beginPath(); ctx.moveTo(0.14, -0.13); ctx.quadraticCurveTo(0.42, -0.1, 0.46, 0.4); ctx.lineTo(0.22, 0.4); ctx.closePath();
+    ctx.fillStyle = PAPER_SHADE; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-0.46, 0.4); ctx.quadraticCurveTo(-0.44, -0.1, -0.05, -0.16); ctx.quadraticCurveTo(0.4, -0.18, 0.46, 0.4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-0.2, 0.4); ctx.quadraticCurveTo(-0.18, 0.06, 0.02, 0.04); ctx.quadraticCurveTo(0.2, 0.06, 0.2, 0.4); ctx.closePath();
+    ctx.fillStyle = INK; ctx.fill();
+  },
+  shrine(ctx) {
+    // A small arched stone with a carved sign, a candle on each side.
+    ctx.beginPath(); ctx.moveTo(-0.16, 0.3); ctx.lineTo(-0.16, -0.14); ctx.arc(0, -0.14, 0.16, Math.PI, 0); ctx.lineTo(0.16, 0.3); ctx.closePath();
+    fillStroke(ctx, PAPER);
+    ctx.beginPath(); ctx.moveTo(0.05, -0.29); ctx.arc(0, -0.14, 0.16, -Math.PI * 0.4, 0); ctx.lineTo(0.16, 0.3); ctx.lineTo(0.05, 0.3); ctx.closePath();
+    ctx.fillStyle = PAPER_SHADE; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-0.16, 0.3); ctx.lineTo(-0.16, -0.14); ctx.arc(0, -0.14, 0.16, Math.PI, 0); ctx.lineTo(0.16, 0.3); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -0.08, 0.06, 0, Math.PI * 2); ctx.stroke();
+    for (const x of [-0.3, 0.3]) {
+      poly(ctx, [[x - 0.03, 0.34], [x - 0.03, 0.18], [x + 0.03, 0.18], [x + 0.03, 0.34]]); fillStroke(ctx, PAPER);
+      ctx.beginPath(); ctx.ellipse(x, 0.12, 0.022, 0.045, 0, 0, Math.PI * 2); ctx.fillStyle = '#e09a3a'; ctx.fill();
+    }
+    poly(ctx, [[-0.4, 0.3], [0.4, 0.3], [0.4, 0.38], [-0.4, 0.38]]); fillStroke(ctx, PAPER_SHADE);
+  },
+  lighthouse(ctx) {
+    // A tapering striped tower with a lit lantern.
+    poly(ctx, [[-0.15, 0.36], [-0.09, -0.16], [0.09, -0.16], [0.15, 0.36]]); fillStroke(ctx, PAPER);
+    for (const [a, b] of [[0.18, 0.06], [-0.06, -0.16]]) {
+      const w0 = 0.09 + (a + 0.16) / 0.52 * 0.06, w1 = 0.09 + (b + 0.16) / 0.52 * 0.06;
+      poly(ctx, [[-w0, a], [-w1, b + 0.06], [w1, b + 0.06], [w0, a]]); fillStroke(ctx, BANNER);
+    }
+    poly(ctx, [[-0.12, -0.16], [0.12, -0.16], [0.12, -0.2], [-0.12, -0.2]]); fillStroke(ctx, PAPER);
+    poly(ctx, [[-0.07, -0.2], [-0.07, -0.32], [0.07, -0.32], [0.07, -0.2]]); fillStroke(ctx, '#f2d27a');
+    poly(ctx, [[-0.1, -0.32], [0, -0.42], [0.1, -0.32]]); fillStroke(ctx, ROOF);
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.moveTo(0.12, -0.27); ctx.lineTo(0.42, -0.36); ctx.moveTo(0.12, -0.25); ctx.lineTo(0.42, -0.18);
+    ctx.moveTo(-0.12, -0.27); ctx.lineTo(-0.42, -0.36); ctx.moveTo(-0.12, -0.25); ctx.lineTo(-0.42, -0.18); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ground(ctx, -0.3, 0.3, 0.37);
+  },
+  bridge(ctx) {
+    // A stone arch over a stream.
+    ctx.beginPath(); ctx.moveTo(-0.48, -0.02); ctx.lineTo(0.48, -0.02); ctx.lineTo(0.48, 0.3); ctx.lineTo(0.3, 0.3);
+    ctx.arc(0, 0.3, 0.3, 0, Math.PI, true); ctx.lineTo(-0.48, 0.3); ctx.closePath();
+    fillStroke(ctx, PAPER);
+    ctx.beginPath(); ctx.moveTo(-0.48, -0.02); ctx.lineTo(0.48, -0.02); ctx.lineTo(0.48, -0.08); ctx.lineTo(-0.48, -0.08); ctx.closePath();
+    fillStroke(ctx, PAPER_SHADE);
+    ctx.strokeStyle = WATER_INK;
+    ctx.beginPath();
+    for (const y of [0.34, 0.42]) { ctx.moveTo(-0.24, y); ctx.quadraticCurveTo(-0.12, y - 0.04, 0, y); ctx.quadraticCurveTo(0.12, y + 0.04, 0.24, y); }
+    ctx.stroke();
+    ctx.strokeStyle = INK;
+  },
+  battle(ctx) {
+    // Crossed swords.
+    const sword = (s) => {
+      ctx.save(); ctx.scale(s, 1); ctx.rotate(Math.PI / 4);
+      poly(ctx, [[-0.035, 0.22], [-0.035, -0.4], [0, -0.48], [0.035, -0.4], [0.035, 0.22]]); fillStroke(ctx, PAPER);
+      poly(ctx, [[-0.13, 0.22], [0.13, 0.22], [0.13, 0.27], [-0.13, 0.27]]); fillStroke(ctx, PAPER_SHADE);
+      poly(ctx, [[-0.03, 0.27], [0.03, 0.27], [0.03, 0.42], [-0.03, 0.42]]); fillStroke(ctx, ROOF_SHADE);
+      ctx.restore();
+    };
+    sword(1); sword(-1);
+  },
 };
 
 // A soft ink shadow under a glyph, so it sits on the land.
@@ -942,16 +1111,9 @@ export function drawSelection(ctx, item, type, view) {
   } else if (type === 'path' && item.points?.length) {
     dashed(ctx, z);
     ctx.stroke(smoothPath(item.points));
-    for (const [x, y] of item.points) {
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.arc(x, y, 2.5 / z, 0, Math.PI * 2);
-      ctx.fillStyle = BRAND;
-      ctx.fill();
-    }
-    handle(ctx, item.points[0][0], item.points[0][1], z);
-    const last = item.points[item.points.length - 1];
-    handle(ctx, last[0], last[1], z);
+    ctx.setLineDash([]);
+    // reshaping handles (see pathHandles)
+    for (const h of pathHandles(item.points, z)) handle(ctx, h.x, h.y, z);
   }
   ctx.restore();
 }

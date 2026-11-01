@@ -42,7 +42,7 @@ export const TEMPLATES = {
     sections: [
       { title: 'Overview', fields: [
         { key: 'name',   label: 'Name',            type: 'text',   placeholder: 'e.g. The Sunken City', required: true },
-        { key: 'type',   label: 'Type',            type: 'select', options: ['City','Town','Village','Castle','Tavern','Dungeon','Cave','Forest','Mountain','Ocean','Desert','Ruin','Shrine','Plane','Other'] },
+        { key: 'type',   label: 'Type',            type: 'select', options: ['City','Town','Village','Castle','Port','Tavern','Dungeon','Cave','Mine','Landmark','Lake','Forest','Mountain','Ocean','Desert','Ruin','Shrine','Battlefield','Plane','Other'] },
         { key: 'region', label: 'Region / World',  type: 'text',   placeholder: 'e.g. Northern Wilds, The Underdark' },
         { key: 'status', label: 'Status',          type: 'select', options: ['Thriving','Abandoned','Ruins','Hidden','Contested','Destroyed'] },
       ]},
@@ -89,6 +89,18 @@ export const TEMPLATES = {
         { key: 'inhabitants', label: 'Current Inhabitants', type: 'textarea', placeholder: 'Who or what occupies this place?', rows: 2 },
         { key: 'history',     label: 'History',           type: 'textarea', placeholder: 'How did this place come to be?', rows: 3 },
         { key: 'secrets',     label: 'Secrets',           type: 'textarea', placeholder: 'Hidden truths, buried lore…', rows: 2 },
+      ]},
+
+      // ── Hints for maps made from locations (Maps → Generate land → From my locations)
+      { title: 'On the map', fields: [
+        { key: 'mapTerrain',   label: 'Map terrain',    type: 'select', options: ['Auto','Grassland','Farmland','Forest','Pine forest','Deadwood','Jungle','Hills','Moor','Mountains','Snowy peaks','Volcanic','Snow','Tundra','Desert','Savanna','Badlands','Ash','Swamp','Lake'] },
+        { key: 'mapNear',      label: 'Map: near',      type: 'text',   placeholder: 'Name of another location' },
+        { key: 'mapDirection', label: 'Map: direction from it', type: 'select', options: ['Any','North','North-east','East','South-east','South','South-west','West','North-west'] },
+        { key: 'mapDistance',  label: 'Map: distance from it',  type: 'select', options: ['Auto','Right beside it','Nearby','A day away','Far'] },
+        { key: 'mapCoast',     label: 'Map: coast',     type: 'select', options: ['Auto','On the coast','Inland'] },
+        { key: 'mapRoads',     label: 'Map: roads to',  type: 'text',   placeholder: 'Other locations, separated by commas' },
+        { key: 'mapMarker',    label: 'Map marker',     type: 'select', options: ['Auto','Capital','City','Town','Village','Castle','Port','Ruin','Tower','Temple','Dungeon','Camp','Landmark','Inn','Farm','Mine','Cave','Shrine','Lighthouse','Bridge','Battlefield'] },
+        { key: 'mapInclude',   label: 'Map: include when generating', type: 'select', options: ['Auto','Yes','No'] },
       ]},
 
       { title: 'Notes', fields: [

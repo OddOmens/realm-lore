@@ -166,8 +166,8 @@ export function generateLand(terrain, cx, cy, opts = {}) {
     const h = e - SEA;
 
     if (r > 0.68 && h > 0.06) return t < 0.18 || (r > 0.8 && t < 0.3) ? BIOME.SNOW : BIOME.MOUNTAINS;
-    if (t < 0.12) return BIOME.SNOW;
-    if (r > 0.58 && h > 0.04) return BIOME.HILLS;
+    if (t < 0.12) return h > 0.03 ? BIOME.SNOW : BIOME.TUNDRA;
+    if (r > 0.58 && h > 0.04) return m > 0.55 && t < 0.45 ? BIOME.MOOR : BIOME.HILLS;
 
     const lk = fbm(wx / 900 + ox, wy / 900 + oy, lakeSeed, 3);
     if (lk > 0.7 && h > 0.035 && h < 0.2 && m > 0.38) return BIOME.LAKE;
@@ -177,7 +177,8 @@ export function generateLand(terrain, cx, cy, opts = {}) {
       return t < 0.3 ? BIOME.SNOW : BIOME.GRASS;
     }
     if (m > 0.66 && h < 0.045) return BIOME.SWAMP;
-    if (m > 0.51) return t > 0.68 ? BIOME.JUNGLE : BIOME.FOREST;
+    if (m > 0.51) return t > 0.68 ? BIOME.JUNGLE : t < 0.3 ? BIOME.PINE : BIOME.FOREST;
+    if (m < 0.42 && t > 0.6) return BIOME.SAVANNA;
     if (m > 0.47 && t > 0.82) return BIOME.JUNGLE;
     const farm = fbm(wx / 600 + ox, wy / 600 + oy, farmSeed, 3);
     if (farm > 0.63 && h < 0.16 && t > 0.3) return BIOME.FARMLAND;

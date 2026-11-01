@@ -29,6 +29,12 @@ export const BIOMES = [
   // ids are stored in maps, so new biomes go at the end; `order` places them in the palette
   { id: 14, key: 'snowpeaks', label: 'Snowy peaks', order: 6.5 },
   { id: 15, key: 'ash',       label: 'Ash',         order: 10.5 },
+  { id: 16, key: 'pine',      label: 'Pine forest', order: 2.2 },
+  { id: 17, key: 'tundra',    label: 'Tundra',      order: 7.5 },
+  { id: 18, key: 'savanna',   label: 'Savanna',     order: 4.5 },
+  { id: 19, key: 'volcanic',  label: 'Volcanic',    order: 6.7 },
+  { id: 20, key: 'moor',      label: 'Moor',        order: 8.5 },
+  { id: 21, key: 'deadwood',  label: 'Deadwood',    order: 2.4 },
 ];
 export const BIOME = Object.fromEntries(BIOMES.map(b => [b.key.toUpperCase(), b.id]));
 export const BIOME_BY_ID = BIOMES;

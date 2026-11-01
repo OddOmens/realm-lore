@@ -17,9 +17,10 @@ import { applyWorldTransform, applyScreenTransform, screenToWorld, zoomAt, fitRe
 import { createTerrainRenderer, PAPER } from '../maps/terrainRender';
 import {
   PATH_KINDS, PLACE_KINDS, LABEL_STYLES, drawPaths, drawPlaces, drawLabels, drawSelection,
-  hitTest, pathBounds, simplifyPoints, smoothPath,
+  hitTest, pathBounds, simplifyPoints, smoothPath, pathHandles, bendPoints,
 } from '../maps/features';
 import { generateLand, GENERATOR_SHAPES, GENERATOR_CLIMATES } from '../maps/generator';
+import { generateFromLocations, describeLocation } from '../maps/fromLocations';
 import { createStampImages, drawStamps, hitStamp, sanitizeSvg } from '../maps/stamps';
 import { createFeatureTiles } from '../maps/featureTiles';
 import { drawDecor, decorSpace, MILES_PER_UNIT } from '../maps/decor';
@@ -266,21 +267,52 @@ function PinMarker({ color, Icon, protagonist }) {
 
 // ── Generate land dialog ──────────────────────────────────────────────────────
 
-function GenerateModal({ onGenerate, onClose, firstTime }) {
+function GenerateModal({ onGenerate, onClose, firstTime, locations = [] }) {
+  const [source, setSource] = useState('random');
   const [shape, setShape] = useState('continent');
   const [climate, setClimate] = useState('varied');
   const [rivers, setRivers] = useState(true);
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e6));
   const [busy, setBusy] = useState(false);
+  // Locations that go on the map; those set to "No", planes and the like start unticked.
+  const described = useMemo(() => locations.map(l => ({ loc: l, d: describeLocation(l) })), [locations]);
+  const [picked, setPicked] = useState(() => new Set(described.filter(x => x.d.include).map(x => x.loc.id)));
+  const toggle = (id) => setPicked(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const fromLocations = source === 'locations';
 
   const run = () => {
     setBusy(true);
     // Let the button show its busy state before the generator blocks the thread.
-    setTimeout(() => onGenerate({ shape, climate, rivers, seed }), 30);
+    setTimeout(() => onGenerate(fromLocations ? { source, ids: [...picked], seed } : { source, shape, climate, rivers, seed }), 30);
   };
 
   return (
     <Modal title={firstTime ? 'Start with some land' : 'Generate land'} onClose={onClose} size="md">
+      <div className="tabs mb-3 w-full">
+        <button type="button" onClick={() => setSource('random')} className={`tab flex-1 ${!fromLocations ? 'is-active' : ''}`}>Random land</button>
+        <button type="button" onClick={() => setSource('locations')} className={`tab flex-1 ${fromLocations ? 'is-active' : ''}`}>From my locations</button>
+      </div>
+      {fromLocations ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Lays out a map from your locations: each one's terrain comes from its entry, places sit near the ones they mention, roads join the settlements and coastal places end up on the coast. Fill in a location's <em>On the map</em> fields to steer it. It replaces everything in the area it covers, and you can undo it.
+          </p>
+          <Field label={`Locations (${picked.size} of ${locations.length})`}>
+            {locations.length ? (
+              <div className="max-h-56 overflow-y-auto rounded-md border border-border">
+                {described.map(({ loc, d }) => (
+                  <label key={loc.id} className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-1.5 text-sm last:border-b-0 hover:bg-accent">
+                    <input type="checkbox" checked={picked.has(loc.id)} onChange={() => toggle(loc.id)} />
+                    <span className="min-w-0 flex-1 truncate">{loc.name || 'Unnamed'}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{BIOMES[d.terrain]?.label}{d.coastal ? ', coast' : ''}</span>
+                  </label>
+                ))}
+              </div>
+            ) : <p className="text-sm text-muted-foreground">This world has no locations yet.</p>}
+          </Field>
+        </>
+      ) : (
+      <>
       <p className="text-sm text-muted-foreground">
         Make a landmass in the middle of the view, then paint over it to make it yours. Rivers, roads and trails already in that area are replaced. You can undo it.
       </p>
@@ -299,6 +331,8 @@ function GenerateModal({ onGenerate, onClose, firstTime }) {
         </div>
       </Field>
       <Toggle checked={rivers} onChange={setRivers} label="Add rivers" />
+      </>
+      )}
       <Field label="Seed">
         <div className="flex gap-2">
           <input className="input" inputMode="numeric" value={seed} onChange={e => setSeed(Number(e.target.value.replace(/\D/g, '')) || 0)} />
@@ -309,7 +343,7 @@ function GenerateModal({ onGenerate, onClose, firstTime }) {
       </Field>
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" className="btn btn-outline" onClick={onClose}>{firstTime ? 'Start blank' : 'Cancel'}</button>
-        <button type="button" className="btn btn-primary" onClick={run} disabled={busy}>
+        <button type="button" className="btn btn-primary" onClick={run} disabled={busy || (fromLocations && !picked.size)}>
           <Sparkles /> {busy ? 'Generating…' : 'Generate'}
         </button>
       </div>
@@ -974,14 +1008,22 @@ function MapEditor({ map }) {
     setView(zoomAt(v, v.width / 2, v.height / 2, f));
   }, [setView]);
 
-  const runGenerate = ({ shape, climate, rivers, seed }) => {
+  const runGenerate = ({ source, shape, climate, rivers, seed, ids }) => {
     const terrain = terrainRef.current;
     const [cx, cy] = centerWorld();
-    const before = docRef.current;
+    let before = docRef.current;
     terrain.beginEdit();
     let res;
     try {
-      res = generateLand(terrain, cx, cy, { shape, climate, rivers, seed });
+      if (source === 'locations') {
+        const chosen = new Set(ids);
+        res = generateFromLocations(terrain, cx, cy, locations.filter(l => chosen.has(l.id)).map(l => ({ ...l, mapInclude: 'Yes' })), { seed, newId: uuidv4 });
+        // the new markers replace any this map already had for those locations
+        const relinked = new Set(res.places.map(p => p.entityId));
+        if (before.places.some(p => relinked.has(p.entityId))) before = { ...before, places: before.places.filter(p => !relinked.has(p.entityId)) };
+      } else {
+        res = generateLand(terrain, cx, cy, { shape, climate, rivers, seed });
+      }
     } finally {
       const edit = terrain.endEdit();
       // The new land replaces what was there, so rivers, roads and trails
@@ -994,10 +1036,11 @@ function MapEditor({ map }) {
       const after = kept.length !== before.paths.length || added.length || addedPlaces.length
         ? { ...before, paths: [...kept, ...added], places: [...before.places, ...addedPlaces] }
         : before;
-      if (edit || after !== before) {
-        pushHistory({ terrain: edit || undefined, doc: after !== before ? { before, after } : undefined });
+      const start = docRef.current;
+      if (edit || after !== start) {
+        pushHistory({ terrain: edit || undefined, doc: after !== start ? { before: start, after } : undefined });
         if (edit) { rendererRef.current.invalidate(edit.after.keys()); scheduleSave('terrain'); }
-        if (after !== before) { setDoc(after); scheduleSave('doc'); }
+        if (after !== start) { setDoc(after); scheduleSave('doc'); }
       }
     }
     setShowGenerate(false);
@@ -1203,6 +1246,11 @@ function MapEditor({ map }) {
         pushHistory({ doc: { before: g.startDoc, after: docRef.current } });
         scheduleSave('doc');
       }
+    } else if (g.kind === 'bend') {
+      if (g.moved && !cancel) {
+        pushHistory({ doc: { before: g.startDoc, after: docRef.current } });
+        scheduleSave('doc');
+      } else if (cancel) setDoc(g.startDoc);
     } else if (g.kind === 'move') {
       if (g.moved && !cancel) {
         pushHistory({ doc: { before: g.startDoc, after: docRef.current } });
@@ -1285,6 +1333,20 @@ function MapEditor({ map }) {
     const line = lineKind(t, o);
     switch (line ? 'line' : isErasing(t, o) ? 'erase' : t) {
       case 'select': {
+        // A selected line's handles reshape it.
+        const selPath = selectionRef.current?.type === 'path' && d.paths.find(p => p.id === selectionRef.current.id);
+        if (selPath) {
+          const handles = pathHandles(selPath.points, view.zoom);
+          let k = -1, best = (isPhone ? 16 : 9) / view.zoom;
+          handles.forEach((h, n) => {
+            const dist = Math.hypot(h.x - w[0], h.y - w[1]);
+            if (dist <= best) { best = dist; k = n; }
+          });
+          if (k >= 0) {
+            gestureRef.current = { kind: 'bend', id: selPath.id, handles, k, start: w, points: selPath.points, startDoc: d, sx, sy, moved: false };
+            break;
+          }
+        }
         const hidden = d.hidden || {};
         const hit = hitTest({
           paths: d.paths.filter(p => !hidden[PATH_LAYER[p.kind] || 'ink']),
@@ -1430,6 +1492,13 @@ function MapEditor({ map }) {
           previewRef.current = { ...previewRef.current, points: [...pts, w] };
           requestDraw();
         }
+        break;
+      }
+      case 'bend': {
+        if (!g.moved && Math.hypot(sx - g.sx, sy - g.sy) < 3) break;
+        g.moved = true;
+        const pts = bendPoints(g.points, g.handles, g.k, w[0] - g.start[0], w[1] - g.start[1]);
+        setDoc({ ...docRef.current, paths: docRef.current.paths.map(p => p.id === g.id ? { ...p, points: pts } : p) });
         break;
       }
       case 'move': {
@@ -1897,6 +1966,7 @@ function MapEditor({ map }) {
           <Field label="Width" value={`${Math.round((selected.width || 6) * inspectZoom * 10) / 10} px`}>
             <Slider value={brushToSlider(Math.max(BRUSH_MIN, (selected.width || 6) * 4))} min={0} max={100} onStart={beginTextEdit} onEnd={endTextEdit} onChange={v => updateSelected({ width: sliderToBrush(v) / 4 }, { history: false })} />
           </Field>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Drag a white dot to reshape the line, or drag the line itself to move it.</p>
           {selected.kind === 'ink' && (
             <Field label="Colour">
               <div className="flex gap-1.5">
@@ -2197,7 +2267,7 @@ function MapEditor({ map }) {
       </div>
 
       {showGenerate && (
-        <GenerateModal firstTime={showGenerate.firstTime} onGenerate={runGenerate} onClose={() => { setShowGenerate(false); if (map.autoGenerate) updateMapMeta(map.id, { autoGenerate: false }); }} />
+        <GenerateModal firstTime={showGenerate.firstTime} locations={locations} onGenerate={runGenerate} onClose={() => { setShowGenerate(false); if (map.autoGenerate) updateMapMeta(map.id, { autoGenerate: false }); }} />
       )}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {picker && (
