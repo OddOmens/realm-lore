@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -136,14 +137,18 @@ func (a *Auth) fail(ip string) {
 // HTTP status to answer with and a message for the person signing in.
 func (a *Auth) Login(w http.ResponseWriter, r *http.Request, password string) (int, string) {
 	ip := clientIP(r)
+	// Sign-ins are logged so a log watcher can alert on them.
 	if a.limited(ip) {
+		log.Printf("sign-in refused from %s (too many wrong passwords)", ip)
 		return http.StatusTooManyRequests, "Too many wrong passwords. Wait 15 minutes and try again."
 	}
 	got := sha256.Sum256([]byte(password))
 	if subtle.ConstantTimeCompare(got[:], a.passwordHash[:]) != 1 {
 		a.fail(ip)
+		log.Printf("sign-in failed from %s (wrong password)", ip)
 		return http.StatusUnauthorized, "That password is wrong."
 	}
+	log.Printf("signed in from %s", ip)
 	a.setCookie(w, r, a.sign(time.Now().Add(sessionLen).Unix()), int(sessionLen.Seconds()))
 	return http.StatusNoContent, ""
 }
